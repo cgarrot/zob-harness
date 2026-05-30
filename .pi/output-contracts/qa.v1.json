@@ -1,0 +1,40 @@
+{
+  "id": "qa.v1",
+  "version": 1,
+  "description": "QA verification output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "verdict",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "command",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "exit_or_output",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "reproduction",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

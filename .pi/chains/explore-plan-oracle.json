@@ -1,0 +1,78 @@
+{
+  "name": "explore-plan-oracle",
+  "version": "1.0.0",
+  "description": "Read-only contract-first chain: explore the requested scope, plan the smallest implementation slice, then oracle-review the plan.",
+  "readOnly": true,
+  "defaultExecution": "plan_only",
+  "steps": [
+    {
+      "id": "explore",
+      "agent": "explore",
+      "task": "Explore the repository context for goal: {goal}. Identify relevant files, current behavior, gaps, and evidence only; do not edit or run write-capable commands.",
+      "expectedOutcome": "Evidence-backed exploration summary for {goal}",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1",
+      "mustDo": [
+        "Stay read-only",
+        "Cite exact files and observed evidence",
+        "Identify gaps and next bounded step",
+        "Do not execute child agents"
+      ],
+      "mustNotDo": [
+        "No edits",
+        "No writes",
+        "No bash",
+        "No secrets or .env reads",
+        "No commits",
+        "No daemon or network execution"
+      ],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "plan",
+      "agent": "planner",
+      "task": "Plan the smallest safe implementation slice for goal: {goal}, using prior chain evidence from steps: {previous_step_ids}. Produce a TDD/verification sequence and stop conditions only.",
+      "expectedOutcome": "Bounded implementation plan with validation ladder and risks",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "plan.v1",
+      "mustDo": [
+        "Stay plan-only and read-only",
+        "Consume prior exploration evidence before re-reading",
+        "Keep the slice bounded",
+        "Name exact files likely to change and validation commands"
+      ],
+      "mustNotDo": [
+        "No edits",
+        "No writes",
+        "No bash",
+        "No secrets or .env reads",
+        "No commits",
+        "No live child execution"
+      ],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "oracle",
+      "agent": "oracle",
+      "task": "Review the chain plan for goal: {goal}. Verify whether the proposed scope, safety constraints, evidence, and validation are sufficient. Return PASS/FAIL/WARN without editing.",
+      "expectedOutcome": "Oracle verdict on whether the read-only plan is sufficient to implement safely",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "mustDo": [
+        "Stay read-only",
+        "Check acceptance criteria against evidence",
+        "Flag missing validation or unsafe scope",
+        "Return a clear PASS/FAIL/WARN verdict"
+      ],
+      "mustNotDo": [
+        "No edits",
+        "No writes",
+        "No bash",
+        "No secrets or .env reads",
+        "No commits",
+        "No live child execution"
+      ],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    }
+  ]
+}

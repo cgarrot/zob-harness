@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/project-dna/ontology.schema.json",
+  "type": "object",
+  "required": ["schema", "ontology_id", "concepts", "edge_types", "citation_policy", "source_safe", "knowledge_backend_write_enabled", "promotion_policy"],
+  "properties": {
+    "schema": { "const": "zob.project-dna-ontology.v1" },
+    "ontology_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "description": { "type": "string" },
+    "source_safe": { "const": true },
+    "raw_bodies_stored": { "const": false },
+    "knowledge_backend_write_enabled": { "const": false },
+    "promotion_policy": { "const": "proposal_only" },
+    "concepts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "aliases", "expected_file_hints", "expected_artifact_roles", "minimum_citation_roles"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_.-]+$" },
+          "kind": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "expected_file_hints": { "type": "array", "items": { "type": "string" } },
+          "expected_artifact_roles": { "type": "array", "items": { "type": "string" } },
+          "minimum_citation_roles": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "edge_types": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "citation_policy": {
+      "type": "object",
+      "required": ["citation_required", "prefer_symbol_ranges", "raw_body_storage_allowed"],
+      "properties": {
+        "citation_required": { "const": true },
+        "prefer_symbol_ranges": { "const": true },
+        "broad_citation_max_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "raw_body_storage_allowed": { "const": false }
+      }
+    },
+    "agent_lanes": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

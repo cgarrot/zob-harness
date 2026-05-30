@@ -1,0 +1,22 @@
+{
+  "id": "orchestration-profile.v1",
+  "version": 1,
+  "description": "Declarative orchestration profile contract with roles, edges, phases, model policy, final gate, and safety rules.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "profile", "type": "section_or_marker" },
+    { "name": "roles", "type": "section_or_marker" },
+    { "name": "edges", "type": "section_or_marker" },
+    { "name": "phases", "type": "section_or_marker" },
+    { "name": "model_policy", "type": "section_or_marker" },
+    { "name": "output_contracts", "type": "section_or_marker" },
+    { "name": "tools", "type": "section_or_marker" },
+    { "name": "paths", "type": "section_or_marker" },
+    { "name": "final_report", "type": "section_or_marker" },
+    { "name": "refusal_rules", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

@@ -1,0 +1,67 @@
+{
+  "schema": "zob.interactive-autonomy-policy.v1",
+  "defaultMode": "adaptive",
+  "thresholds": {
+    "adaptiveAutoLaunch": 0.72,
+    "adaptiveClarifyBelow": 0.45,
+    "controlledAutoLaunch": 0.86,
+    "controlledMinimumSignals": 3
+  },
+  "safety": {
+    "blockSecretAccess": true,
+    "blockDestructiveCommands": true,
+    "blockProductionApply": true,
+    "forbiddenPathPatterns": [
+      ".env",
+      "**/.env*",
+      "**/*secret*",
+      "**/*private-key*",
+      "~/.ssh",
+      "~/.aws"
+    ],
+    "destructivePatterns": [
+      "rm\\s+-rf",
+      "git\\s+reset\\s+--hard",
+      "git\\s+clean\\b",
+      "pkill\\s+-9",
+      "killall\\b",
+      "drop\\s+database",
+      "truncate\\s+table"
+    ],
+    "secretPatterns": [
+      "\\.env",
+      "api[_ -]?key",
+      "private\\s+key",
+      "ssh\\s+key",
+      "aws\\s+credential",
+      "secret\\s+token"
+    ]
+  },
+  "launch": {
+    "defaultAllowedActions": [
+      "read_repo",
+      "plan",
+      "edit_in_scope",
+      "delegate_in_scope",
+      "validate",
+      "oracle_review"
+    ],
+    "defaultAllowedPaths": [
+      "."
+    ],
+    "stopConditions": [
+      "scope_drift",
+      "secret_required",
+      "destructive_action_requested",
+      "validation_failure",
+      "oracle_no_ship",
+      "user_stop"
+    ],
+    "manualPerActionApprovalWhenLaunched": false,
+    "requireValidationEvidence": true,
+    "requireOracleForCompletion": true
+  },
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false
+}

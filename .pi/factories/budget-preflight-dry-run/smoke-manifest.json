@@ -1,0 +1,43 @@
+{
+  "factory": "budget-preflight-dry-run",
+  "description": "Smoke manifest for the deterministic budget preflight dry-run helper and read-only no-execution assertions.",
+  "items": [
+    {
+      "id": "budget-preflight-helper",
+      "path": ".pi/extensions/zob-harness/index.ts",
+      "metadata": {
+        "helper": "evaluateBudgetPreflightDryRun",
+        "schema": "zob.budget-preflight-result.v1",
+        "caps": [
+          "maxCostUsd",
+          "maxRuns",
+          "maxDurationMs",
+          "maxParallelChildren"
+        ],
+        "advisory_flags": {
+          "mode": "advisory",
+          "advisory": true,
+          "strictEnabled": false,
+          "budgetEnforced": false,
+          "wouldBlockDispatch": false,
+          "defaultDispatchDecision": "allow"
+        },
+        "no_execution_flags": {
+          "dryRun": true,
+          "modelRouterUsed": false,
+          "daemonStarted": false,
+          "childDispatchAllowed": false,
+          "noExecution": true
+        }
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

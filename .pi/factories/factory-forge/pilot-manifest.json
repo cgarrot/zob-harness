@@ -1,0 +1,32 @@
+{
+  "factory": "factory-forge",
+  "description": "Pilot manifest for deterministic quarantined factory scaffold generation. Keeps all generated content under the run quarantine directory; no activation or registration is permitted.",
+  "items": [
+    {
+      "id": "quarantined-pilot-factory-request",
+      "path": "AGENTS.md",
+      "metadata": {
+        "generatedName": "generated-pilot-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "pilot": true
+      }
+    },
+    {
+      "id": "quarantine-policy-pilot-reference",
+      "path": "docs/AUTONOMOUS_SUPER_FACTORY_GOAL.md",
+      "metadata": {
+        "generatedName": "generated-pilot-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "pilot": true,
+        "focus": "quarantine-only policy and no autonomous activation"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "factory-forge-summary.json"
+  ]
+}

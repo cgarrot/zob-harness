@@ -1,0 +1,19 @@
+{
+  "schema": "zob.compute-profile-defaults.v1",
+  "profiles": {
+    "low": { "maxAgents": 1, "maxDelegationDepth": 0, "maxParallel": 1, "maxIterations": 1, "maxDurationMs": 120000, "maxCostUsd": 0.25, "maxContextTokens": 3000, "strictBudgetRequired": false, "oracleRequired": false },
+    "medium": { "maxAgents": 4, "maxDelegationDepth": 1, "maxParallel": 2, "maxIterations": 2, "maxDurationMs": 300000, "maxCostUsd": 1, "maxContextTokens": 6000, "strictBudgetRequired": false, "oracleRequired": false },
+    "high": { "maxAgents": 10, "maxDelegationDepth": 2, "maxParallel": 4, "maxIterations": 3, "maxDurationMs": 600000, "maxCostUsd": 5, "maxContextTokens": 12000, "strictBudgetRequired": true, "oracleRequired": true },
+    "xhigh": { "maxAgents": 20, "maxDelegationDepth": 3, "maxParallel": 6, "maxIterations": 4, "maxDurationMs": 1200000, "maxCostUsd": 15, "maxContextTokens": 20000, "strictBudgetRequired": true, "oracleRequired": true },
+    "max": { "maxAgents": 30, "maxDelegationDepth": 4, "maxParallel": 8, "maxIterations": 5, "maxDurationMs": 3600000, "maxCostUsd": 50, "maxContextTokens": 32000, "strictBudgetRequired": true, "oracleRequired": true, "humanApprovalRequired": true }
+  },
+  "hardCaps": {
+    "maxAgents": 30,
+    "maxDelegationDepth": 4,
+    "maxParallel": 8,
+    "maxIterations": 5
+  },
+  "parentOwnedDispatch": true,
+  "childDirectDispatch": false,
+  "bodyStored": false
+}

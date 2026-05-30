@@ -1,0 +1,21 @@
+{
+  "sessionDir": ".pi/sessions",
+  "extensions": ["extensions/zob-harness/index.ts"],
+  "prompts": ["prompts"],
+  "skills": ["skills"],
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 32768,
+    "keepRecentTokens": 16000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000,
+    "provider": {
+      "maxRetryDelayMs": 60000
+    }
+  },
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time"
+}

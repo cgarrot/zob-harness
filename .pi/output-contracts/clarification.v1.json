@@ -1,0 +1,21 @@
+{
+  "id": "clarification.v1",
+  "version": 1,
+  "description": "Clarification gate output with score, verdict, questions, assumptions, and allow_plan decision.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "clarity_score", "type": "section_or_marker" },
+    { "name": "verdict", "type": "section_or_marker" },
+    { "name": "allow_plan", "type": "section_or_marker" },
+    { "name": "ambiguities", "type": "section_or_marker" },
+    { "name": "questions", "type": "section_or_marker" },
+    { "name": "assumptions", "type": "section_or_marker" },
+    { "name": "refined_spec", "type": "section_or_marker" },
+    { "name": "minimum_to_plan", "type": "section_or_marker" },
+    { "name": "acceptance_criteria", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

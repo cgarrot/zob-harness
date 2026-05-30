@@ -1,0 +1,20 @@
+{
+  "id": "mission-readiness.v1",
+  "version": 1,
+  "description": "Interactive autonomy mission-readiness verdict: score, decision, safety gates, launch posture, and hash-only input metadata.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "schema", "type": "section_or_marker" },
+    { "name": "mode", "type": "section_or_marker" },
+    { "name": "decision", "type": "section_or_marker" },
+    { "name": "score", "type": "section_or_marker" },
+    { "name": "safety_gates", "type": "section_or_marker" },
+    { "name": "manual_per_action_approval", "type": "section_or_marker" },
+    { "name": "launch_authorization", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

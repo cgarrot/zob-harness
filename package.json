@@ -1,0 +1,101 @@
+{
+  "name": "zob-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first Pi harness for contract-driven agentic engineering, safety gates, specialist delegation, and software-factory workflows.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cgarrot/zob-harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cgarrot/zob-harness/issues"
+  },
+  "homepage": "https://github.com/cgarrot/zob-harness#readme",
+  "keywords": [
+    "pi-package",
+    "agentic-engineering",
+    "coding-agent",
+    "pi-extension",
+    "software-factory",
+    "safety-gates"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "AGENTS.md",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "tsconfig.json",
+    ".pi/adapters/registry.json",
+    ".pi/agents",
+    ".pi/autonomy-policy.json",
+    ".pi/budget-policy.json",
+    ".pi/capabilities",
+    ".pi/chains",
+    ".pi/compute-profiles",
+    ".pi/daemon-policy.json",
+    ".pi/damage-control-rules.json",
+    ".pi/extensions",
+    ".pi/factories/budget-preflight-dry-run",
+    ".pi/factories/code-review-matrix",
+    ".pi/factories/factory-forge",
+    ".pi/factories/opencode-pattern-canonizer",
+    ".pi/factories/project-dna",
+    ".pi/factories/roadmap-smoke-lots",
+    ".pi/mission-control/zob_coms_transport.json",
+    ".pi/model-routing.json",
+    ".pi/orchestrations",
+    ".pi/output-contracts",
+    ".pi/prompts",
+    ".pi/rules",
+    ".pi/settings.json",
+    ".pi/skills",
+    ".pi/teams",
+    "scripts/compute-profile",
+    "scripts/project-dna",
+    "scripts/start-pi.sh"
+  ],
+  "scripts": {
+    "pi": "pi",
+    "pi:explore": "pi --no-extensions -e ./.pi/extensions/zob-harness/index.ts --tools read,grep,find,ls,delegate_agent --append-system-prompt 'Start in ZOB explore mode.'",
+    "pi:check": "pi --offline --no-session --no-extensions -e ./.pi/extensions/zob-harness/index.ts -p 'Reply exactly: zob-harness-ok'",
+    "check": "tsc --noEmit --pretty false",
+    "check:ci": "npm run check -- --pretty false",
+    "pack:dry-run": "npm pack --dry-run --json",
+    "validate:compute-profile-policy": "node scripts/compute-profile/validate-policy.mjs",
+    "smoke:compute-profile-regression": "node scripts/compute-profile/regression-smoke.mjs",
+    "validate:project-dna": "node scripts/project-dna/validate-scaffold.mjs",
+    "smoke:project-dna-scan": "node scripts/project-dna/scan.mjs --source-path .pi/factories/project-dna --source-id project-dna-factory --out-dir reports/project-dna-scans/project-dna-factory-smoke",
+    "validate:project-dna-scan:smoke": "node scripts/project-dna/validate-scan-artifacts.mjs --scan-dir reports/project-dna-scans/project-dna-factory-smoke"
+  },
+  "pi": {
+    "extensions": [
+      ".pi/extensions/zob-harness/index.ts"
+    ],
+    "prompts": [
+      ".pi/prompts"
+    ],
+    "skills": [
+      ".pi/skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.75.5",
+    "@earendil-works/pi-coding-agent": "0.75.5",
+    "@earendil-works/pi-tui": "0.75.5",
+    "@types/node": "22.19.19",
+    "typebox": "1.0.66",
+    "typescript": "5.9.3"
+  }
+}

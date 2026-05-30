@@ -1,0 +1,21 @@
+{
+  "id": "brain-lookup.v1",
+  "version": 1,
+  "description": "Context/GBrain P0 lookup result with explicit scope, brain/source ids, citations, freshness, confidence, and no body storage.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "context_scope", "type": "section_or_marker" },
+    { "name": "brain_id", "type": "section_or_marker" },
+    { "name": "source_id", "type": "section_or_marker" },
+    { "name": "citations", "type": "section_or_marker" },
+    { "name": "facts_or_patterns", "type": "section_or_marker" },
+    { "name": "gaps", "type": "section_or_marker" },
+    { "name": "freshness", "type": "section_or_marker" },
+    { "name": "confidence", "type": "section_or_marker" },
+    { "name": "no_body_storage", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

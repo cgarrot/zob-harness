@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/project-dna-context-pack.v1.json",
+  "title": "ProjectDNA Context Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "query_hash", "answer", "citations", "files_to_read_first", "rules", "gaps", "loading_rules"],
+  "properties": {
+    "schema": { "const": "zob.project-dna-context-pack.v1" },
+    "query_hash": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "query_stored": { "const": false },
+    "answer": { "type": "string" },
+    "citations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "files_to_read_first": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason", "citations"],
+        "properties": {
+          "path": { "type": "string" },
+          "line_range": { "type": "string" },
+          "reason": { "type": "string" },
+          "citations": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        }
+      }
+    },
+    "rules": { "type": "array", "items": { "type": "string" } },
+    "gaps": { "type": "array", "items": { "type": "string" } },
+    "max_context_tokens": { "type": "integer", "minimum": 1, "maximum": 8000 },
+    "loading_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bounded_context_only", "citation_required", "agent_loads_entire_project"],
+      "properties": {
+        "bounded_context_only": { "const": true },
+        "citation_required": { "const": true },
+        "agent_loads_entire_project": { "const": false },
+        "writeback_policy": { "enum": ["proposal_only", "manual_approval_only"] }
+      }
+    }
+  }
+}

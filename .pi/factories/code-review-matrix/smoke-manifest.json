@@ -1,0 +1,35 @@
+{
+  "factory": "code-review-matrix",
+  "description": "Smoke manifest for the read-only code-review-matrix product using a local harness source file as deterministic input.",
+  "items": [
+    {
+      "id": "zob-harness-extension-smoke",
+      "path": ".pi/extensions/zob-harness/index.ts",
+      "metadata": {
+        "source": "local-source",
+        "review_lanes": [
+          "architecture",
+          "correctness",
+          "security",
+          "qa",
+          "synthesis",
+          "oracle-merge"
+        ],
+        "read_only": true,
+        "autofix": false,
+        "budget": "optional-advisory"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md",
+    "code-review-matrix.json",
+    "code-review-blockers.md",
+    "code-review-evidence.md"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "factory": "opencode-pattern-canonizer",
+  "description": "Batch manifest for deterministic registered agentic proof across safe local documentation inputs. Batch remains gated by smoke, pilot, persisted oracle review, and explicit concurrency cap.",
+  "items": [
+    {
+      "id": "harness-plan-batch",
+      "path": "docs/AGENTIC_HARNESS_IMPLEMENTATION_PLAN.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "operating-model-batch",
+      "path": "docs/OPERATING_MODEL.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "roadmap-batch",
+      "path": "docs/ROADMAP.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "roadmap-lots-batch",
+      "path": "docs/ROADMAP_FACTORY_LOTS.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "architecture-batch",
+      "path": "docs/ARCHITECTURE.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "factory-plan-batch",
+      "path": "docs/AGENTIC_ENGINEERING_SOFTWARE_FACTORY_PLAN.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "zob-rules-batch",
+      "path": "docs/ZOB_RULES_SYSTEM.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "factory-mode-batch",
+      "path": "docs/ZOB_SOFTWARE_FACTORY_MODE.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

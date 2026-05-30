@@ -1,0 +1,64 @@
+{
+  "schema": "zob.coms-transport-policy.v1",
+  "name": "zob_coms_transport",
+  "p0Status": "required_local_for_agentic_workflow",
+  "mode": "required_local",
+  "agenticWorkflowsRequireLive": true,
+  "breakGlassApprovalRequired": true,
+  "enabled": true,
+  "localDispatchEnabled": true,
+  "networkEnabled": false,
+  "globalActivation": false,
+  "dispatchAllowed": true,
+  "canonicalLedger": ".pi/coms/messages.jsonl",
+  "statusLedger": ".pi/coms/status.jsonl",
+  "bodyPolicy": "hash_only",
+  "heartbeat": {
+    "enabled": true,
+    "intervalMs": 10000,
+    "staleAfterMs": 30000,
+    "offlineAfterMs": 60000,
+    "stalePeerCountsAsCompletion": false,
+    "stalePeerStatus": "not_completion_evidence"
+  },
+  "responseCapture": {
+    "enabled": true,
+    "storeBodies": false,
+    "storeOutputHashOnly": true,
+    "artifactRefsAllowed": true
+  },
+  "transcriptCapture": {
+    "enabled": false,
+    "mode": "off",
+    "artifactRoot": "reports/coms-captures",
+    "artifactRefsOnlyInLedger": true,
+    "persistBodiesInComsLedger": false,
+    "redactionRequired": true,
+    "retentionClass": "short",
+    "maxArtifactBytes": 32768,
+    "redactionProfile": "zob-default-v1"
+  },
+  "commandPolicy": {
+    "proposalOnly": true,
+    "directWorkerWrites": false,
+    "requiresParentApproval": true
+  },
+  "legacy": {
+    "appendOnlySendEnabled": false,
+    "breakGlassLedgerOnlyRequiresApproval": true
+  },
+  "p1Candidates": [
+    "local socket or named pipe registry",
+    "heartbeat and stale/offline detection",
+    "response capture with outputHash/artifactRef only",
+    "bounded long await with stop-condition mapping"
+  ],
+  "p2NetworkPolicyRequired": true,
+  "noShipConditions": [
+    "raw prompt/output bodies in ZOB ledgers",
+    "free worker-to-worker chat",
+    "network transport without auth/locality policy",
+    "stale/offline peer counted as successful completion",
+    "dashboard direct worker writes"
+  ]
+}

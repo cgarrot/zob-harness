@@ -1,0 +1,22 @@
+{
+  "id": "todo-claim-validation.v1",
+  "version": 1,
+  "description": "Oracle validation of a returned /goal TODO claim; parent runtime may auto-accept only on PASS/no_ship=false.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "todo_id", "type": "field" },
+    { "name": "claim_hash", "type": "field" },
+    { "name": "verdict", "type": "enum", "values": ["PASS", "WARN", "FAIL"] },
+    { "name": "recommended_action", "type": "enum", "values": ["accept_claim", "needs_review", "reject_claim", "block"] },
+    { "name": "evidence_refs", "type": "section_or_marker" },
+    { "name": "validation_commands", "type": "section_or_marker" },
+    { "name": "blocking_issues", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "no_ship", "type": "field" },
+    { "name": "confidence", "type": "enum", "values": ["LOW", "MEDIUM", "HIGH"] },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "final_marker", "type": "literal" }
+  ],
+  "final_marker": "FINAL_MARKER: TODO_CLAIM_VALIDATION_END"
+}

@@ -1,0 +1,870 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
+
+import { MODE_PROMPTS } from "../constants.js";
+import type { ModeName, QueueTickResult } from "../types.js";
+import { discoverAgents, formatAgentList } from "../agents.js";
+import { buildComputePreview, resolveComputeProfile, type ComputeRequestedProfile } from "../compute-profile.js";
+import { buildComputeWorkflowShape } from "../compute-workflow-shape.js";
+import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
+import { runQueueDaemonTick } from "../queue.js";
+import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
+import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
+import { sha256 } from "../utils/hashing.js";
+import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
+import { handleGoalCommand, handleGoalGateCommand } from "../goal-runtime.js";
+import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
+import { formatContractTemplate } from "../safety.js";
+import { showDelegationOverlay } from "./delegation-overlay.js";
+import { showGoalTodoOverlay } from "./goal-todo-overlay.js";
+import type { HarnessRuntimeState } from "./state.js";
+import {
+  asInteractiveAutonomyMode,
+  formatInteractiveAutonomyStatus,
+  formatMissionReadinessForUi,
+  readInteractiveAutonomyPolicy,
+  scoreMissionReadiness,
+  toAutonomyStateLedgerEntry,
+  toMissionReadinessLedgerEntry,
+} from "../interactive-autonomy.js";
+import { applyMode, renderHarnessWidget } from "./widget.js";
+
+const COMPUTE_PROFILES = ["auto", "low", "medium", "high", "xhigh", "max"] as const;
+const COMPUTE_DOMAINS = ["generic", "project-dna", "factory", "orchestration"] as const;
+
+function computeArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const items: AutocompleteItem[] = [
+    { value: "auto", label: "auto", description: "preview then choose low/medium/high/xhigh/max" },
+    { value: "low", label: "low", description: "fast single-agent/deterministic effort" },
+    { value: "medium", label: "medium", description: "balanced default effort" },
+    { value: "high", label: "high", description: "multi-lane + stronger validation" },
+    { value: "xhigh", label: "xhigh", description: "extra-high quality + adversarial checks" },
+    { value: "max", label: "max", description: "approval-gated maximum effort" },
+    { value: "--domain project-dna", label: "--domain project-dna", description: "score as ProjectDNA/reference-project work" },
+    { value: "--domain factory", label: "--domain factory", description: "score as factory workflow work" },
+    { value: "--domain orchestration", label: "--domain orchestration", description: "score as orchestration work" },
+    { value: "help", label: "help", description: "show compute command template" },
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function parseComputeCommandArgs(args: string): { requestedProfile: ComputeRequestedProfile; domain: string; targetPath: string; maxProfile?: string; riskHints: string[]; help: boolean } {
+  const parts = args.trim().split(/\s+/).filter(Boolean);
+  let requestedProfile: ComputeRequestedProfile = "auto";
+  let domain = "generic";
+  let targetPath = ".";
+  let maxProfile: string | undefined;
+  const riskHints: string[] = [];
+  let positionalTargetSeen = false;
+  let help = false;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === "help" || part === "--help" || part === "-h") {
+      help = true;
+      continue;
+    }
+    if (part === "--domain" && parts[index + 1]) {
+      const next = parts[++index];
+      domain = COMPUTE_DOMAINS.includes(next as typeof COMPUTE_DOMAINS[number]) ? next : "generic";
+      continue;
+    }
+    if ((part === "--max" || part === "--max-profile") && parts[index + 1]) {
+      maxProfile = parts[++index];
+      continue;
+    }
+    if ((part === "--risk" || part === "--risk-hint") && parts[index + 1]) {
+      riskHints.push(parts[++index]);
+      continue;
+    }
+    if (COMPUTE_PROFILES.includes(part as ComputeRequestedProfile)) {
+      requestedProfile = part as ComputeRequestedProfile;
+      continue;
+    }
+    if (!positionalTargetSeen) {
+      targetPath = part;
+      positionalTargetSeen = true;
+    }
+  }
+  return { requestedProfile, domain, targetPath, maxProfile, riskHints, help };
+}
+
+function computeHelpTemplate(): string {
+  return [
+    "# ZOB compute profile",
+    "",
+    "Usage examples:",
+    "/compute auto .",
+    "/compute high . --domain generic",
+    "/compute xhigh . --risk durable --max-profile xhigh",
+    "/effort medium .",
+    "",
+    "Profiles: auto | low | medium | high | xhigh | max",
+    "Domains: generic | project-dna | factory | orchestration",
+    "",
+    "Notes:",
+    "- preview/resolve only; no child dispatch",
+    "- max remains approval-gated",
+    "- childDirectDispatch=false",
+  ].join("\n");
+}
+
+function projectDnaArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const items: AutocompleteItem[] = [
+    { value: "readiness", label: "readiness", description: "audit ProjectDNA repo-local readiness" },
+    { value: "plan .pi/factories/project-dna/example-project-dna-manifest-v2.json reports/project-dna-scans/project-dna-factory-smoke", label: "plan workflow", description: "metadata-only agentic workflow plan from manifest v2" },
+    { value: "query reports/project-dna-scans/project-dna-factory-smoke factory schema validation", label: "query smoke", description: "bounded cited query against smoke scan artifacts" },
+    { value: "query reports/project-dna-scans/pi-real-20260529-v1 register tool extension command runtime", label: "query pi-real", description: "bounded cited query against existing real Pi scan artifacts" },
+    { value: "help", label: "help", description: "show ProjectDNA command template" },
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function projectDnaHelpTemplate(): string {
+  return [
+    "# ZOB ProjectDNA",
+    "",
+    "Usage examples:",
+    "/project-dna readiness",
+    "/project-dna plan .pi/factories/project-dna/example-project-dna-manifest-v2.json reports/project-dna-scans/project-dna-factory-smoke",
+    "/project-dna query reports/project-dna-scans/project-dna-factory-smoke factory schema validation",
+    "/project-dna query reports/project-dna-scans/pi-real-20260529-v1 register tool extension command runtime",
+    "",
+    "Notes:",
+    "- plan builds metadata-only agentic workflow shape from manifest v2",
+    "- query reads repo-local ProjectDNA scan artifacts only",
+    "- returns bounded cited context packs",
+    "- raw query text is hashed in outputs and not persisted",
+    "- no source scan, no backend write, no child dispatch",
+  ].join("\n");
+}
+
+function parseProjectDnaCommandArgs(args: string): { mode: "help" | "readiness" | "plan" | "query"; manifestPath?: string; scanDir?: string; query?: string } {
+  const parts = args.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0 || parts[0] === "help" || parts[0] === "--help" || parts[0] === "-h") return { mode: "help" };
+  if (parts[0] === "readiness") return { mode: "readiness", scanDir: parts[1] };
+  if (parts[0] === "plan") {
+    const manifestPath = parts[1];
+    const scanDir = parts[2]?.startsWith("reports/project-dna-scans/") ? parts[2] : undefined;
+    return manifestPath ? { mode: "plan", manifestPath, scanDir } : { mode: "help" };
+  }
+  if (parts[0] === "query") {
+    const maybeScanDir = parts[1];
+    const hasScanDir = typeof maybeScanDir === "string" && maybeScanDir.startsWith("reports/project-dna-scans/");
+    const scanDir = hasScanDir ? maybeScanDir : undefined;
+    const queryText = parts.slice(hasScanDir ? 2 : 1).join(" ").trim();
+    return { mode: queryText ? "query" : "help", scanDir, query: queryText };
+  }
+  return { mode: "query", query: parts.join(" ") };
+}
+
+function autonomyArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const items: AutocompleteItem[] = [
+    { value: "status", label: "status", description: "show current autonomy policy/readiness" },
+    { value: "daemon status", label: "daemon status", description: "show scoped plan-only daemon state; no execution" },
+    { value: "daemon tick", label: "daemon tick", description: "record one scoped plan-only daemon tick" },
+    { value: "daemon tick --queue-readonly", label: "daemon tick --queue-readonly", description: "explicit one-shot read-only queue bridge" },
+    { value: "daemon start --max-ticks 3", label: "daemon start --max-ticks 3", description: "start bounded supervised plan-only session loop" },
+    { value: "daemon stop", label: "daemon stop", description: "stop supervised daemon session loop" },
+    { value: "daemon plan-tick", label: "daemon plan-tick", description: "preview next daemon action only; no execution" },
+    { value: "adaptive", label: "adaptive", description: "score request then auto-launch, clarify, or block" },
+    { value: "controlled", label: "controlled", description: "challenge-first until readiness is high" },
+    { value: "open", label: "open", description: "launch directly when safety gates pass" },
+    { value: "stop", label: "stop", description: "disable interactive autonomy" },
+    { value: "score", label: "score <text>", description: "hash-only score a mission draft without launching" },
+    { value: "help", label: "help", description: "insert autonomy command help" },
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function autonomyHelpTemplate(): string {
+  return [
+    "# ZOB interactive autonomy",
+    "",
+    "Commands:",
+    "/autonomy adaptive   # default: score launch vs clarify vs block",
+    "/autonomy controlled # challenge-first until enough info",
+    "/autonomy open       # launch direct when safety gates pass",
+    "/autonomy status     # show mode, policy, latest readiness",
+    "/autonomy daemon status    # show scoped daemon metadata and bounded loop state",
+    "/autonomy daemon tick      # record one scoped plan-only daemon tick",
+    "/autonomy daemon tick --queue-readonly # explicit one-shot safe read-only queue bridge",
+    "/autonomy daemon start --max-ticks 3 # bounded supervised session-local plan-only loop",
+    "/autonomy daemon stop      # stop supervised daemon loop",
+    "/autonomy daemon plan-tick # compatibility alias for tick without queue bridge",
+    "/autonomy stop       # disable interactive autonomy",
+    "",
+    "Semantics:",
+    "- spec understood + launch decision = no per-action approval for in-scope safe work",
+    "- safety gates stay on: no secrets, no destructive commands, no production apply/global claim",
+    "- persisted entries are hash/body-free (mission-readiness.v1)",
+    "- daemon commands are default-off, scoped to active goal, plan-only, and never auto-start",
+    "- daemon start is session-local, supervised, bounded by --max-ticks, and cleared on shutdown",
+  ].join("\n");
+}
+
+function daemonInputFromState(state: HarnessRuntimeState) {
+  return {
+    policy: state.daemon.policy,
+    runtimeGoal: state.runtimeGoal,
+    goalTodos: state.goalTodos,
+    autonomy: {
+      mode: state.autonomy.mode,
+      enabled: state.autonomy.enabled,
+      lastReadiness: state.autonomy.lastReadiness,
+      lastLaunchAuthorization: state.autonomy.lastLaunchAuthorization,
+    },
+    loop: state.daemon.loop,
+  };
+}
+
+function daemonRuntimeLedgerEntry(daemonState: DaemonRuntimeState): Record<string, unknown> {
+  return {
+    schema: daemonState.schema,
+    status: daemonState.status,
+    reasonCodes: daemonState.reasonCodes,
+    enabled: daemonState.policy.enabled,
+    planOnly: true,
+    scopedToActiveGoal: true,
+    goalId: daemonState.goal?.goalId,
+    goalStatus: daemonState.goal?.status,
+    oracleStatus: daemonState.goal?.oracleStatus,
+    launchAuthorized: daemonState.launchAuthorized,
+    selectedTodoId: daemonState.selectedTodo?.id,
+    selectedTodoPath: daemonState.selectedTodo?.path,
+    selectedTodoStatus: daemonState.selectedTodo?.status,
+    todoCounts: daemonState.todoCounts,
+    loop: daemonState.loop,
+    autoStartDaemon: false,
+    continuousLoop: false,
+    cronEnabled: false,
+    childDispatchAllowed: false,
+    queueClaimed: false,
+    todoMutated: false,
+    productionApplyAllowed: false,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function daemonPlanLedgerEntry(plan: DaemonTickPlan, daemonState: DaemonRuntimeState): Record<string, unknown> {
+  return {
+    schema: plan.schema,
+    status: plan.status,
+    action: plan.action,
+    reasonCodes: plan.reasonCodes,
+    enabled: daemonState.policy.enabled,
+    planOnly: true,
+    goalId: plan.goalId,
+    selectedTodoId: plan.todo?.id,
+    selectedTodoPath: plan.todo?.path,
+    selectedTodoStatus: plan.todo?.status,
+    loop: daemonState.loop,
+    stop: { stop: plan.stop.stop, status: plan.stop.status, reasonCodes: plan.stop.reasonCodes },
+    writesPlanned: false,
+    todoMutationPlanned: false,
+    queueClaimPlanned: false,
+    childDispatchPlanned: false,
+    autoStartDaemon: false,
+    continuousLoop: false,
+    cronEnabled: false,
+    productionApplyAllowed: false,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function formatDaemonStatusForUi(daemonState: DaemonRuntimeState): string {
+  const todo = daemonState.selectedTodo ? ` · todo=${daemonState.selectedTodo.path}/${daemonState.selectedTodo.status}` : "";
+  const loop = daemonState.loop;
+  const loopText = loop ? ` · loop=${loop.status} ticks=${loop.tickCount}${loop.maxTicks ? `/${loop.maxTicks}` : ""}${loop.blocker ? ` blocker=${loop.blocker}` : ""}` : "";
+  return `daemon ${daemonState.policy.enabled ? "plan-only" : "off"}/${daemonState.status}${todo}${loopText} · reasons=${daemonState.reasonCodes.slice(0, 3).join(",") || "none"} · autoStart=false globalLoop=false execution=false`;
+}
+
+function formatDaemonPlanForUi(plan: DaemonTickPlan, queueTick?: QueueTickResult): string {
+  const todo = plan.todo ? ` · todo=${plan.todo.path}/${plan.todo.status}` : "";
+  const queue = queueTick ? ` · queue=${queueTick.status}/claimed=${queueTick.claimed}` : "";
+  return `daemon tick action=${plan.action} status=${plan.status}${todo}${queue} · stop=${plan.stop.stop} · writes=false todo_mutation=false child_dispatch=false`;
+}
+
+const DAEMON_SESSION_TICK_INTERVAL_MS = 1_000;
+
+type HarnessCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
+
+function clearDaemonLoopTimer(state: HarnessRuntimeState): void {
+  if (state.daemon.loopTimer) clearTimeout(state.daemon.loopTimer);
+  state.daemon.loopTimer = undefined;
+}
+
+function stopDaemonLoop(state: HarnessRuntimeState, blocker?: string): void {
+  clearDaemonLoopTimer(state);
+  state.daemon.loop = {
+    ...state.daemon.loop,
+    status: "stopped",
+    stoppedAt: new Date().toISOString(),
+    blocker: blocker ?? state.daemon.loop.blocker,
+    autoStartDaemon: false,
+    continuousLoop: false,
+    cronEnabled: false,
+  };
+  state.daemon.updatedAt = state.daemon.loop.stoppedAt;
+}
+
+function parseDaemonMaxTicks(parts: string[]): number | undefined {
+  const index = parts.findIndex((part) => part === "--max-ticks" || part === "--max_ticks");
+  if (index < 0 || !parts[index + 1]) return undefined;
+  const parsed = Number.parseInt(parts[index + 1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.trunc(parsed), 100) : undefined;
+}
+
+function daemonQueueTickLedgerEntry(result: QueueTickResult): Record<string, unknown> {
+  return {
+    schema: result.schema,
+    claimed: result.claimed,
+    jobId: result.jobId,
+    jobType: result.jobType,
+    status: result.status,
+    stopCondition: result.stopCondition,
+    errors: result.errors,
+    staleRecovered: result.staleRecovered,
+    maxWorkers: result.maxWorkers,
+    budgetEnforced: result.budgetEnforced,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    bodyStored: false,
+    explicitManualReadOnlyBridge: true,
+    productionApplyAllowed: false,
+    childDispatchAllowed: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function recordDaemonTick(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: HarnessCommandContext, options: { queueReadonly?: boolean } = {}): { daemonState: DaemonRuntimeState; plan: DaemonTickPlan; queueTick?: QueueTickResult } {
+  const now = new Date().toISOString();
+  state.daemon.loop = {
+    ...state.daemon.loop,
+    tickCount: state.daemon.loop.tickCount + 1,
+    lastTickAt: now,
+    blocker: undefined,
+    autoStartDaemon: false,
+    continuousLoop: false,
+    cronEnabled: false,
+  };
+  const daemonInput = daemonInputFromState(state);
+  const daemonState = buildDaemonRuntimeState({ ...daemonInput, policy: { ...state.daemon.policy, enabled: true } });
+  const plan = buildDaemonTickPlan(daemonState);
+  let queueTick: QueueTickResult | undefined;
+  if (options.queueReadonly === true) {
+    queueTick = runQueueDaemonTick(ctx.cwd);
+    state.daemon.lastQueueTick = queueTick;
+    pi.appendEntry("zob-daemon-queue-tick", daemonQueueTickLedgerEntry(queueTick));
+  }
+  state.daemon.lastStatus = daemonState;
+  state.daemon.lastPlan = plan;
+  state.daemon.updatedAt = now;
+  pi.appendEntry("zob-daemon-runtime", daemonRuntimeLedgerEntry(daemonState));
+  pi.appendEntry("zob-daemon-plan", daemonPlanLedgerEntry(plan, daemonState));
+  return { daemonState, plan, queueTick };
+}
+
+function scheduleDaemonLoop(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: HarnessCommandContext): void {
+  if (state.daemon.loop.status !== "running") return;
+  if (state.daemon.loop.maxTicks !== undefined && state.daemon.loop.tickCount >= state.daemon.loop.maxTicks) {
+    stopDaemonLoop(state, "max_ticks_reached");
+    renderHarnessWidget(pi, state, ctx);
+    return;
+  }
+  clearDaemonLoopTimer(state);
+  const timer = setTimeout(() => {
+    if (state.daemon.loop.status !== "running") return;
+    const { plan } = recordDaemonTick(pi, state, ctx);
+    if (plan.stop.stop) stopDaemonLoop(state, `stop_condition_${plan.status}`);
+    if (state.daemon.loop.maxTicks !== undefined && state.daemon.loop.tickCount >= state.daemon.loop.maxTicks) stopDaemonLoop(state, "max_ticks_reached");
+    renderHarnessWidget(pi, state, ctx);
+    if (state.daemon.loop.status === "running") scheduleDaemonLoop(pi, state, ctx);
+  }, DAEMON_SESSION_TICK_INTERVAL_MS);
+  timer.unref?.();
+  state.daemon.loopTimer = timer;
+}
+
+function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const items: AutocompleteItem[] = [];
+  const seen = new Set<string>();
+  const add = (value: string, label: string, description?: string) => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    items.push({ value, label, ...(description ? { description } : {}) });
+  };
+  const runs = [...state.delegations.runs].sort((a, b) => b.startedAtMs - a.startedAtMs);
+  for (const run of runs) add(run.agent, run.agent, "agent");
+  for (const run of runs.slice(0, 40)) add(run.id.slice(0, 8), run.id.slice(0, 8), `${run.agent} · ${run.status}`);
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
+  pi.registerCommand("zmode", {
+    description: "Switch ZOB harness mode: explore | plan | implement | oracle | factory | orchestrator. Orchestrator routes to adaptive-chief-vision plan_only defaults.",
+    handler: async (args, ctx) => {
+      const requestedText = args.trim();
+      const adaptiveEntrypoint = resolveAdaptiveZmodeEntrypoint(requestedText);
+      if (adaptiveEntrypoint) {
+        applyMode(pi, state, ctx, adaptiveEntrypoint.appliedHarnessMode);
+        state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+        pi.appendEntry("zob-adaptive-zmode-entrypoint", adaptiveEntrypoint);
+        ctx.ui.setEditorText(renderAdaptiveZmodeTemplate(adaptiveEntrypoint));
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(`ZOB ${adaptiveEntrypoint.requestedMode} routed to ${adaptiveEntrypoint.profile} (${adaptiveEntrypoint.executionDefault}); root remains non-coding and parent-owned.`, "info");
+        return;
+      }
+      const requested = requestedText as ModeName;
+      const modes = Object.keys(MODE_PROMPTS) as ModeName[];
+      if (!requested) {
+        const choice = await ctx.ui.select("ZOB mode", modes);
+        if (choice) {
+          applyMode(pi, state, ctx, choice as ModeName);
+          state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+        }
+        return;
+      }
+      if (!modes.includes(requested)) {
+        ctx.ui.notify(`Unknown mode '${requested}'. Use: ${modes.join(", ")}`, "warning");
+        return;
+      }
+      applyMode(pi, state, ctx, requested);
+      state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+    },
+  });
+
+  pi.registerShortcut("ctrl+alt+d", {
+    description: "Open ZOB delegated-agent viewer",
+    handler: async (ctx) => {
+      await showDelegationOverlay(ctx, state);
+    },
+  });
+
+  const openDelegatesCommand = async (args: string, ctx: Parameters<Parameters<typeof pi.registerCommand>[1]["handler"]>[1]): Promise<void> => {
+    await showDelegationOverlay(ctx, state, args.trim().split(/\s+/).filter(Boolean)[0]);
+  };
+
+  pi.registerCommand("delegates", {
+    description: "Open ZOB delegated-agent viewer. Optional: /delegates <id|agent>",
+    getArgumentCompletions: (prefix) => delegationArgumentCompletions(state, prefix),
+    handler: openDelegatesCommand,
+  });
+
+  pi.registerCommand("delegate", {
+    description: "Alias for /delegates. Optional: /delegate <id|agent>",
+    getArgumentCompletions: (prefix) => delegationArgumentCompletions(state, prefix),
+    handler: openDelegatesCommand,
+  });
+
+  pi.registerCommand("zstatus", {
+    description: "Refresh the ZOB harness widget from latest reports and sentinels. Use 'delegations' to open child-agent run details.",
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const requested = (parts[0] ?? "").toLowerCase();
+      if (["delegations", "delegation", "delegate", "agents"].includes(requested)) {
+        await showDelegationOverlay(ctx, state, parts[1]);
+        return;
+      }
+      if (["todos", "todo", "goal-todos", "goal_todos"].includes(requested)) {
+        await showGoalTodoOverlay(ctx, state, parts[1]);
+        return;
+      }
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify("ZOB status refreshed from reports/", "info");
+    },
+  });
+
+  const handleAutonomyCommand = async (args: string, ctx: Parameters<Parameters<typeof pi.registerCommand>[1]["handler"]>[1]): Promise<void> => {
+    const parts = args.trim().split(/\s+/).filter(Boolean);
+    const requested = (parts[0] ?? "status").toLowerCase();
+    state.autonomy.policy = readInteractiveAutonomyPolicy(ctx.cwd);
+    state.autonomy.policyHash = sha256(JSON.stringify({ ...state.autonomy.policy, source: undefined }));
+
+    if (requested === "help" || requested === "--help" || requested === "-h") {
+      ctx.ui.setEditorText(autonomyHelpTemplate());
+      ctx.ui.notify("ZOB autonomy help inserted.", "info");
+      return;
+    }
+
+    if (requested === "daemon") {
+      const daemonSubcommand = (parts[1] ?? "status").toLowerCase();
+      if (!["status", "plan-tick", "tick", "start", "stop"].includes(daemonSubcommand)) {
+        ctx.ui.notify("Unsupported daemon command. Use /autonomy daemon status|tick|start --max-ticks N|stop.", "warning");
+        return;
+      }
+      if (daemonSubcommand === "stop") {
+        stopDaemonLoop(state, "manual_stop");
+        const daemonState = buildDaemonRuntimeState(daemonInputFromState(state));
+        state.daemon.lastStatus = daemonState;
+        pi.appendEntry("zob-daemon-runtime", daemonRuntimeLedgerEntry(daemonState));
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(formatDaemonStatusForUi(daemonState), "warning");
+        return;
+      }
+      if (daemonSubcommand === "start") {
+        const maxTicks = parseDaemonMaxTicks(parts);
+        if (!maxTicks) {
+          ctx.ui.notify("Use /autonomy daemon start --max-ticks N with N>=1 for a bounded supervised session loop.", "warning");
+          return;
+        }
+        if (state.daemon.loop.status === "running") {
+          ctx.ui.notify(`daemon loop already running ticks=${state.daemon.loop.tickCount}/${state.daemon.loop.maxTicks ?? "?"}; use /autonomy daemon stop first`, "warning");
+          return;
+        }
+        const startedAt = new Date().toISOString();
+        state.daemon.loop = {
+          schema: "zob.daemon-loop-snapshot.v1",
+          status: "running",
+          tickCount: 0,
+          maxTicks,
+          startedAt,
+          supervised: true,
+          bounded: true,
+          sessionLocal: true,
+          autoStartDaemon: false,
+          continuousLoop: false,
+          cronEnabled: false,
+        };
+        state.daemon.policy = { ...state.daemon.policy, enabled: true };
+        const { daemonState, plan } = recordDaemonTick(pi, state, ctx);
+        if (plan.stop.stop) stopDaemonLoop(state, `stop_condition_${plan.status}`);
+        if (state.daemon.loop.tickCount >= maxTicks) stopDaemonLoop(state, "max_ticks_reached");
+        if (state.daemon.loop.status === "running") scheduleDaemonLoop(pi, state, ctx);
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(formatDaemonStatusForUi(daemonState), plan.stop.stop ? "warning" : "info");
+        return;
+      }
+      if (daemonSubcommand === "tick" || daemonSubcommand === "plan-tick") {
+        const queueReadonly = parts.includes("--queue-readonly") || parts.includes("--queue_readonly");
+        const unsupportedQueueFlag = parts.includes("--queue") && !queueReadonly;
+        if (unsupportedQueueFlag) {
+          ctx.ui.notify("Use explicit /autonomy daemon tick --queue-readonly for the safe read-only queue bridge.", "warning");
+          return;
+        }
+        const { plan, queueTick } = recordDaemonTick(pi, state, ctx, { queueReadonly });
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(formatDaemonPlanForUi(plan, queueTick), plan.stop.stop || queueTick?.status === "failed" ? "warning" : "info");
+        return;
+      }
+      const daemonState = buildDaemonRuntimeState(daemonInputFromState(state));
+      state.daemon.lastStatus = daemonState;
+      state.daemon.updatedAt = new Date().toISOString();
+      pi.appendEntry("zob-daemon-runtime", daemonRuntimeLedgerEntry(daemonState));
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(formatDaemonStatusForUi(daemonState), daemonState.status === "blocked" || daemonState.status === "needs_user" || daemonState.status === "needs_oracle" ? "warning" : "info");
+      return;
+    }
+
+    if (requested === "score") {
+      const draft = parts.slice(1).join(" ");
+      if (!draft) {
+        ctx.ui.notify("Use /autonomy score <mission draft> to score without launching.", "warning");
+        return;
+      }
+      const scored = scoreMissionReadiness(draft, { mode: state.autonomy.mode, policy: state.autonomy.policy });
+      const readiness = scored.launchAuthorization
+        ? { ...scored, launchAuthorization: undefined, inScopeAutonomousActionsAuthorized: false, manualPerActionApprovalRequired: true }
+        : scored;
+      state.autonomy.lastReadiness = readiness;
+      state.autonomy.lastLaunchAuthorization = undefined;
+      state.autonomy.updatedAt = readiness.generatedAt;
+      pi.appendEntry("zob-mission-readiness", toMissionReadinessLedgerEntry(readiness));
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(`${formatMissionReadinessForUi(readiness)} · score-only no launch`, readiness.decision === "block" ? "warning" : "info");
+      return;
+    }
+
+    const requestedMode = requested === "stop" ? "off" : asInteractiveAutonomyMode(requested);
+    if (requestedMode) {
+      state.autonomy.mode = requestedMode;
+      state.autonomy.enabled = requestedMode !== "off";
+      state.autonomy.updatedAt = new Date().toISOString();
+      if (requestedMode === "off") {
+        state.autonomy.lastLaunchAuthorization = undefined;
+      }
+      pi.appendEntry("zob-autonomy-state", toAutonomyStateLedgerEntry(state.autonomy));
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(`ZOB autonomy: ${requestedMode}${requestedMode === "off" ? " (stopped)" : ""}`, requestedMode === "off" ? "warning" : "info");
+      return;
+    }
+
+    if (requested === "status" || requested.length === 0) {
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(formatInteractiveAutonomyStatus(state.autonomy), "info");
+      return;
+    }
+
+    ctx.ui.notify("Unknown autonomy command. Use /autonomy help or /autonomy open|controlled|adaptive|status|stop|daemon status|daemon plan-tick.", "warning");
+  };
+
+  pi.registerCommand("autonomy", {
+    description: "Set/show ZOB interactive autonomy and scoped daemon plan-only status: /autonomy open|controlled|adaptive|status|stop|daemon status|daemon plan-tick",
+    getArgumentCompletions: autonomyArgumentCompletions,
+    handler: handleAutonomyCommand,
+  });
+
+  const handleComputeCommand = async (args: string, ctx: Parameters<Parameters<typeof pi.registerCommand>[1]["handler"]>[1]): Promise<void> => {
+    const parsed = parseComputeCommandArgs(args);
+    if (parsed.help || args.trim().length === 0) {
+      ctx.ui.setEditorText(computeHelpTemplate());
+      ctx.ui.notify("ZOB compute command template inserted. Use /compute auto . or /effort high .", "info");
+      return;
+    }
+    const preview = buildComputePreview(ctx.cwd, {
+      domain: parsed.domain,
+      requestedProfile: parsed.requestedProfile,
+      targetPath: parsed.targetPath,
+      maxProfile: parsed.maxProfile,
+      riskHints: parsed.riskHints,
+    });
+    const resolution = resolveComputeProfile(ctx.cwd, {
+      domain: parsed.domain,
+      requestedProfile: parsed.requestedProfile,
+      targetPath: parsed.targetPath,
+      maxProfile: parsed.maxProfile,
+      riskHints: parsed.riskHints,
+    });
+    const workflow = buildComputeWorkflowShape(ctx.cwd, {
+      domain: parsed.domain,
+      requestedProfile: parsed.requestedProfile,
+      targetPath: parsed.targetPath,
+      maxProfile: parsed.maxProfile,
+      riskHints: parsed.riskHints,
+    });
+    const caps = resolution.caps && typeof resolution.caps === "object" ? resolution.caps as Record<string, unknown> : {};
+    const effectiveProfile = typeof resolution.effectiveProfile === "string" ? resolution.effectiveProfile : "unknown";
+    const recommendedProfile = typeof preview.recommendedProfile === "string" ? preview.recommendedProfile : "unknown";
+    const laneCount = Array.isArray(workflow.lanes) ? workflow.lanes.length : 0;
+    pi.appendEntry("zob-compute-profile", {
+      schema: "zob.compute-command-preview.v1",
+      requestedProfile: parsed.requestedProfile,
+      recommendedProfile,
+      effectiveProfile,
+      domain: parsed.domain,
+      targetPathHash: sha256(parsed.targetPath),
+      targetPathStored: false,
+      maxProfile: parsed.maxProfile,
+      riskHints: parsed.riskHints,
+      caps,
+      laneCount,
+      noShip: resolution.noShip === true,
+      parentOwnedDispatch: true,
+      childDirectDispatch: false,
+      bodyStored: false,
+      promptBodiesStored: false,
+      outputBodiesStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+    renderHarnessWidget(pi, state, ctx);
+    const maxAgents = typeof caps.maxAgents === "number" ? caps.maxAgents : "?";
+    const maxDepth = typeof caps.maxDelegationDepth === "number" ? caps.maxDelegationDepth : "?";
+    const maxParallel = typeof caps.maxParallel === "number" ? caps.maxParallel : "?";
+    const oracleRequired = caps.oracleRequired === true ? "oracle required" : "oracle conditional/off";
+    const noShip = resolution.noShip === true ? " · no_ship=true" : "";
+    ctx.ui.notify(`ZOB compute ${parsed.requestedProfile}→${effectiveProfile} (recommended ${recommendedProfile}) · agents≤${maxAgents} depth≤${maxDepth} parallel≤${maxParallel} · lanes=${laneCount} · ${oracleRequired}${noShip}`, resolution.noShip === true ? "warning" : "info");
+  };
+
+  pi.registerCommand("compute", {
+    description: "Preview/resolve ZOB compute effort: /compute auto|low|medium|high|xhigh|max [target_path]",
+    getArgumentCompletions: computeArgumentCompletions,
+    handler: handleComputeCommand,
+  });
+
+  pi.registerCommand("effort", {
+    description: "Alias for /compute. Example: /effort auto .",
+    getArgumentCompletions: computeArgumentCompletions,
+    handler: handleComputeCommand,
+  });
+
+  const handleProjectDnaCommand = async (args: string, ctx: Parameters<Parameters<typeof pi.registerCommand>[1]["handler"]>[1]): Promise<void> => {
+    const parsed = parseProjectDnaCommandArgs(args);
+    if (parsed.mode === "help") {
+      ctx.ui.setEditorText(projectDnaHelpTemplate());
+      ctx.ui.notify("ZOB ProjectDNA command template inserted.", "info");
+      return;
+    }
+    if (parsed.mode === "readiness") {
+      const audit = buildProjectDnaReadinessAudit(ctx.cwd, { scanDir: parsed.scanDir });
+      pi.appendEntry("zob-project-dna-command", {
+        schema: "zob.project-dna-command-readiness.v1",
+        scanDirHash: sha256(parsed.scanDir ?? "reports/project-dna-scans/project-dna-factory-smoke"),
+        scanDirStored: false,
+        verdict: audit.verdict,
+        noShip: audit.no_ship === true,
+        bodyStored: false,
+        generatedAt: new Date().toISOString(),
+      });
+      ctx.ui.notify(`ZOB ProjectDNA readiness: ${String(audit.verdict)}${audit.no_ship === true ? " · no_ship=true" : ""}`, audit.no_ship === true ? "warning" : "info");
+      return;
+    }
+    if (parsed.mode === "plan") {
+      const plan = buildProjectDnaAgenticPlan(ctx.cwd, { manifestPath: parsed.manifestPath ?? "", scanDir: parsed.scanDir });
+      const lanes = Array.isArray(plan.lanes) ? plan.lanes.length : 0;
+      const effectiveProfile = typeof plan.effective_compute_profile === "string" ? plan.effective_compute_profile : "unknown";
+      const effectiveCapture = typeof plan.effective_capture_mode === "string" ? plan.effective_capture_mode : "unknown";
+      pi.appendEntry("zob-project-dna-command", {
+        schema: "zob.project-dna-command-plan.v1",
+        manifestPathHash: sha256(parsed.manifestPath ?? ""),
+        manifestPathStored: false,
+        scanDirHash: sha256(parsed.scanDir ?? ""),
+        scanDirStored: false,
+        effectiveProfile,
+        effectiveCapture,
+        laneCount: lanes,
+        metadataOnly: true,
+        childDispatchAllowed: false,
+        knowledgeBackendWriteEnabled: false,
+        bodyStored: false,
+        generatedAt: new Date().toISOString(),
+      });
+      ctx.ui.notify(`ZOB ProjectDNA plan: profile=${effectiveProfile} capture=${effectiveCapture} lanes=${lanes}`, "info");
+      return;
+    }
+    const result = buildProjectDnaQueryResult(ctx.cwd, { scanDir: parsed.scanDir, query: parsed.query ?? "project dna", maxFiles: 8 });
+    const files = Array.isArray(result.files_to_read_first) ? result.files_to_read_first.length : 0;
+    const citations = Array.isArray(result.citations) ? result.citations.length : 0;
+    pi.appendEntry("zob-project-dna-command", {
+      schema: "zob.project-dna-command-query.v1",
+      sourceId: result.source_id,
+      scanDirHash: sha256(String(result.scan_dir ?? parsed.scanDir ?? "")),
+      scanDirStored: false,
+      queryHash: result.query_hash,
+      rawQueryStored: false,
+      fileCount: files,
+      citationCount: citations,
+      childDispatchAllowed: false,
+      knowledgeBackendWriteEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+    ctx.ui.notify(`ZOB ProjectDNA query: source=${String(result.source_id)} files=${files} citations=${citations}`, "info");
+  };
+
+  pi.registerCommand("project-dna", {
+    description: "Plan/query/audit repo-local ProjectDNA context. Example: /project-dna plan .pi/factories/project-dna/example-project-dna-manifest-v2.json reports/project-dna-scans/project-dna-factory-smoke",
+    getArgumentCompletions: projectDnaArgumentCompletions,
+    handler: handleProjectDnaCommand,
+  });
+
+  pi.registerCommand("rules_status", {
+    description: "Resolve active ZOB rule profile for optional paths and current mode",
+    handler: async (args, ctx) => {
+      const paths = args.trim().length > 0 ? args.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean) : undefined;
+      const resolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode, paths });
+      state.activeRuleResolution = resolution;
+      pi.appendEntry("zob-rules-resolution", {
+        profile: resolution.profile,
+        rulePacks: resolution.rulePacks,
+        allowedTools: resolution.allowedTools,
+        requiredValidation: resolution.requiredValidation,
+        oracleRequired: resolution.oracleRequired,
+        noShipConditions: resolution.noShipConditions,
+        enforcement: resolution.enforcement,
+        errors: resolution.errors,
+        promptBodiesStored: false,
+        outputBodiesStored: false,
+        timestamp: new Date().toISOString(),
+      });
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(formatRuleResolution(resolution), resolution.errors.length > 0 ? "warning" : "info");
+    },
+  });
+
+  pi.registerCommand("contract", {
+    description: "Insert the six-part delegation contract template",
+    handler: async (args, ctx) => {
+      ctx.ui.setEditorText(formatContractTemplate(args.trim() || "[atomic goal]"));
+    },
+  });
+
+  pi.registerCommand("goal", {
+    description: "Unified ZOB runtime goal: /goal <objective>, pause, resume, clear, status, gate, todo, oracle PASS|WARN|FAIL",
+    handler: async (args, ctx) => {
+      await handleGoalCommand(pi, state, args, ctx, () => renderHarnessWidget(pi, state, ctx));
+    },
+  });
+
+  pi.registerCommand("todo", {
+    description: "Alias for /goal todo. Manage goal-linked TODOs and subtodos.",
+    handler: async (args, ctx) => {
+      await handleGoalCommand(pi, state, `todo ${args}`.trim(), ctx, () => renderHarnessWidget(pi, state, ctx));
+    },
+  });
+
+  pi.registerCommand("todos", {
+    description: "Alias for /goal todo tree. Use /todos overlay to open the TODO overlay.",
+    handler: async (args, ctx) => {
+      const trimmed = args.trim();
+      if (trimmed === "overlay" || trimmed.startsWith("overlay ") || trimmed === "view" || trimmed.startsWith("view ")) {
+        await showGoalTodoOverlay(ctx, state, trimmed.split(/\s+/)[1]);
+        return;
+      }
+      await handleGoalCommand(pi, state, `todo ${trimmed || "tree"}`.trim(), ctx, () => renderHarnessWidget(pi, state, ctx));
+    },
+  });
+
+  pi.registerCommand("goal_gate", {
+    description: "Alias for /goal gate. Set or insert the active ZOB goal gate; --strict requires it before ZOB dispatch tools.",
+    handler: async (args, ctx) => {
+      handleGoalGateCommand(pi, state, args.trim(), ctx, () => renderHarnessWidget(pi, state, ctx));
+    },
+  });
+
+  pi.registerCommand("job_intake", {
+    description: "Parse billable job intake into active goal plus optional advisory budget sidecar",
+    handler: async (args, ctx) => {
+      const text = args.trim();
+      if (!text) {
+        ctx.ui.setEditorText([
+          "ORIGINAL_USER_ASK: [paste the user's exact ask]",
+          "ACTIVE_GOAL: [one bounded billable job goal]",
+          "EXPECTED_OUTPUT: [observable paid deliverable]",
+          "CONSTRAINTS: [must-do and must-not-do constraints]",
+          "VALIDATION_EVIDENCE: [commands, files, sentinels, or oracle verdict required]",
+          "BUDGET: [optional advisory sidecar; absence is allowed]",
+        ].join("\n"));
+        return;
+      }
+      const intake = parseBillableJobIntake(text);
+      const errors = validateBillableJobIntake(intake);
+      if (errors.length > 0) {
+        ctx.ui.notify(`ZOB job intake rejected:\n- ${errors.join("\n- ")}`, "warning");
+        return;
+      }
+      state.activeGoal = intake.goal;
+      state.goalRequired = true;
+      pi.appendEntry("zob-job-intake", intake);
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(`ZOB job intake accepted: ${intake.goal.activeGoal.slice(0, 100)} (budget advisory only)`, "info");
+    },
+  });
+
+  pi.registerCommand("agents", {
+    description: "List ZOB project/user specialist agents",
+    handler: async (_args, ctx) => {
+      const agents = discoverAgents(ctx.cwd, "both");
+      ctx.ui.notify(formatAgentList(agents), "info");
+    },
+  });
+}

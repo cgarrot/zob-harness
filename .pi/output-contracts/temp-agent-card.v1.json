@@ -1,0 +1,23 @@
+{
+  "id": "temp-agent-card.v1",
+  "version": 1,
+  "description": "Run-scoped temporary agent card proposal. Proposal only; parent/governor validates before any temp agent joins a run.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "request_type", "type": "section_or_marker" },
+    { "name": "temp_agent_card", "type": "section_or_marker" },
+    { "name": "run_id", "type": "section_or_marker" },
+    { "name": "role", "type": "section_or_marker" },
+    { "name": "allowed_tools", "type": "section_or_marker" },
+    { "name": "forbidden_paths", "type": "section_or_marker" },
+    { "name": "output_contract", "type": "section_or_marker" },
+    { "name": "model_class", "type": "section_or_marker" },
+    { "name": "expires_at", "type": "section_or_marker" },
+    { "name": "promotion_policy", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

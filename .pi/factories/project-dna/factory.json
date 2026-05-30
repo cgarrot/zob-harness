@@ -1,0 +1,131 @@
+{
+  "name": "project-dna",
+  "version": "0.1.0",
+  "description": "P0/P1 ProjectDNA agents-first workflow scaffold for code-first reference-project analysis, neutral sample planning, code knowledge graph capsules, bounded context-pack readiness, and 5/5 agentic golden-case evaluation. Deterministic scripts are tools for agents, not the primary control plane. The scaffold is safe by default: no source writes, no secrets, no external knowledge-backend import/sync/embed/write.",
+  "agenticModel": {
+    "controlPlane": "agents_first",
+    "scriptRole": "deterministic_tools_for_cited_evidence",
+    "defaultSafetyPosture": "read_only_source_quarantine_outputs_proposal_only_writeback",
+    "noAutonomousExternalProjectScanningByDefault": true,
+    "noBackendImportSyncEmbedWriteByDefault": true,
+    "fiveOfFiveRequires": [
+      "ontology_steward",
+      "query_steward",
+      "test_linker",
+      "golden_evaluator",
+      "oracle_pass_no_ship_false"
+    ]
+  },
+  "captureModes": {
+    "plan_only": "Plan or manifest from approved inputs; no source scan.",
+    "read_only_scan": "Scan only explicit allowed_paths while preserving read-only source posture.",
+    "sandbox_sample_generation": "Generate only under approved quarantine/sandbox outputs from existing facts/specs.",
+    "runtime_query_existing_artifacts": "Return bounded cited context from existing scan artifacts; no new external-project scan."
+  },
+  "captureInputs": {
+    "capture_goal": "Bounded pattern/question that drives scanner, capsule, and query priority.",
+    "user_note": "Optional operator intent or constraints; guidance only, never citation evidence."
+  },
+  "computeDepthPolicy": {
+    "auto": "Metadata-only preview/resolve, then apply the resolved low/medium/high/xhigh/max row.",
+    "low": "Scan + scan validation.",
+    "medium": "Scan + validation + capsules + sample spec + one bounded query.",
+    "high": "Medium + quarantine sample + sample validation + benchmark + oracle.",
+    "xhigh": "High + specialist lanes + richer query suite + adversarial review.",
+    "max": "Xhigh + multi-reference/symbol/callgraph/promotion packet gates with strict human/budget/oracle approval."
+  },
+  "status": "p0-scaffold",
+  "autoPromotion": false,
+  "manualPromotionRequired": true,
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "project-dna-summary.json",
+    "project-dna-context-pack.json",
+    "project-dna-readiness.json",
+    "project-dna-capsules.md",
+    "ontology.json",
+    "golden-cases-smoke.json",
+    "query-steward-smoke.json",
+    "benchmark-smoke.json"
+  ],
+  "stages": [
+    {
+      "name": "map-project-dna-signals",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Extract safe ProjectDNA signals from one approved input artifact or scanner report, with citations and explicit gaps.",
+      "promptTemplate": "Read ProjectDNA item {item.id} at {item.path}. Extract code-first reference-project signals: architecture, stack/tools, folder conventions, capture_mode/capture_goal/user_note if present, compute_profile/compute_caps if present, scanner artifacts requested, graph/capsule needs, validation gates, and no-ship risks. Treat user_note as guidance only, not evidence. Return explore.v1 with citations, gaps, risks/blockers, compliance, and deliverable_delivered. Do not scan unapproved external paths from the item body.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Cite concrete evidence from the approved input artifact.",
+        "Separate deterministic scanner facts from LLM/Ollama synthesis.",
+        "Identify forbidden path and secret safeguards.",
+        "Map any compute_profile, including auto preview/resolve, to low/medium/high/xhigh/max stage expectations without enabling child direct dispatch.",
+        "Map capture_mode/capture_goal/user_note to bounded capture posture and cite that user_note is not source evidence."
+      ],
+      "mustNotDo": [
+        "No edits.",
+        "No source-project writes.",
+        "No external knowledge-backend import, sync, embed, or write.",
+        "No secrets or forbidden paths.",
+        "No broad external project scan unless the parent provided explicit allowed_paths."
+      ],
+      "context": "Factory {factory.name} run {run.id}; ProjectDNA map stage for item {item.id}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "reduce-context-pack-plan",
+      "type": "reduce",
+      "agent": "context-steward",
+      "outputContract": "context-steward.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Assemble a bounded ProjectDNA context-pack plan and writeback proposal posture from mapped signals.",
+      "promptTemplate": "Synthesize ProjectDNA map outputs for run {run.id}. Produce context_scope guidance, cited context_hints, source_gaps, writeback_candidates as proposal-only, evidence, risks_blockers, compliance, and deliverable_delivered. Keep it bounded and citation-first; do not claim a live knowledge import or sample promotion.",
+      "mustDo": [
+        "Require context_scope before future ProjectDNA lookup.",
+        "Keep context packs bounded and citation-required.",
+        "Mark writeback and promotion as proposal-only.",
+        "List missing scanner/sample/benchmark evidence explicitly."
+      ],
+      "mustNotDo": [
+        "No external knowledge-backend write or corpus mutation.",
+        "No secrets.",
+        "No raw conversation history.",
+        "No source project mutation.",
+        "No invented citations."
+      ],
+      "context": "Factory {factory.name} reduce stage for ProjectDNA run {run.id}."
+    },
+    {
+      "name": "validate-project-dna-gates",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate ProjectDNA scaffold/run evidence, no-ship gates, sentinel posture, and proposal-only promotion.",
+      "promptTemplate": "Validate ProjectDNA run {run.id}. Check manifest, agentic-plan.json, outputs, validation.json, final-report.md, and sentinels under {run.dir}. Return oracle-merge.v1 sections: verdict, confidence, no_ship, blocking_issues, merged_lanes, evidence, risks/blockers, compliance, and deliverable_delivered. Fail if secrets, source writes, unapproved external knowledge-backend writes, invalid citations, missing validation, or premature promotion are observed.",
+      "mustDo": [
+        "Verify validation.json exists before accepting DONE.sentinel.",
+        "Verify promotion remains proposal-only unless explicit oracle/human gates exist.",
+        "Treat missing scanner/sample evidence as a gap, not as completed implementation.",
+        "Cite exact run-directory artifacts."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets.",
+        "No external knowledge-backend import, sync, embed, or write.",
+        "No sample promotion."
+      ],
+      "context": "Factory {factory.name} validation stage for ProjectDNA run {run.id}."
+    }
+  ]
+}

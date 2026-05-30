@@ -1,0 +1,269 @@
+---
+name: zob-goal-todo-tree
+description: Use when planning, using, reviewing, or implementing ZOB /goal-linked TODOs, subtodos, TODO HUD progress, delegated TODO claims, or hierarchical subagent work graphs.
+---
+# ZOB Goal TODO Tree Skill
+
+## When to use
+
+Use this skill when a task involves any of:
+
+- `/goal todo`, `/todo`, or goal progress tracking;
+- TODO/subtodo planning under an active runtime goal;
+- showing progress in the HUD;
+- linking TODOs to `delegate_task`, `delegate_agent`, `child_goal`, orchestration, chains, or factories;
+- accepting/rejecting subagent completion claims;
+- reviewing whether a goal can move to `ready_for_oracle` or `complete`;
+- designing X-depth TODO/delegation systems.
+
+Canonical design/runtime doc:
+
+- `docs/ZOB_GOAL_TODO_TREE_PLAN.md`
+
+Runtime support now includes `/goal todo ...`, `/todo`, `/todos overlay`, goal TODO tools, delegated claim acceptance/rejection, oracle claim validation, strict PASS/no_ship=false auto-accept, artifact imports, HUD/prompt summaries, and completion blockers.
+
+## Core model
+
+A ZOB goal TODO is not a standalone checklist. It is a parent-owned work graph attached to a `RuntimeGoal.goalId`.
+
+```text
+RuntimeGoal = objective + loop + oracle + final gate
+GoalTodoGraph = work breakdown + progress + evidence
+DelegationGraph = subagent execution/claims linked to TODO nodes
+EvidenceGraph = validation commands, reports, checkpoints, sentinels, hashes
+```
+
+## Non-negotiable invariants
+
+- Do not create floating TODOs without an active runtime goal.
+- Do not mark root goal complete from TODO status alone.
+- Do not call `update_goal complete` before `propose_goal_completion` and oracle `PASS/no_ship=false`.
+- Do not propose root completion while required TODOs are open, blocked, delegated, or awaiting user/oracle review.
+- Use `resolve_goal_todo` as the primary API for TODO transitions (`auto`, `complete`, `accept_claim`, `reject_claim`, `block`, `skip`, `reopen`).
+- Do not use `update_goal_todo` to mark TODOs `done` or `skipped`; it is metadata-only.
+- Do not let a subagent directly mutate canonical TODO state.
+- A subagent returns a claim; the parent accepts or rejects it.
+- Child-spawns-child is forbidden. Child-proposes-child is allowed only through parent-owned adaptive delegation gates.
+- Persisted coms/Mission Control/adaptive TODO refs must remain hash-only/body-free.
+
+## Stop-on-blocker context layer
+
+When runtime goal context shows a human-decision blocker was already recorded (blocker score >=90, no `nextAgent`, goal paused, blocker visible), report it once and stop. Do not re-dispatch, re-ask the same human question, mark done/skip, hide the blocker, auto-resume, or bypass oracle/no_ship/evidence gates. Wait for explicit `/goal resume` or `resume_goal` before continuing.
+
+## Activation-mode behavior
+
+Respect `/goal mode` (default: `auto` unless a session explicitly persisted `manual` or `validation`):
+
+### manual
+
+Only create TODOs when the user explicitly asks.
+
+### validation
+
+For long work, propose a TODO plan and ask confirmation before creating/applying it.
+
+### auto
+
+For clearly long, multi-step, delegated, factory, or oracle-gated work, create a bounded initial TODO plan, but keep it visible and editable. Use `add_goal_todos` for multi-item plans instead of repeated `add_goal_todo` calls.
+
+## TODO planning rules
+
+When creating TODOs:
+
+0. For an initial plan, batch top-level items with `add_goal_todos`; use `get_goal_todos` or `/goal todo tree` only when the full tree is needed.
+1. Keep TODOs atomic and evidence-oriented.
+2. Prefer 3-9 top-level TODOs for a normal feature.
+3. Use subtodos only when a step is too broad or needs delegation.
+4. Mark required vs optional explicitly.
+5. Assign owner: `agent`, `user`, `oracle`, `subagent`, `factory`, or `orchestration`.
+6. Add acceptance criteria for critical TODOs.
+7. Add expected evidence refs or validation commands where possible.
+8. Avoid over-splitting; respect depth/fanout caps.
+
+## Status meanings
+
+Recommended statuses:
+
+```text
+planned        known but not ready/started
+ready          next actionable item
+in_progress    parent agent is working on it
+delegated      child agent/run owns execution temporarily
+claim_returned child output exists, parent has not accepted it
+needs_review   parent review required
+needs_oracle   oracle review required
+needs_user     user input/action required
+blocked        cannot proceed without replan/input/fix
+done           accepted with evidence
+skipped        intentionally skipped with reason
+```
+
+## Delegated TODO claims
+
+When delegating a TODO, pass TODO metadata via `child_goal` once the runtime supports it:
+
+```text
+child_goal.objective = bounded child objective
+child_goal.todo_id = canonical TODO id
+child_goal.parent_todo_id = parent TODO id if any
+child_goal.todo_path = tree path such as 1.2
+child_goal.delegation_depth = current agent-depth + 1
+child_goal.completion_policy = return_claim
+child_goal.agentic_validation.mode = oracle_then_auto_accept  # optional; validates claim with oracle child before safe auto-accept
+```
+
+Expected child claim shape (v2 preferred; v1 remains compatible):
+
+```text
+TODO_CHILD_RESULT.v2
+
+todo_id: <id>
+child_goal_status: ready_for_oracle | incomplete | blocked
+status_claim: done | incomplete | blocked
+evidence_refs:
+validation_commands:
+risks:
+acceptance_blockers: <blockers parent must resolve before accepting, or none>
+target_readiness: ready_for_parent_acceptance | needs_parent_review | blocked
+no_ship: true/false  # advisory/readiness evidence; parent/oracle decides review_no_ship; runtime computes hard/effective no_ship
+subtodo_delta_proposals:
+FINAL_MARKER: TODO_CHILD_RESULT_V2_END
+```
+
+Parent action after a claim:
+
+- accept claim only after output contract/gate/evidence checks pass;
+- for `child_goal.agentic_validation.mode=oracle_then_auto_accept`, runtime requests an oracle child to return `todo-claim-validation.v1` and auto-accepts only when worker gate passed, child status is `ready_for_oracle`, status claim is `done`, target readiness is `ready_for_parent_acceptance`, no acceptance blockers remain, oracle `claim_hash` exactly matches the returned claim, `recommended_action=accept_claim`, confidence is MEDIUM/HIGH, no oracle blocking issues remain, and oracle verdict is `PASS` with `no_ship=false`;
+- `WARN`, `FAIL`, oracle `no_ship=true`, missing evidence, missing final marker, or mismatched `claim_hash` must leave the TODO in review/blocked state, not `done`;
+- treat child `no_ship=true` as advisory review evidence, not an automatic child delivery failure when a deliverable was returned;
+- reject/block the claim if evidence is missing or the parent agrees the advisory no_ship is a real blocker;
+- import subtodo proposals only after checking depth/fanout and relevance.
+
+Oracle validation output shape:
+
+```text
+TODO_CLAIM_VALIDATION.v1
+
+todo_id: <id>
+claim_hash: <sha256 returned claim hash>
+verdict: PASS | WARN | FAIL
+recommended_action: accept_claim | needs_review | reject_claim | block
+evidence_refs:
+validation_commands:
+blocking_issues: <issues, or none>
+no_ship: true/false
+confidence: LOW | MEDIUM | HIGH
+FINAL_MARKER: TODO_CLAIM_VALIDATION_END
+```
+
+If a delegated TODO claim has returned:
+
+- Primary Tool API: `resolve_goal_todo({ todo_id, action: "auto" | "complete" | "accept_claim", evidence_refs, validation_commands })`.
+- Compatibility Tool API: `complete_goal_todo` and `accept_goal_todo_claim` use the same parent-owned acceptance behavior for returned claims.
+- Slash command: `/goal todo done <todoId> [evidence]` and `/goal todo accept-claim <todoId> [evidence]` both route through parent acceptance for returned claims.
+- Never mark delegated TODOs `done` while the delegation is queued/running/failed and no returned claim exists.
+- If evidence is missing or `no_ship=true`, call `reject_goal_todo_claim` or `block_goal_todo` unless parent review explicitly accepts the advisory risk.
+
+If a high/xhigh/max TODO-linked child determines the TODO is too broad for its scope/context, it may return a split request instead of a poor completion:
+
+```text
+TODO_SPLIT_REQUEST.v1
+
+todo_id: <id>
+reason: <why this exceeds child scope/context>
+recommended_action: split | replan | factory | needs_user | blocked
+proposed_subtodos:
+- <bounded child TODO title>
+risk_level: low | medium | high
+validation_plan:
+- <expected evidence or command>
+evidence: <why this split request is justified>
+risks_blockers: <unresolved risks, or none>
+compliance: parent-owned split request only; no child dispatch or parent TODO mutation
+no_ship: false
+FINAL_MARKER: TODO_SPLIT_REQUEST_END
+```
+
+Parent action after a split request:
+
+- validate output contract, depth/fanout caps, scope, no_ship, and relevance;
+- apply `split_goal_todo` only from the parent;
+- mark the original parent TODO skipped/decomposed only after child TODOs are created;
+- never let the child directly split, dispatch, or complete the parent TODO.
+
+## Completion gate checklist
+
+Before calling `propose_goal_completion`, verify:
+
+- `get_goal_todos.details.completion_ready` is true and `effective_no_ship` is false;
+- all required TODOs are `done` or `skipped` with explicit reason; critical/delegated/factory/orchestration skips also cite evidence refs or validation commands;
+- no required TODO is `planned`, `ready`, `in_progress`, `delegated`, `claim_returned`, `needs_user`, `needs_oracle`, or `blocked`;
+- critical/delegated TODOs have evidence refs or validation commands;
+- factory/orchestration TODOs cite validation/sentinel/checkpoint artifacts when relevant;
+- known risks are included in the completion proposal;
+- no hard or unresolved review no-ship blocker remains (`hard_no_ship=false`, `review_no_ship=false`, `effective_no_ship=false`).
+
+If any item fails, continue work or report the blocker instead of proposing completion.
+
+## HUD guidance
+
+HUD should show compact summary, not the whole tree:
+
+```text
+runtime goal active · loop on 2/12 · oracle none
+todos 5/12 · active 2 · blocked 1 · delegated 3
+next agent 1.2 add reducer · next user 3 confirm UX
+```
+
+Use detailed commands/overlay for the full tree.
+
+## Coms and Mission Control safety
+
+For TODO-linked communication:
+
+- use `taskId=todoId`;
+- use `taskHash` and `outputHash`;
+- use safe repo-relative `artifactRefs`;
+- keep `bodyStored=false`;
+- keep command proposals parent-owned and proposal-only;
+- never target direct worker writes from Mission Control.
+
+## Factory/orchestration evidence
+
+When TODOs represent factories/orchestrations/chains, reference existing artifacts instead of duplicating bodies:
+
+- `reports/factory-runs/<runId>/validation.json`
+- `reports/factory-runs/<runId>/checkpoints/*.checkpoint.json`
+- `reports/factory-runs/<runId>/DONE.sentinel`
+- `reports/orchestrations/<runId>/orchestration-plan.json`
+- `reports/orchestrations/<runId>/status.jsonl`
+- `reports/chains/<runId>/chain-plan.json`
+
+## Implementation advice
+
+The harness implements the core phases. For future changes, preserve the phased safety model:
+
+1. Flat TODOs attached to `/goal`.
+2. HUD summary and prompt injection.
+3. Completion blocker in `propose_goal_completion`.
+4. Tree/subtodos.
+5. Delegated TODO claims.
+6. TODO overlay.
+7. Adaptive delegation mapping.
+8. Factory/orchestration/chain imports.
+9. Mission Control/context/queue integrations.
+
+Do not start with full X-depth delegation. First prove flat TODOs, restore, HUD, and completion blocking.
+
+## Oracle review behavior
+
+For oracle review of a goal with TODOs:
+
+- inspect TODO summary;
+- sample critical done TODO evidence;
+- verify delegated claims were parent-accepted, not child-self-completed;
+- verify required TODOs are closed;
+- verify validation commands and sentinels exist when claimed;
+- return PASS/WARN/FAIL and explicit `no_ship`.
+
+Missing TODO evidence means WARN or FAIL, never PASS.

@@ -1,0 +1,19 @@
+{
+  "id": "agent-event.v1",
+  "version": 1,
+  "description": "Typed parent-visible agent event with hash-only body/output refs, evidence, and no direct TODO mutation.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "schema", "type": "section_or_marker" },
+    { "name": "kind", "type": "section_or_marker" },
+    { "name": "body_hash", "type": "section_or_marker" },
+    { "name": "parent_visible", "type": "section_or_marker" },
+    { "name": "parent_owned_actions", "type": "section_or_marker" },
+    { "name": "no_direct_todo_mutation", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

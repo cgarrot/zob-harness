@@ -1,0 +1,36 @@
+{
+  "id": "research.v1",
+  "version": 1,
+  "description": "Sourced research output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "sources",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "unknowns",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "recommendation",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "prompt-pack.v1",
+  "version": 1,
+  "description": "Role-scoped prompt/context pack with bounded docs, skill refs, output contract, event policy, and body-free posture.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "schema", "type": "section_or_marker" },
+    { "name": "role_id", "type": "section_or_marker" },
+    { "name": "prompt_refs", "type": "section_or_marker" },
+    { "name": "skill_refs", "type": "section_or_marker" },
+    { "name": "doc_refs", "type": "section_or_marker" },
+    { "name": "output_contract", "type": "section_or_marker" },
+    { "name": "event_policy", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

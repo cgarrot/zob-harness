@@ -1,0 +1,52 @@
+{
+  "id": "explore.v1",
+  "version": 1,
+  "description": "Read-only exploration output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "literal_request",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "actual_need",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "success_looks_like",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "files",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "answer",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "gaps",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "next_steps",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

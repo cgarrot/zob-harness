@@ -1,0 +1,103 @@
+{
+  "version": "0.1.0",
+  "rules": {
+    "apiCliFirst": true,
+    "browserLastResort": true,
+    "defaultMode": "read-only",
+    "noSecrets": true,
+    "noProductionWritesWithoutHumanApproval": true
+  },
+  "adapters": [
+    {
+      "id": "filesystem.readonly",
+      "status": "active",
+      "system": "local filesystem",
+      "interface": "node-fs/pi-read-grep-find-ls",
+      "auth": "local",
+      "risk": "medium",
+      "priority": 1,
+      "capabilities": ["read", "list", "search"],
+      "defaultMode": "read-only",
+      "humanApproval": "writes",
+      "forbidden": ["secrets", "zero-access paths", "generated/vendor traversal"]
+    },
+    {
+      "id": "git.readonly",
+      "status": "active",
+      "system": "git metadata",
+      "interface": "git-cli-readonly",
+      "auth": "local",
+      "risk": "medium",
+      "priority": 2,
+      "capabilities": ["status", "diff", "log"],
+      "defaultMode": "read-only",
+      "humanApproval": "writes",
+      "forbidden": ["reset", "clean", "force push", "commit without request"]
+    },
+    {
+      "id": "pi-json",
+      "status": "active",
+      "system": "Pi runtime",
+      "interface": "pi-json-mode/extensions",
+      "auth": "local",
+      "risk": "medium",
+      "priority": 3,
+      "capabilities": ["delegate_task", "delegate_agent", "factory_run"],
+      "defaultMode": "gated",
+      "humanApproval": "writes",
+      "forbidden": ["unknown tools", "ungated background jobs", "missing output contracts"]
+    },
+    {
+      "id": "opencode-corpus",
+      "status": "active",
+      "system": "OpenCode/meta-analysis corpus",
+      "interface": "local-manifest-files",
+      "auth": "local",
+      "risk": "medium",
+      "priority": 4,
+      "capabilities": ["manifest", "checkpoint-read", "taxonomy-extract"],
+      "defaultMode": "read-only",
+      "humanApproval": "batch-scale",
+      "forbidden": ["unbounded reads", "no-sentinel scale", "invented evidence"]
+    },
+    {
+      "id": "package-manager.readonly",
+      "status": "proposed",
+      "system": "package metadata",
+      "interface": "npm/pnpm/yarn read-only commands",
+      "auth": "none-or-registry-session",
+      "risk": "medium",
+      "priority": 5,
+      "capabilities": ["view", "audit-read", "outdated-read"],
+      "defaultMode": "read-only",
+      "humanApproval": "writes",
+      "forbidden": ["install", "upgrade", "publish", "run lifecycle scripts"]
+    },
+    {
+      "id": "github.readonly",
+      "status": "proposed",
+      "system": "GitHub",
+      "interface": "gh-cli-or-rest-readonly",
+      "auth": "token-or-user-session",
+      "risk": "high",
+      "priority": 6,
+      "capabilities": ["read-repo", "read-issues", "read-prs"],
+      "defaultMode": "read-only",
+      "humanApproval": "writes",
+      "forbidden": ["merge", "push", "comment", "label", "secret reads"]
+    },
+    {
+      "id": "browser.kimi-webbridge",
+      "status": "proposed",
+      "system": "browser websites",
+      "interface": "Kimi WebBridge",
+      "auth": "browser-session",
+      "risk": "high",
+      "priority": 7,
+      "capabilities": ["navigate", "read-page", "screenshot", "click-with-approval"],
+      "defaultMode": "human-request-only",
+      "humanApproval": "always",
+      "forbidden": ["unrequested clicks", "billing changes", "production mutations", "credential extraction"]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "factory": "roadmap-smoke-lots",
+  "description": "Smoke manifest that treats docs/ROADMAP.md as the single source for smoke-first ZOB execution lots.",
+  "items": [
+    {
+      "id": "roadmap-main",
+      "path": "docs/ROADMAP.md",
+      "metadata": {
+        "source": "local-roadmap",
+        "safe_now_themes": [
+          "v1.4 budget preflight dry-run",
+          "v1.1 delegation chronicle state smoke",
+          "v1.4 stop-condition advisory smoke",
+          "v1.2 factory state-event smoke",
+          "v1.8 read-only factory templates"
+        ],
+        "blocked_themes": [
+          "batch without budget",
+          "always-on daemon",
+          "model-router activation",
+          "browser/write adapters without approval",
+          "networked coms or peer chatroom"
+        ]
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

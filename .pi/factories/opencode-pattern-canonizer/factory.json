@@ -1,0 +1,86 @@
+{
+  "name": "opencode-pattern-canonizer",
+  "version": "0.2.0",
+  "description": "Convert OpenCode/meta-analysis batches into canonical workflow pattern, risk, instruction, and quality-gate artifacts.",
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "patterns_canonicalized",
+    "risks_canonicalized",
+    "quality_gates_written",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ],
+  "stages": [
+    {
+      "name": "map-extract-patterns",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Extract workflow patterns, anti-patterns, evidence, and gaps from one input item.",
+      "promptTemplate": "Analyze factory item {item.id} at {item.path} for canonical ZOB workflow patterns. Return literal_request, actual_need, success_looks_like, files, answer, gaps, next_steps, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Map freeform observations to canonical pattern/risk ids when possible.",
+        "Cite concrete evidence from the file."
+      ],
+      "mustNotDo": [
+        "No edits.",
+        "No secrets.",
+        "No broad commands."
+      ],
+      "context": "Factory {factory.name} run {run.id}; map stage for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "reduce-synthesize-taxonomy",
+      "type": "reduce",
+      "agent": "synthesis",
+      "outputContract": "synthesis.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Merge mapped item outputs into consensus taxonomy, conflicts, missing evidence, and rerun tasks.",
+      "promptTemplate": "Synthesize map outputs for factory {factory.name} run {run.id}. Read outputs from {outputs.dir}. Produce consensus, conflicts, missing_evidence, recommended_next_action, tasks_to_rerun, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Separate consensus from conflicts.",
+        "Identify missing evidence and rerun tasks.",
+        "Preserve canonical pattern/risk ids."
+      ],
+      "mustNotDo": [
+        "No edits outside the run directory.",
+        "No invented evidence.",
+        "No secrets."
+      ],
+      "context": "Factory {factory.name} reduce stage for run {run.id}."
+    },
+    {
+      "name": "validate-no-ship",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate factory outputs and produce global PASS/FAIL/WARN with no_ship decision.",
+      "promptTemplate": "Validate factory {factory.name} run {run.id}. Check manifest, outputs, checkpoints, validation.json, final-report.md, and DONE.sentinel under {run.dir}. Return verdict, confidence, no_ship, blockers, notes, evidence, merged_lanes, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Fail if sentinel or validation evidence is missing.",
+        "Warn if evidence is incomplete.",
+        "Cite exact artifact paths."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets."
+      ],
+      "context": "Factory {factory.name} validation stage for run {run.id}."
+    }
+  ]
+}

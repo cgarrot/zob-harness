@@ -1,0 +1,61 @@
+{
+  "factory": "code-review-matrix",
+  "description": "Batch manifest for read-only multi-lane code review across safe local harness source files. Batch remains gated by pilot proof, persisted oracle review, and explicit concurrency cap; no autofix or source writes are permitted.",
+  "items": [
+    {
+      "id": "factory-run-batch-review",
+      "path": ".pi/extensions/zob-harness/src/factory/run.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"]
+      }
+    },
+    {
+      "id": "factory-validation-batch-review",
+      "path": ".pi/extensions/zob-harness/src/factory/validation.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"]
+      }
+    },
+    {
+      "id": "factory-agentic-plan-batch-review",
+      "path": ".pi/extensions/zob-harness/src/factory/agentic-plan.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"]
+      }
+    },
+    {
+      "id": "child-runner-batch-review",
+      "path": ".pi/extensions/zob-harness/src/child-runner.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"]
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md",
+    "code-review-matrix.json",
+    "code-review-blockers.md",
+    "code-review-evidence.md"
+  ]
+}

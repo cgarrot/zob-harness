@@ -1,0 +1,49 @@
+{
+  "factory": "roadmap-smoke-lots",
+  "description": "Batch manifest for parent-owned roadmap lot planning across safe local documentation inputs. Batch remains gated by pilot proof, persisted oracle review, and explicit concurrency cap.",
+  "items": [
+    {
+      "id": "roadmap-main-batch",
+      "path": "docs/ROADMAP.md",
+      "metadata": { "source": "local-roadmap", "batch": true }
+    },
+    {
+      "id": "roadmap-lots-batch",
+      "path": "docs/ROADMAP_FACTORY_LOTS.md",
+      "metadata": { "source": "local-roadmap", "batch": true }
+    },
+    {
+      "id": "operating-model-batch",
+      "path": "docs/OPERATING_MODEL.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "architecture-batch",
+      "path": "docs/ARCHITECTURE.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "factory-plan-batch",
+      "path": "docs/AGENTIC_ENGINEERING_SOFTWARE_FACTORY_PLAN.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "software-factory-mode-batch",
+      "path": "docs/ZOB_SOFTWARE_FACTORY_MODE.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    },
+    {
+      "id": "rules-system-batch",
+      "path": "docs/ZOB_RULES_SYSTEM.md",
+      "metadata": { "source": "local-doc", "batch": true }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

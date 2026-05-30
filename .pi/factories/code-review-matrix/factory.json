@@ -1,0 +1,163 @@
+{
+  "name": "code-review-matrix",
+  "version": "0.1.0",
+  "description": "Read-only smoke factory for multi-lane code review matrices covering architecture, correctness, security, QA, synthesis, and oracle merge without autofix behavior.",
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "patterns_canonicalized",
+    "risks_canonicalized",
+    "quality_gates_written",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md",
+    "code-review-matrix.json",
+    "code-review-blockers.md",
+    "code-review-evidence.md"
+  ],
+  "stages": [
+    {
+      "name": "map-architecture-lane",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Assess architecture boundaries, coupling, maintainability, and evidence for one input item without modifying code.",
+      "promptTemplate": "Review code-review item {item.id} at {item.path} for architecture concerns only. Produce PASS/FAIL/WARN, blockers, recommended patches as text only, evidence, risks/blockers, compliance, and deliverable_delivered. Do not edit, write, autofix, call cloud/browser/GitHub, or access secrets.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Classify architecture findings as PASS, FAIL, or WARN.",
+        "Provide recommended patches as prose only, not applied changes.",
+        "Cite concrete file evidence."
+      ],
+      "mustNotDo": [
+        "No edits, writes, autofix, or source modifications.",
+        "No GitHub, browser, daemon, or cloud actions.",
+        "No secrets or .env reads.",
+        "No pilot or batch activation."
+      ],
+      "context": "Factory {factory.name} run {run.id}; architecture lane for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "map-correctness-lane",
+      "type": "map",
+      "agent": "oracle",
+      "outputContract": "oracle.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Assess correctness risks, edge cases, and behavioral regressions for one input item without modifying code.",
+      "promptTemplate": "Review code-review item {item.id} at {item.path} for correctness only. Return PASS/FAIL/WARN verdict, confidence, blockers, notes, evidence, risks/blockers, compliance, and deliverable_delivered. Recommended patches must be textual suggestions only; do not edit or autofix.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Check behavior, edge cases, invariants, and regression risk.",
+        "Separate blockers from non-blocking warnings.",
+        "Cite exact evidence."
+      ],
+      "mustNotDo": [
+        "No edits, writes, autofix, or source modifications.",
+        "No GitHub, browser, daemon, or cloud actions.",
+        "No secrets or .env reads.",
+        "No mandatory budget gate."
+      ],
+      "context": "Factory {factory.name} run {run.id}; correctness lane for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "map-security-lane",
+      "type": "map",
+      "agent": "oracle",
+      "outputContract": "oracle.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Assess security, secrets, injection, data exposure, and dangerous operation risks without modifying code.",
+      "promptTemplate": "Review code-review item {item.id} at {item.path} for security only. Return PASS/FAIL/WARN verdict, confidence, blockers, notes, evidence, risks/blockers, compliance, and deliverable_delivered. Do not read secrets or .env; recommended patches are prose only.",
+      "mustDo": [
+        "Read only the declared item path and non-secret supporting files if needed.",
+        "Check for secret exposure, unsafe shell/path operations, injection, and external action risk.",
+        "Fail on evidence of unsafe write/cloud/browser/GitHub behavior.",
+        "Cite exact evidence."
+      ],
+      "mustNotDo": [
+        "No edits, writes, autofix, or source modifications.",
+        "No GitHub, browser, daemon, or cloud actions.",
+        "No secrets or .env reads.",
+        "No destructive commands."
+      ],
+      "context": "Factory {factory.name} run {run.id}; security lane for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "map-qa-lane",
+      "type": "map",
+      "agent": "qa",
+      "outputContract": "qa.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Assess test coverage, validation gaps, and reproducible QA checks without running writes or modifications.",
+      "promptTemplate": "Review code-review item {item.id} at {item.path} for QA and testability only. Return explicit sections/headings: verdict, command/cwd, exit code or important output, reproduction steps, tested, failures, coverage_notes, evidence, risks/blockers, compliance, and deliverable_delivered. If no command is executed, state command/cwd: not executed (read-only review) and exit code or important output: not applicable, then provide reproduction steps for how to re-check manually. Recommend tests as prose only; do not edit or execute write-capable tools.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Identify existing tests and missing coverage from available files only.",
+        "Classify QA result as PASS, FAIL, WARN, or INCONCLUSIVE.",
+        "Include the exact words command/cwd, exit code or important output, and reproduction steps.",
+        "Cite exact evidence."
+      ],
+      "mustNotDo": [
+        "No edits, writes, autofix, or source modifications.",
+        "No GitHub, browser, daemon, or cloud actions.",
+        "No secrets or .env reads.",
+        "No pilot or batch activation."
+      ],
+      "context": "Factory {factory.name} run {run.id}; QA lane for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "reduce-code-review-matrix",
+      "type": "reduce",
+      "agent": "synthesis",
+      "outputContract": "synthesis.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Merge lane outputs into a read-only review matrix with consensus, conflicts, blockers, recommended textual patches, and evidence.",
+      "promptTemplate": "Synthesize code-review lane outputs for factory {factory.name} run {run.id}. Read outputs from {outputs.dir}. Produce consensus, conflicts, missing_evidence, recommended_next_action, tasks_to_rerun, evidence, risks/blockers, compliance, and deliverable_delivered. Preserve PASS/FAIL/WARN per lane and keep recommendations as text only.",
+      "mustDo": [
+        "Separate architecture, correctness, security, and QA lane verdicts.",
+        "Preserve blockers and evidence paths.",
+        "Mark recommended patches as advisory text only.",
+        "Identify missing evidence and rerun needs."
+      ],
+      "mustNotDo": [
+        "No edits, writes, autofix, or source modifications.",
+        "No invented evidence.",
+        "No GitHub, browser, daemon, or cloud actions.",
+        "No mandatory budget gate."
+      ],
+      "context": "Factory {factory.name} reduce stage for run {run.id}."
+    },
+    {
+      "name": "validate-code-review-matrix",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate the review matrix and produce a global PASS/FAIL/WARN with no_ship, blockers, evidence, and safe sentinel decision.",
+      "promptTemplate": "Validate factory {factory.name} run {run.id} before the parent final gate writes phase/DONE sentinels. Check manifest, outputs, checkpoints, validation.json, final-report.md, and telemetry.json under {run.dir}; treat final phase/DONE sentinels as pending unless the parent final gate has already written them. Return verdict, confidence, no_ship, blockers, notes, evidence, merged_lanes, risks/blockers, compliance, and deliverable_delivered. Fail if review lanes imply edits/autofix/cloud/browser/GitHub actions.",
+      "mustDo": [
+        "Fail if validation evidence or required non-sentinel artifacts are missing.",
+        "Do not fail merely because final phase/DONE sentinels are pending before the parent final gate.",
+        "Fail if any lane claims applied patches, writes, autofix, cloud/browser/GitHub, or secret access.",
+        "Confirm budget remains advisory and no mandatory gate is used.",
+        "Cite exact artifact paths."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets or .env reads.",
+        "No pilot, batch, daemon, browser, cloud, or GitHub actions."
+      ],
+      "context": "Factory {factory.name} validation stage for run {run.id}."
+    }
+  ]
+}

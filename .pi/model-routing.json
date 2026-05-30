@@ -1,0 +1,86 @@
+{
+  "schema": "zob.model-routing-config.v1",
+  "version": 1,
+  "description": "Deterministic advisory model-class defaults for future live routing review. This registry never enables live routing by itself.",
+  "advisoryOnly": true,
+  "liveRoutingDispatchGateAvailable": true,
+  "liveRoutingRequiresExplicitInput": true,
+  "liveRoutingDefaultEnabled": false,
+  "liveRoutingEnabled": false,
+  "budgetEnforced": false,
+  "strictEnabled": false,
+  "modelRouterUsed": false,
+  "routingApplied": false,
+  "childDispatchAllowed": false,
+  "daemonStarted": false,
+  "networkAccessed": false,
+  "noExecution": true,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "modelClasses": {
+    "cheap_scout": {
+      "risk": "low",
+      "useFor": [
+        "read_only_inspection",
+        "reuse_scout",
+        "metadata_summary"
+      ],
+      "maxContextTokens": 32000
+    },
+    "balanced_worker": {
+      "risk": "medium",
+      "useFor": [
+        "implementation_planning",
+        "factory_worker",
+        "synthesis"
+      ],
+      "maxContextTokens": 96000
+    },
+    "strong_reasoning": {
+      "risk": "high",
+      "useFor": [
+        "security_review",
+        "architecture_decision",
+        "complex_plan"
+      ],
+      "maxContextTokens": 96000
+    },
+    "strong_oracle": {
+      "risk": "high",
+      "useFor": [
+        "oracle_review",
+        "validation_gate",
+        "no_ship_decision"
+      ],
+      "maxContextTokens": 96000
+    },
+    "high_context": {
+      "risk": "medium",
+      "useFor": [
+        "large_batch_synthesis",
+        "long_context_review"
+      ],
+      "minContextTokens": 120000
+    }
+  },
+  "defaults": {
+    "byMode": {
+      "explore": "cheap_scout",
+      "plan": "strong_reasoning",
+      "implement": "balanced_worker",
+      "oracle": "strong_oracle",
+      "factory": "balanced_worker",
+      "orchestrator": "strong_reasoning"
+    },
+    "highContextThresholdTokens": 120000,
+    "highContextModelClass": "high_context"
+  },
+  "futureLiveRoutingPrerequisites": [
+    "oracle PASS/no_ship=false for live routing integration",
+    "strict budget gate implemented and proven",
+    "registered smoke proof with current source fingerprint",
+    "human approval metadata",
+    "rollback and stop-condition evidence where writes are involved"
+  ]
+}

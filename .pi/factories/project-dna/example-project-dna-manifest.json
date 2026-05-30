@@ -1,0 +1,58 @@
+{
+  "schema": "zob.project-dna-manifest.v1",
+  "run_id": "project-dna-factory-example",
+  "compute_profile": "auto",
+  "compute_caps": {
+    "maxAgents": 10,
+    "maxDelegationDepth": 2,
+    "maxParallel": 4,
+    "maxDurationMs": 600000,
+    "maxContextTokens": 12000,
+    "strictBudgetRequired": true,
+    "oracleRequired": true
+  },
+  "source_project": {
+    "source_id": "project-dna-factory",
+    "path": ".pi/factories/project-dna",
+    "owner": "zob-harness",
+    "description": "Safe repo-local ProjectDNA factory scaffold used as a scanner example."
+  },
+  "sample_project": {
+    "name": "project-dna-factory-sample-plan",
+    "neutral_domain": "factory-scaffold",
+    "target_stack_policy": "plan_only",
+    "copy_policy": "no_copy_plan_only"
+  },
+  "read_policy": {
+    "allowed_paths": [".pi/factories/project-dna"],
+    "forbidden_patterns": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "id_rsa",
+      "id_ed25519",
+      "secrets",
+      "credentials",
+      "node_modules",
+      "dist",
+      "build",
+      "coverage",
+      ".next",
+      ".nuxt",
+      "out",
+      ".git"
+    ]
+  },
+  "validation": {
+    "commands": ["npm run validate:project-dna", "npm run smoke:project-dna-scan"],
+    "allow_command_substitution": false
+  },
+  "promotion": {
+    "requires_oracle_pass": true,
+    "requires_human_approval": true,
+    "writeback_policy": "proposal_only"
+  }
+}

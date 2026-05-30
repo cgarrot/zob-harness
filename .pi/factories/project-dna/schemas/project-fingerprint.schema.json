@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/project-fingerprint.v1.json",
+  "title": "ProjectDNA Project Fingerprint",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "source_id", "files_scanned", "files_skipped", "languages", "generated_at", "secret_scan"],
+  "properties": {
+    "schema": { "const": "zob.project-fingerprint.v1" },
+    "source_id": { "type": "string" },
+    "root_hash": { "type": "string" },
+    "files_scanned": { "type": "integer", "minimum": 0 },
+    "files_skipped": { "type": "integer", "minimum": 0 },
+    "languages": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "package_managers": { "type": "array", "items": { "type": "string" } },
+    "frameworks_detected": { "type": "array", "items": { "type": "string" } },
+    "secret_scan": {
+      "type": "object",
+      "required": ["forbidden_paths_skipped", "secret_like_artifacts_included"],
+      "properties": {
+        "forbidden_paths_skipped": { "type": "boolean" },
+        "secret_like_artifacts_included": { "const": false },
+        "skipped_patterns": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "generated_at": { "type": "string" }
+  }
+}

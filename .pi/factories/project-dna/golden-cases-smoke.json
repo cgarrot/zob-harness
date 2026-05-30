@@ -1,0 +1,62 @@
+{
+  "schema": "zob.project-dna-golden-suite.v1",
+  "suite_id": "project-dna-5of5-agentic-smoke",
+  "description": "Golden cases for the repo-local ProjectDNA factory smoke. They verify agents-first controls, query stewarding, source-safe scans, quarantine sample posture, and oracle benchmark readiness.",
+  "source_id": "project-dna-factory",
+  "raw_queries_persisted": false,
+  "knowledge_backend_write_enabled": false,
+  "promotion_policy": "proposal_only",
+  "minimum_score": 5,
+  "cases": [
+    {
+      "id": "agentic-control-plane",
+      "intent_id": "project_dna.agentic_control_plane",
+      "query": "agents first project dna factory scripts as tools validation gates",
+      "required_citation_includes": ["factory.json", "README.md"],
+      "required_files_to_read_first": ["factory.json", "README.md"],
+      "expected_patterns": ["project_dna.agentic_control_plane"],
+      "required_safety": ["bounded_context_only", "citation_required", "no_knowledge_backend_write", "proposal_only"],
+      "score_threshold": 5
+    },
+    {
+      "id": "manifest-compute-capture-policy",
+      "intent_id": "project_dna.source_safe_proposal_only",
+      "query": "manifest compute profile capture mode source mutation backend write policy",
+      "required_citation_includes": ["example-project-dna-manifest-v2.json", "schemas/manifest-v2.schema.json"],
+      "required_files_to_read_first": ["example-project-dna-manifest-v2.json", "schemas/manifest-v2.schema.json"],
+      "expected_patterns": ["project_dna.source_safe_proposal_only"],
+      "required_safety": ["bounded_context_only", "citation_required", "no_knowledge_backend_write", "proposal_only"],
+      "score_threshold": 5
+    },
+    {
+      "id": "context-pack-bounded-citations",
+      "intent_id": "project_dna.query_steward_rewrite",
+      "query": "context pack schema bounded citations loading rules query steward",
+      "required_citation_includes": ["schemas/context-pack.schema.json", "README.md"],
+      "required_files_to_read_first": ["schemas/context-pack.schema.json"],
+      "expected_patterns": ["project_dna.query_steward_rewrite"],
+      "required_safety": ["bounded_context_only", "citation_required", "no_knowledge_backend_write", "proposal_only"],
+      "score_threshold": 5
+    },
+    {
+      "id": "ontology-golden-benchmark",
+      "intent_id": "project_dna.golden_case_benchmark",
+      "query": "ontology golden cases benchmark oracle 5 of 5 project dna",
+      "required_citation_includes": ["pi-agentic-ontology.json", "golden-cases-smoke.json"],
+      "required_files_to_read_first": ["pi-agentic-ontology.json", "golden-cases-smoke.json"],
+      "expected_patterns": ["project_dna.ontology_curation", "project_dna.golden_case_benchmark"],
+      "required_safety": ["bounded_context_only", "citation_required", "no_knowledge_backend_write", "proposal_only"],
+      "score_threshold": 5
+    },
+    {
+      "id": "sample-quarantine-pi-like",
+      "intent_id": "project_dna.sample_quarantine_pi_like",
+      "query": "quarantine sample pi-like extension skill agent test no source copy",
+      "required_citation_includes": ["README.md", "factory.json"],
+      "required_files_to_read_first": ["README.md", "factory.json"],
+      "expected_patterns": ["project_dna.sample_quarantine_pi_like"],
+      "required_safety": ["bounded_context_only", "citation_required", "no_knowledge_backend_write", "proposal_only"],
+      "score_threshold": 5
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "schema": "zob.orchestration-profile.v1",
+  "name": "ceo-feature-build",
+  "version": "1.0.0",
+  "description": "Example advanced profile: CEO-style coordinator delegates to planning, engineering, and validation leads. CEO is a profile role, not a hardcoded runtime requirement.",
+  "goalPolicy": "strict",
+  "modelPolicy": {
+    "classes": {
+      "cheap_scout": {
+        "description": "Fast low-risk exploration",
+        "defaultModel": "provider/cheap-fast",
+        "thinking": "low",
+        "downgradeAllowed": true
+      },
+      "balanced_worker": {
+        "description": "Standard execution and QA",
+        "defaultModel": "provider/balanced",
+        "thinking": "medium",
+        "downgradeAllowed": true
+      },
+      "strong_reasoning": {
+        "description": "Planning and architecture",
+        "defaultModel": "provider/strong-reasoning",
+        "thinking": "high",
+        "downgradeAllowed": false
+      },
+      "strong_oracle": {
+        "description": "Critical validation and security",
+        "defaultModel": "provider/strong-oracle",
+        "thinking": "high",
+        "downgradeAllowed": false
+      },
+      "local_offline": {
+        "description": "Local/offline fallback for non-critical tasks",
+        "defaultModel": "local/model",
+        "thinking": "low",
+        "downgradeAllowed": true
+      }
+    }
+  },
+  "orchestrator": {
+    "id": "ceo-orchestrator",
+    "roleType": "orchestrator",
+    "agent": "planner",
+    "modelClass": "strong_reasoning",
+    "requiredTools": ["read", "grep", "find", "ls"],
+    "outputContract": "plan.v1",
+    "rules": [
+      "Do not code directly",
+      "Delegate through leads",
+      "Preserve original user ask",
+      "Never mark complete without oracle evidence"
+    ]
+  },
+  "roles": [
+    {
+      "id": "planning-lead",
+      "roleType": "lead",
+      "agent": "planner",
+      "modelClass": "strong_reasoning",
+      "canDelegateTo": ["explore-worker", "research-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "explore-worker",
+      "roleType": "worker",
+      "leadId": "planning-lead",
+      "agent": "explore",
+      "modelClass": "cheap_scout",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1"
+    },
+    {
+      "id": "research-worker",
+      "roleType": "worker",
+      "leadId": "planning-lead",
+      "agent": "librarian",
+      "modelClass": "balanced_worker",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "research.v1"
+    },
+    {
+      "id": "engineering-lead",
+      "roleType": "lead",
+      "agent": "planner",
+      "modelClass": "strong_reasoning",
+      "canDelegateTo": ["implementer-worker", "qa-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "implementer-worker",
+      "roleType": "worker",
+      "leadId": "engineering-lead",
+      "agent": "implementer",
+      "modelClass": "balanced_worker",
+      "requiredTools": ["read", "grep", "find", "ls", "edit"],
+      "allowedPaths": ["src/", "tests/", ".pi/extensions/", ".pi/agents/", ".pi/prompts/", ".pi/output-contracts/", ".pi/chains/", "docs/", "scripts/"],
+      "forbiddenPaths": [".env", ".git/", "node_modules/", "dist/", "build/"],
+      "outputContract": "implement.v1"
+    },
+    {
+      "id": "qa-worker",
+      "roleType": "worker",
+      "leadId": "engineering-lead",
+      "agent": "qa",
+      "modelClass": "balanced_worker",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputContract": "qa.v1"
+    },
+    {
+      "id": "validation-lead",
+      "roleType": "lead",
+      "agent": "oracle-merge",
+      "modelClass": "strong_oracle",
+      "canDelegateTo": ["oracle-worker", "security-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "oracle-worker",
+      "roleType": "worker",
+      "leadId": "validation-lead",
+      "agent": "oracle",
+      "modelClass": "strong_oracle",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1"
+    },
+    {
+      "id": "security-worker",
+      "roleType": "worker",
+      "leadId": "validation-lead",
+      "agent": "oracle",
+      "modelClass": "strong_oracle",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "rules": [
+        "Review secrets exposure",
+        "Review destructive operations",
+        "Review path policy",
+        "Return no_ship=true on critical risk"
+      ]
+    }
+  ],
+  "edges": [
+    ["ceo-orchestrator", "planning-lead"],
+    ["ceo-orchestrator", "engineering-lead"],
+    ["ceo-orchestrator", "validation-lead"],
+    ["planning-lead", "explore-worker"],
+    ["planning-lead", "research-worker"],
+    ["explore-worker", "planning-lead"],
+    ["research-worker", "planning-lead"],
+    ["engineering-lead", "implementer-worker"],
+    ["engineering-lead", "qa-worker"],
+    ["implementer-worker", "engineering-lead"],
+    ["qa-worker", "engineering-lead"],
+    ["validation-lead", "oracle-worker"],
+    ["validation-lead", "security-worker"],
+    ["oracle-worker", "validation-lead"],
+    ["security-worker", "validation-lead"],
+    ["planning-lead", "ceo-orchestrator"],
+    ["engineering-lead", "ceo-orchestrator"],
+    ["validation-lead", "ceo-orchestrator"]
+  ],
+  "phases": [
+    { "id": "goal-intake", "type": "goal_gate", "required": true },
+    { "id": "lead-planning", "type": "parallel_leads", "run": ["planning-lead", "engineering-lead", "validation-lead"] },
+    { "id": "worker-execution", "type": "from_lead_plans", "requiresOutputContract": "lead-plan.v1" },
+    { "id": "lead-synthesis", "type": "lead_synthesis", "run": ["planning-lead", "engineering-lead", "validation-lead"] },
+    { "id": "oracle-merge", "type": "validation", "run": ["validation-lead"], "noShipOnFail": true },
+    { "id": "final-report", "type": "final_report", "run": ["ceo-orchestrator"] }
+  ],
+  "finalReportRole": "ceo-orchestrator",
+  "completionGate": {
+    "requiresEvidence": true,
+    "requiresOracle": true,
+    "noShipOnFail": true,
+    "promptBodiesStored": false,
+    "outputBodiesStored": false
+  }
+}

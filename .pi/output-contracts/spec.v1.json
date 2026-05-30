@@ -1,0 +1,22 @@
+{
+  "id": "spec.v1",
+  "version": 1,
+  "description": "Product/factory specification output with testable acceptance criteria before planning.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "problem", "type": "section_or_marker" },
+    { "name": "context", "type": "section_or_marker" },
+    { "name": "objectives", "type": "section_or_marker" },
+    { "name": "non_goals", "type": "section_or_marker" },
+    { "name": "in_scope", "type": "section_or_marker" },
+    { "name": "out_of_scope", "type": "section_or_marker" },
+    { "name": "constraints", "type": "section_or_marker" },
+    { "name": "acceptance_criteria", "type": "section_or_marker" },
+    { "name": "open_questions", "type": "section_or_marker" },
+    { "name": "handoff_to_planner", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

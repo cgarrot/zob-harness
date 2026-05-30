@@ -1,0 +1,88 @@
+{
+  "schema": "zob.project-dna-ontology.v1",
+  "ontology_id": "pi-agentic-project-dna",
+  "description": "Controlled ProjectDNA ontology for agents-first Pi/ZOB harness retrieval. Static concepts are navigation hints; scan artifacts remain source of truth.",
+  "source_safe": true,
+  "raw_bodies_stored": false,
+  "knowledge_backend_write_enabled": false,
+  "promotion_policy": "proposal_only",
+  "concepts": [
+    {
+      "id": "project_dna.agentic_control_plane",
+      "kind": "workflow",
+      "aliases": ["agentic", "agents-first", "orchestrator", "parent-owned", "scripts-as-tools"],
+      "expected_file_hints": ["factory.json", "README.md", "project-dna.md", "SKILL.md"],
+      "expected_artifact_roles": ["agent", "prompt", "skill", "factory"],
+      "minimum_citation_roles": ["source", "doc"]
+    },
+    {
+      "id": "project_dna.ontology_curation",
+      "kind": "pattern",
+      "aliases": ["ontology", "concept", "pattern", "graph", "edge", "node"],
+      "expected_file_hints": ["ontology", "code-knowledge-graph", "architecture-map", "symbol-map"],
+      "expected_artifact_roles": ["schema", "scan", "graph"],
+      "minimum_citation_roles": ["source", "schema"]
+    },
+    {
+      "id": "project_dna.query_steward_rewrite",
+      "kind": "retrieval",
+      "aliases": ["query", "rewrite", "intent", "expanded", "bounded context", "retrieval"],
+      "expected_file_hints": ["query-context.mjs", "query-steward", "context-pack"],
+      "expected_artifact_roles": ["script", "context-pack", "query-result"],
+      "minimum_citation_roles": ["source", "query"]
+    },
+    {
+      "id": "project_dna.golden_case_benchmark",
+      "kind": "benchmark",
+      "aliases": ["golden", "benchmark", "score", "5/5", "oracle", "evaluation"],
+      "expected_file_hints": ["golden-cases", "bench-smoke.mjs", "oracle-review-smoke.mjs"],
+      "expected_artifact_roles": ["golden-case", "benchmark", "oracle"],
+      "minimum_citation_roles": ["benchmark", "oracle"]
+    },
+    {
+      "id": "project_dna.sample_quarantine_pi_like",
+      "kind": "sample",
+      "aliases": ["sample", "quarantine", "new project", "pi-like", "extension", "skill", "agent", "test"],
+      "expected_file_hints": ["generate-sample.mjs", "sample-spec.json", "quarantine", "package.json", "README.md"],
+      "expected_artifact_roles": ["sample", "test", "config"],
+      "minimum_citation_roles": ["sample", "validation"]
+    },
+    {
+      "id": "project_dna.source_safe_proposal_only",
+      "kind": "safety",
+      "aliases": ["read-only", "source safe", "proposal-only", "no backend write", "no promotion", "secret"],
+      "expected_file_hints": ["scan-summary.json", "project-dna-sample-summary.json", "oracle", "validation"],
+      "expected_artifact_roles": ["safety", "validation", "oracle"],
+      "minimum_citation_roles": ["validation", "oracle"]
+    }
+  ],
+  "edge_types": [
+    "contains",
+    "imports",
+    "implements_pattern",
+    "demonstrates_pattern",
+    "tested_by",
+    "documented_by",
+    "validated_by",
+    "cited_by"
+  ],
+  "citation_policy": {
+    "citation_required": true,
+    "prefer_symbol_ranges": true,
+    "broad_citation_max_ratio": 0.5,
+    "raw_body_storage_allowed": false
+  },
+  "agent_lanes": [
+    "project-dna-safety-preflight",
+    "repo-scout",
+    "project-dna-ontology-steward",
+    "architecture-cartographer",
+    "pattern-miner",
+    "symbol-range-curator",
+    "project-dna-test-linker",
+    "project-dna-query-steward",
+    "sample-architect",
+    "project-dna-golden-evaluator",
+    "project-dna-oracle"
+  ]
+}

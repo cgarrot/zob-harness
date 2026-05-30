@@ -1,0 +1,19 @@
+{
+  "factory": "factory-forge",
+  "description": "Smoke manifest for deterministic quarantined factory scaffold generation.",
+  "items": [
+    {
+      "id": "quarantined-smoke-factory",
+      "path": "AGENTS.md",
+      "metadata": {
+        "generatedName": "generated-smoke-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "factory-forge-summary.json"
+  ]
+}

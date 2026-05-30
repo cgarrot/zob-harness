@@ -1,0 +1,37 @@
+{
+  "factory": "project-dna",
+  "description": "Batch manifest template for ProjectDNA. Keep plan_only until scanner/sample-generation implementation has smoke and pilot evidence.",
+  "items": [
+    {
+      "id": "project-dna-plan",
+      "path": "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
+      "metadata": { "source": "local-plan-doc" }
+    },
+    {
+      "id": "project-dna-skill",
+      "path": ".pi/skills/zob-project-dna/SKILL.md",
+      "metadata": { "source": "skill" }
+    },
+    {
+      "id": "project-dna-prompt",
+      "path": ".pi/prompts/project-dna.md",
+      "metadata": { "source": "prompt-template" }
+    },
+    {
+      "id": "project-dna-factory",
+      "path": ".pi/factories/project-dna/factory.json",
+      "metadata": { "source": "factory-definition" }
+    },
+    {
+      "id": "project-dna-readme",
+      "path": ".pi/factories/project-dna/README.md",
+      "metadata": { "source": "factory-readme" }
+    }
+  ],
+  "expectedArtifacts": [
+    "project-dna-summary.json",
+    "project-dna-context-pack.json",
+    "project-dna-readiness.json",
+    "project-dna-capsules.md"
+  ]
+}

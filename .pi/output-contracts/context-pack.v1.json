@@ -1,0 +1,20 @@
+{
+  "id": "context-pack.v1",
+  "version": 1,
+  "description": "Bounded Context/GBrain P0 context pack with source locks, citations, loading rules, agent profile map, and no body storage.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "pack_id", "type": "section_or_marker" },
+    { "name": "context_scope", "type": "section_or_marker" },
+    { "name": "source_locks", "type": "section_or_marker" },
+    { "name": "loading_rules", "type": "section_or_marker" },
+    { "name": "agent_profile_map", "type": "section_or_marker" },
+    { "name": "citations", "type": "section_or_marker" },
+    { "name": "budget_limits", "type": "section_or_marker" },
+    { "name": "no_body_storage", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

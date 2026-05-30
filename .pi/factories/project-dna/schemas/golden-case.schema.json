@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/project-dna/golden-case.schema.json",
+  "type": "object",
+  "required": ["schema", "suite_id", "source_id", "cases", "raw_queries_persisted", "knowledge_backend_write_enabled", "promotion_policy"],
+  "properties": {
+    "schema": { "const": "zob.project-dna-golden-suite.v1" },
+    "suite_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "description": { "type": "string" },
+    "source_id": { "type": "string" },
+    "raw_queries_persisted": { "const": false },
+    "knowledge_backend_write_enabled": { "const": false },
+    "promotion_policy": { "const": "proposal_only" },
+    "minimum_score": { "type": "number", "minimum": 0, "maximum": 5 },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "intent_id", "query", "required_citation_includes", "required_files_to_read_first", "required_safety", "score_threshold"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9._-]+$" },
+          "intent_id": { "type": "string" },
+          "query": { "type": "string", "minLength": 1 },
+          "required_citation_includes": { "type": "array", "items": { "type": "string" } },
+          "required_files_to_read_first": { "type": "array", "items": { "type": "string" } },
+          "expected_patterns": { "type": "array", "items": { "type": "string" } },
+          "required_safety": { "type": "array", "items": { "type": "string" } },
+          "score_threshold": { "type": "number", "minimum": 0, "maximum": 5 }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

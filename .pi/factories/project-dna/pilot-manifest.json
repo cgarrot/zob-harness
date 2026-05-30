@@ -1,0 +1,32 @@
+{
+  "factory": "project-dna",
+  "description": "Pilot manifest for ProjectDNA scaffold review across the plan, skill, prompt, and factory definition. Requires successful smoke plus oracle review before execution beyond plan_only.",
+  "items": [
+    {
+      "id": "project-dna-plan",
+      "path": "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
+      "metadata": { "source": "local-plan-doc" }
+    },
+    {
+      "id": "project-dna-skill",
+      "path": ".pi/skills/zob-project-dna/SKILL.md",
+      "metadata": { "source": "skill" }
+    },
+    {
+      "id": "project-dna-prompt",
+      "path": ".pi/prompts/project-dna.md",
+      "metadata": { "source": "prompt-template" }
+    },
+    {
+      "id": "project-dna-factory",
+      "path": ".pi/factories/project-dna/factory.json",
+      "metadata": { "source": "factory-definition" }
+    }
+  ],
+  "expectedArtifacts": [
+    "project-dna-summary.json",
+    "project-dna-context-pack.json",
+    "project-dna-readiness.json",
+    "project-dna-capsules.md"
+  ]
+}

@@ -1,0 +1,39 @@
+node_modules/
+package-lock.json
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+
+# Internal documentation and captured planning artifacts are kept locally only.
+docs/
+plans/
+
+# Kept local until the GitHub token has workflow scope.
+.github/workflows/
+
+# Generated runtime/report artifacts: keep locally, never publish/push by default.
+reports/
+.pi/sessions/
+.pi/agent-sessions/
+.pi/tmp/
+.pi/logs/
+.pi/coms/
+.pi/context/
+.pi/goal-rooms/
+.pi/workspace-claims/
+.pi/merge-queue/
+.pi/mission-control/command-proposals.jsonl
+.pi/mission-control/proposals/
+
+# Keep internal one-off proof/smoke scripts local. Public script folders are allowlisted below.
+scripts/*.mjs
+!scripts/compute-profile/
+!scripts/compute-profile/**
+!scripts/project-dna/
+!scripts/project-dna/**
+
+# Private benchmark scaffold/artifacts are intentionally excluded from the OSS repo.
+.pi/factories/coding-agent-benchmark/
+scripts/coding-agent-benchmark/

@@ -1,0 +1,41 @@
+{
+  "zeroAccessPaths": [
+    ".env",
+    ".env.*",
+    "~/.ssh",
+    "~/.aws",
+    "~/.gnupg",
+    "*.pem",
+    "*.key"
+  ],
+  "readOnlyPaths": [
+    ".git/",
+    "node_modules/",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "bun.lock",
+    "dist/",
+    "build/"
+  ],
+  "noDeletePaths": [
+    ".git/",
+    "AGENTS.md",
+    "README.md",
+    ".pi/agents/",
+    ".pi/prompts/",
+    ".pi/extensions/"
+  ],
+  "bashToolPatterns": [
+    { "pattern": "\\brm\\s+(-rf?|--recursive)", "reason": "recursive deletion" },
+    { "pattern": "\\bgit\\s+reset\\s+--hard\\b", "reason": "destructive git reset" },
+    { "pattern": "\\bgit\\s+clean\\s+-", "reason": "destructive git clean" },
+    { "pattern": "\\bgit\\s+checkout\\s+\\.", "reason": "workspace-wide checkout" },
+    { "pattern": "\\bgit\\s+add\\s+(-A|\\.)", "reason": "bulk staging hides unrelated agent work" },
+    { "pattern": "\\bsudo\\b", "reason": "privileged command", "ask": true },
+    { "pattern": "\\b(chmod|chown)\\b.*777", "reason": "unsafe permissions" },
+    { "pattern": "DROP\\s+DATABASE|TRUNCATE\\s+TABLE", "reason": "destructive database operation" },
+    { "pattern": "docker\\s+system\\s+prune", "reason": "destructive docker cleanup", "ask": true },
+    { "pattern": "aws\\s+s3\\s+rm\\b.*--recursive", "reason": "recursive cloud deletion" },
+    { "pattern": "\\bkillall\\b|\\bpkill\\b", "reason": "broad process kill", "ask": true }
+  ]
+}

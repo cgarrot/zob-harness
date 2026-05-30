@@ -1,0 +1,21 @@
+{
+  "id": "launch-authorization.v1",
+  "version": 1,
+  "description": "Launch authorization envelope: spec lock plus explicit user launch bounds in-scope autonomous actions without storing raw bodies.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "schema", "type": "section_or_marker" },
+    { "name": "spec_locked", "type": "section_or_marker" },
+    { "name": "user_launch_confirmed", "type": "section_or_marker" },
+    { "name": "allowed_actions", "type": "section_or_marker" },
+    { "name": "allowed_paths", "type": "section_or_marker" },
+    { "name": "forbidden_paths", "type": "section_or_marker" },
+    { "name": "apply_policy", "type": "section_or_marker" },
+    { "name": "stop_conditions", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

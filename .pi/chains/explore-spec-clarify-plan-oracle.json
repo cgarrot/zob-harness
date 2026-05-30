@@ -1,0 +1,64 @@
+{
+  "name": "explore-spec-clarify-plan-oracle",
+  "version": "1.0.0",
+  "description": "Read-only premium workflow with repo exploration and a clarification gate before planning.",
+  "readOnly": true,
+  "defaultExecution": "plan_only",
+  "steps": [
+    {
+      "id": "explore",
+      "agent": "explore",
+      "task": "Explore repository context for goal: {goal}. Identify relevant files, current behavior, gaps, and evidence only.",
+      "expectedOutcome": "Evidence-backed exploration summary for {goal}",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1",
+      "mustDo": ["Stay read-only", "Cite exact files and evidence", "Identify gaps for the spec", "Do not execute child agents"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "spec",
+      "agent": "specifier",
+      "task": "Convert the goal into a testable spec using prior exploration evidence from: {previous_step_ids}. Goal: {goal}.",
+      "expectedOutcome": "spec.v1 grounded in repo evidence",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "spec.v1",
+      "mustDo": ["Stay read-only", "Use prior exploration evidence", "Make acceptance criteria observable", "State assumptions and open questions"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "clarify",
+      "agent": "clarifier",
+      "task": "Review the repo-grounded spec for goal: {goal}. Score clarity and decide if planning is allowed. If clarity_score < 70 or BLOCKED, return allow_plan=no.",
+      "expectedOutcome": "clarification.v1 with clarity gate decision",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "clarification.v1",
+      "mustDo": ["Stay read-only", "Score clarity 0-100", "Ask guided questions", "Block planning when acceptance criteria are not testable"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "plan",
+      "agent": "planner",
+      "task": "Plan only if clarification allows planning for goal: {goal}. Use prior evidence from: {previous_step_ids}. State assumptions and stop if allow_plan=no.",
+      "expectedOutcome": "Bounded plan or explicit stop decision if clarification blocks planning",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "plan.v1",
+      "mustDo": ["Stay plan-only and read-only", "Consume prior exploration/spec/clarification", "Respect allow_plan gate", "Name validation commands"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "oracle",
+      "agent": "oracle",
+      "task": "Review the clarified repo-grounded plan for goal: {goal}. Return PASS/FAIL/WARN and no_ship without editing.",
+      "expectedOutcome": "Oracle verdict on whether the clarified plan is safe",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "mustDo": ["Stay read-only", "Check plan against spec and clarification", "Flag missing validation or unsafe scope", "Return clear PASS/FAIL/WARN"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    }
+  ]
+}

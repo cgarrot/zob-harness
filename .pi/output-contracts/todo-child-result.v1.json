@@ -1,0 +1,20 @@
+{
+  "id": "todo-child-result.v1",
+  "version": 1,
+  "description": "Parent-owned delegated /goal TODO claim output contract.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "todo_id", "type": "field" },
+    { "name": "child_goal_status", "type": "enum", "values": ["ready_for_oracle", "incomplete", "blocked"] },
+    { "name": "status_claim", "type": "enum", "values": ["done", "incomplete", "blocked"] },
+    { "name": "evidence_refs", "type": "section_or_marker" },
+    { "name": "validation_commands", "type": "section_or_marker" },
+    { "name": "subtodo_delta_proposals", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "no_ship", "type": "field" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "final_marker", "type": "literal" }
+  ],
+  "final_marker": "FINAL_MARKER: TODO_CHILD_RESULT_END plus deliverable_delivered: yes/no"
+}

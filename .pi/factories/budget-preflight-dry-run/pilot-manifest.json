@@ -1,0 +1,50 @@
+{
+  "factory": "budget-preflight-dry-run",
+  "description": "Pilot manifest for budget preflight dry-run coverage across safe local source and smoke evidence. Agentic pilot requires completed smoke proof, persisted oracle review, and explicit pilot gate validation; agentic batch requires a separate pilot oracle review, concurrency cap, and batch manifest.",
+  "items": [
+    {
+      "id": "budget-helper-source",
+      "path": ".pi/extensions/zob-harness/src/chronicle.ts",
+      "metadata": {
+        "source": "local-source",
+        "pilot": true,
+        "focus": "evaluateBudgetPreflightDryRun helper"
+      }
+    },
+    {
+      "id": "budget-helper-export",
+      "path": ".pi/extensions/zob-harness/index.ts",
+      "metadata": {
+        "source": "local-source",
+        "pilot": true,
+        "focus": "exported budget preflight helper"
+      }
+    },
+    {
+      "id": "budget-helper-smoke",
+      "path": "scripts/harness-smoke.mjs",
+      "metadata": {
+        "source": "local-smoke",
+        "pilot": true,
+        "focus": "pass/fail cap smoke assertions"
+      }
+    },
+    {
+      "id": "budget-helper-operating-model",
+      "path": "docs/OPERATING_MODEL.md",
+      "metadata": {
+        "source": "local-doc",
+        "pilot": true,
+        "focus": "budget advisory/no enforcement operating model"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

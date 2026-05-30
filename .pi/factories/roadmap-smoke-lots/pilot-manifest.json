@@ -1,0 +1,50 @@
+{
+  "factory": "roadmap-smoke-lots",
+  "description": "Pilot manifest for parent-owned roadmap lot planning across safe local documentation inputs. Pilot remains gated by registered smoke proof and persisted oracle review.",
+  "items": [
+    {
+      "id": "roadmap-main-pilot",
+      "path": "docs/ROADMAP.md",
+      "metadata": {
+        "source": "local-roadmap",
+        "pilot": true,
+        "focus": "active roadmap objectives and blocked autonomy themes"
+      }
+    },
+    {
+      "id": "roadmap-lots-pilot",
+      "path": "docs/ROADMAP_FACTORY_LOTS.md",
+      "metadata": {
+        "source": "local-roadmap",
+        "pilot": true,
+        "focus": "factory lot sequencing and gate evidence"
+      }
+    },
+    {
+      "id": "operating-model-pilot",
+      "path": "docs/OPERATING_MODEL.md",
+      "metadata": {
+        "source": "local-doc",
+        "pilot": true,
+        "focus": "operating model constraints and escalation gates"
+      }
+    },
+    {
+      "id": "architecture-pilot",
+      "path": "docs/ARCHITECTURE.md",
+      "metadata": {
+        "source": "local-doc",
+        "pilot": true,
+        "focus": "architecture boundaries for multi-agent roadmap work"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

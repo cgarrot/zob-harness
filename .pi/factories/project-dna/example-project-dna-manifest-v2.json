@@ -1,0 +1,80 @@
+{
+  "schema": "zob.project-dna-manifest.v2",
+  "run_id": "project-dna-factory-smoke",
+  "user_note": "Metadata-only high-profile 5/5 agentic smoke plan for the repo-local ProjectDNA factory scaffold.",
+  "capture_goal": {
+    "source_id": "project-dna-factory",
+    "objective": "Plan a safe ProjectDNA capture workflow for the factory scaffold without dispatching child agents or mutating source files.",
+    "bounded_context_only": true,
+    "citation_required": true,
+    "allowed_artifact_level": "metadata_only"
+  },
+  "requested_compute_profile": "high",
+  "compute_caps": {
+    "maxAgents": 12,
+    "maxDelegationDepth": 1,
+    "maxParallel": 2,
+    "maxIterations": 2,
+    "maxDurationMs": 300000,
+    "maxContextTokens": 8000,
+    "strictBudgetRequired": true,
+    "oracleRequired": true
+  },
+  "capture_mode_policy": {
+    "mode": "metadata_workflow",
+    "semantic_mode": "architecture_only",
+    "targeted_domains": ["architecture", "config", "tests"],
+    "large_repo_fallback": "architecture_only",
+    "metadata_only": true,
+    "parent_owned_dispatch": true,
+    "child_direct_dispatch_allowed": false,
+    "network_access_allowed": false,
+    "source_mutation_allowed": false,
+    "knowledge_backend_write_allowed": false,
+    "durable_promotion_allowed": false
+  },
+  "source_project": {
+    "source_id": "project-dna-factory",
+    "path": ".pi/factories/project-dna",
+    "description": "Safe repo-local ProjectDNA factory scaffold used for smoke planning."
+  },
+  "read_policy": {
+    "allowed_paths": [".pi/factories/project-dna"],
+    "forbidden_patterns": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "id_rsa",
+      "id_ed25519",
+      "secrets",
+      "credentials",
+      "node_modules",
+      "dist",
+      "build",
+      "coverage",
+      ".next",
+      ".nuxt",
+      "out",
+      ".git"
+    ],
+    "forbid_secret_like_paths": true,
+    "max_file_bytes": 262144,
+    "external_project_scan_allowed": false
+  },
+  "sample_project": {
+    "name": "project-dna-factory-sample-plan",
+    "neutral_domain": "factory-scaffold",
+    "generation_policy": "plan_only",
+    "copy_policy": "no_copy_plan_only",
+    "quarantine_required": true
+  },
+  "promotion": {
+    "writeback_policy": "proposal_only",
+    "requires_oracle_pass": true,
+    "requires_human_approval": true,
+    "durable_promotion_allowed": false
+  }
+}

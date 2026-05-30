@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/project-dna-manifest.v1.json",
+  "title": "ProjectDNA Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source_project", "sample_project", "read_policy", "promotion"],
+  "properties": {
+    "schema": { "const": "zob.project-dna-manifest.v1" },
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "compute_profile": { "enum": ["auto", "low", "medium", "high", "xhigh", "max"], "default": "auto" },
+    "compute_caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxAgents": { "type": "number", "minimum": 1, "maximum": 30 },
+        "maxDelegationDepth": { "type": "number", "minimum": 0, "maximum": 4 },
+        "maxParallel": { "type": "number", "minimum": 1, "maximum": 8 },
+        "maxIterations": { "type": "number", "minimum": 1, "maximum": 5 },
+        "maxDurationMs": { "type": "number", "minimum": 1 },
+        "maxCostUsd": { "type": "number", "minimum": 0 },
+        "maxContextTokens": { "type": "number", "minimum": 1 },
+        "strictBudgetRequired": { "type": "boolean" },
+        "oracleRequired": { "type": "boolean" }
+      }
+    },
+    "source_project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "path"],
+      "properties": {
+        "source_id": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" },
+        "path": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "sample_project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "neutral_domain", "copy_policy"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+        "neutral_domain": { "type": "string", "minLength": 1 },
+        "target_stack_policy": { "enum": ["preserve_detected_stack", "explicit_stack", "plan_only"] },
+        "copy_policy": { "enum": ["structure_and_patterns_only", "no_copy_plan_only"] }
+      }
+    },
+    "read_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_paths", "forbidden_patterns"],
+      "properties": {
+        "allowed_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        "forbidden_patterns": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commands": { "type": "array", "items": { "type": "string" } },
+        "allow_command_substitution": { "type": "boolean", "default": false }
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["writeback_policy"],
+      "properties": {
+        "requires_oracle_pass": { "type": "boolean", "default": true },
+        "requires_human_approval": { "type": "boolean", "default": true },
+        "writeback_policy": { "enum": ["proposal_only", "manual_approval_only"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "zob.compute-profile-overrides.v1",
+  "overridesEnabled": false,
+  "allowedOverrideCeilings": {
+    "maxAgents": 30,
+    "maxDelegationDepth": 4,
+    "maxParallel": 8,
+    "maxIterations": 5
+  },
+  "maxRequiresHumanApproval": true,
+  "xhighRequiresStrictBudget": true,
+  "bodyStored": false
+}

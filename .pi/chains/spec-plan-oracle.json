@@ -1,0 +1,42 @@
+{
+  "name": "spec-plan-oracle",
+  "version": "1.0.0",
+  "description": "Read-only product workflow: write a testable spec, plan the smallest safe implementation slice, then oracle-review the plan.",
+  "readOnly": true,
+  "defaultExecution": "plan_only",
+  "steps": [
+    {
+      "id": "spec",
+      "agent": "specifier",
+      "task": "Convert goal into a testable spec for: {goal}. Preserve original ask: {original_user_ask}. Do not plan implementation beyond handoff criteria.",
+      "expectedOutcome": "spec.v1 with acceptance criteria and planner handoff",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "spec.v1",
+      "mustDo": ["Stay read-only", "Make acceptance criteria observable", "State assumptions and open questions", "Cite evidence consulted"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "plan",
+      "agent": "planner",
+      "task": "Plan the smallest safe implementation slice for goal: {goal}, using the spec from previous steps: {previous_step_ids}. Produce validation ladder and stop conditions only.",
+      "expectedOutcome": "Bounded implementation plan with validation ladder and risks",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "plan.v1",
+      "mustDo": ["Stay plan-only and read-only", "Consume prior spec evidence", "Keep scope bounded", "Name validation commands"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "oracle",
+      "agent": "oracle",
+      "task": "Review the spec-derived plan for goal: {goal}. Return PASS/FAIL/WARN and no_ship without editing.",
+      "expectedOutcome": "Oracle verdict on whether the plan is safe and sufficiently specified",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "mustDo": ["Stay read-only", "Check plan against spec acceptance criteria", "Flag missing validation or unsafe scope", "Return clear PASS/FAIL/WARN"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "synthesis.v1",
+  "version": 1,
+  "description": "Parallel lane synthesis output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "consensus",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "conflicts",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "missing_evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "recommended_next_action",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "tasks_to_rerun",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

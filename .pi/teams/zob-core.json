@@ -1,0 +1,122 @@
+{
+  "name": "zob-core",
+  "version": "0.1.0",
+  "description": "Default ZOB supervised Orchestrator -> Lead -> Worker topology. Parent Pi keeps preflight, dispatch, output gates, and ledger ownership.",
+  "orchestrator": {
+    "id": "zob-orchestrator",
+    "agent": "planner",
+    "description": "Parent-owned orchestrator that expands goals into lead and worker contracts without executing them in plan_only mode.",
+    "requiredTools": [
+      "read",
+      "grep",
+      "find",
+      "ls"
+    ],
+    "outputContract": "plan.v1",
+    "responsibilities": [
+      "Preserve ORIGINAL_USER_ASK and active goal.",
+      "Perform preflight before any child dispatch.",
+      "Keep parent-owned ledger and completion gates."
+    ]
+  },
+  "leads": [
+    {
+      "id": "discovery-lead",
+      "agent": "planner",
+      "description": "Plans discovery lanes and proposes bounded worker contracts.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "plan.v1",
+      "workerIds": [
+        "explore-worker",
+        "research-worker"
+      ],
+      "responsibilities": [
+        "Split the goal into read-only discovery tasks.",
+        "Identify missing evidence before implementation."
+      ]
+    },
+    {
+      "id": "verification-lead",
+      "agent": "oracle-merge",
+      "description": "Plans QA/oracle lanes and no-ship validation criteria.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "oracle-merge.v1",
+      "workerIds": [
+        "qa-worker",
+        "oracle-worker"
+      ],
+      "responsibilities": [
+        "Define PASS/FAIL/WARN validation lanes.",
+        "Protect no-ship decisions when evidence is insufficient."
+      ]
+    }
+  ],
+  "workers": [
+    {
+      "id": "explore-worker",
+      "leadId": "discovery-lead",
+      "agent": "explore",
+      "description": "Read-only mapper for relevant files, APIs, and gaps.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "explore.v1",
+      "taskTemplate": "Explore the repo for goal: {goal}. Return files, answer, gaps, next_steps, evidence, risks/blockers, compliance, and deliverable_delivered. Run id: {run.id}."
+    },
+    {
+      "id": "research-worker",
+      "leadId": "discovery-lead",
+      "agent": "librarian",
+      "description": "Researches local/official context and labels uncertainty.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "research.v1",
+      "taskTemplate": "Research local and provided context for goal: {goal}. Prefer official/local sources; state unknowns and safer wording. Run id: {run.id}."
+    },
+    {
+      "id": "qa-worker",
+      "leadId": "verification-lead",
+      "agent": "qa",
+      "description": "Plans or performs targeted verification when explicitly dispatched later.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "qa.v1",
+      "taskTemplate": "Plan targeted QA evidence for goal: {goal}. Identify smallest safe commands and sentinel/artifact checks. Run id: {run.id}."
+    },
+    {
+      "id": "oracle-worker",
+      "leadId": "verification-lead",
+      "agent": "oracle",
+      "description": "Defines skeptical review lane and blocking evidence requirements.",
+      "requiredTools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "outputContract": "oracle.v1",
+      "taskTemplate": "Review acceptance and no-ship criteria for goal: {goal}. Return PASS/FAIL/WARN criteria, evidence needs, blockers, and compliance. Run id: {run.id}."
+    }
+  ]
+}

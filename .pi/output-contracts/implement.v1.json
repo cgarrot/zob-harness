@@ -1,0 +1,40 @@
+{
+  "id": "implement.v1",
+  "version": 1,
+  "description": "Bounded implementation report output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "gap_verdict",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "changed_files",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "verification_commands",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "results",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "context-request.v1",
+  "version": 1,
+  "description": "Governed parent-owned bounded context request. Proposal only; no corpus/backend write or child dispatch.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "request_type", "type": "literal", "value": "CONTEXT_REQUEST.v1" },
+    { "name": "request_id", "type": "field" },
+    { "name": "requested_by", "type": "field" },
+    { "name": "requested_action", "type": "field" },
+    { "name": "body_hash", "type": "sha256" },
+    { "name": "context_scope_id", "type": "field" },
+    { "name": "risk_level", "type": "enum", "values": ["low", "medium", "high"] },
+    { "name": "no_ship", "type": "field" },
+    { "name": "final_marker", "type": "literal" }
+  ],
+  "final_marker": "FINAL_MARKER: CONTEXT_REQUEST_END"
+}

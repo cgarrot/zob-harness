@@ -1,0 +1,44 @@
+{
+  "id": "oracle.v1",
+  "version": 1,
+  "description": "Skeptical review output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "verdict",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "confidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "blocking_issues",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "non_blocking_notes",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "no_ship",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

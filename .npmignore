@@ -1,0 +1,24 @@
+# npm/package safety: generated or local-only artifacts are never published.
+docs/
+plans/
+reports/
+node_modules/
+*.log
+.env
+.env.*
+
+.pi/sessions/
+.pi/agent-sessions/
+.pi/tmp/
+.pi/logs/
+.pi/coms/
+.pi/context/
+.pi/goal-rooms/
+.pi/workspace-claims/
+.pi/merge-queue/
+.pi/mission-control/command-proposals.jsonl
+.pi/mission-control/proposals/
+
+# Private/local benchmark scaffold is intentionally excluded from the public package.
+.pi/factories/coding-agent-benchmark/
+scripts/coding-agent-benchmark/

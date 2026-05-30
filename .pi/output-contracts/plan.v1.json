@@ -1,0 +1,48 @@
+{
+  "id": "plan.v1",
+  "version": 1,
+  "description": "Implementation plan output contract.",
+  "required": [
+    {
+      "name": "deliverable_delivered",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "evidence",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "risks_blockers",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "compliance",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "scope",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "assumptions",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "implementation_slices",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "validation_ladder",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "stop_conditions",
+      "type": "section_or_marker"
+    },
+    {
+      "name": "handoff_contract",
+      "type": "section_or_marker"
+    }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

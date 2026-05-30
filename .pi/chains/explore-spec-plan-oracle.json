@@ -1,0 +1,53 @@
+{
+  "name": "explore-spec-plan-oracle",
+  "version": "1.0.0",
+  "description": "Read-only premium workflow: explore repo evidence, write a spec, plan, then oracle-review.",
+  "readOnly": true,
+  "defaultExecution": "plan_only",
+  "steps": [
+    {
+      "id": "explore",
+      "agent": "explore",
+      "task": "Explore repository context for goal: {goal}. Identify relevant files, current behavior, gaps, and evidence only.",
+      "expectedOutcome": "Evidence-backed exploration summary for {goal}",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1",
+      "mustDo": ["Stay read-only", "Cite exact files and evidence", "Identify gaps for the spec", "Do not execute child agents"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "spec",
+      "agent": "specifier",
+      "task": "Convert the goal into a testable spec using prior exploration evidence from: {previous_step_ids}. Goal: {goal}.",
+      "expectedOutcome": "spec.v1 grounded in repo evidence",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "spec.v1",
+      "mustDo": ["Stay read-only", "Use prior exploration evidence", "Make acceptance criteria observable", "State assumptions and open questions"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "plan",
+      "agent": "planner",
+      "task": "Plan the smallest safe implementation slice for goal: {goal}, using prior exploration and spec evidence from: {previous_step_ids}.",
+      "expectedOutcome": "Bounded implementation plan with validation ladder and risks",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "plan.v1",
+      "mustDo": ["Stay plan-only and read-only", "Consume prior evidence", "Keep the slice bounded", "Name validation commands"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "oracle",
+      "agent": "oracle",
+      "task": "Review the evidence-backed spec/plan for goal: {goal}. Return PASS/FAIL/WARN and no_ship without editing.",
+      "expectedOutcome": "Oracle verdict on whether the plan is sufficiently grounded and safe",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "mustDo": ["Stay read-only", "Check acceptance criteria against evidence", "Flag missing validation or unsafe scope", "Return clear PASS/FAIL/WARN"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    }
+  ]
+}

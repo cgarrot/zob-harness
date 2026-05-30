@@ -1,0 +1,75 @@
+{
+  "schema": "zob.orchestration-profile.v1",
+  "name": "readonly-dynamic-smoke",
+  "version": "0.1.0",
+  "description": "Minimal read-only profile for proving live lead-plan extraction followed by gated dynamic worker dispatch.",
+  "goalPolicy": "strict",
+  "modelPolicy": {
+    "classes": {
+      "cheap_scout": {
+        "description": "Fast low-risk read-only exploration",
+        "defaultModel": "provider/cheap-fast",
+        "thinking": "low",
+        "downgradeAllowed": true
+      },
+      "strong_reasoning": {
+        "description": "Structured read-only lead planning",
+        "defaultModel": "provider/strong-reasoning",
+        "thinking": "high",
+        "downgradeAllowed": false
+      }
+    }
+  },
+  "orchestrator": {
+    "id": "readonly-orchestrator",
+    "roleType": "orchestrator",
+    "agent": "planner",
+    "modelClass": "strong_reasoning",
+    "requiredTools": ["read", "grep", "find", "ls"],
+    "outputContract": "plan.v1",
+    "rules": [
+      "Read-only proof only",
+      "Delegate through the lead",
+      "Never mark complete without verifier evidence"
+    ]
+  },
+  "roles": [
+    {
+      "id": "readonly-lead",
+      "roleType": "lead",
+      "agent": "planner",
+      "modelClass": "strong_reasoning",
+      "canDelegateTo": ["readonly-explore-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "readonly-explore-worker",
+      "roleType": "worker",
+      "leadId": "readonly-lead",
+      "agent": "explore",
+      "modelClass": "cheap_scout",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1"
+    }
+  ],
+  "edges": [
+    ["readonly-orchestrator", "readonly-lead"],
+    ["readonly-lead", "readonly-explore-worker"],
+    ["readonly-explore-worker", "readonly-lead"],
+    ["readonly-lead", "readonly-orchestrator"]
+  ],
+  "phases": [
+    { "id": "lead-planning", "type": "parallel_leads", "run": ["readonly-lead"], "requiresOutputContract": "lead-plan.v1" },
+    { "id": "worker-execution", "type": "from_lead_plans", "requiresOutputContract": "lead-plan.v1" },
+    { "id": "final-report", "type": "final_report", "run": ["readonly-orchestrator"] }
+  ],
+  "finalReportRole": "readonly-orchestrator",
+  "completionGate": {
+    "requiresEvidence": true,
+    "requiresOracle": true,
+    "noShipOnFail": true,
+    "promptBodiesStored": false,
+    "outputBodiesStored": false
+  }
+}

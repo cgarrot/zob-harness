@@ -1,0 +1,18 @@
+{
+  "id": "guidance-steward.v1",
+  "version": 1,
+  "description": "Documentation/guidance steward output with layer docs, role doc packs, rule gaps, and proposal-only writebacks.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "documentation_policy", "type": "section_or_marker" },
+    { "name": "guidance_index", "type": "section_or_marker" },
+    { "name": "layer_docs", "type": "section_or_marker" },
+    { "name": "role_doc_packs", "type": "section_or_marker" },
+    { "name": "writeback_proposals", "type": "section_or_marker" },
+    { "name": "body_free", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

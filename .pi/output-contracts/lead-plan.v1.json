@@ -1,0 +1,22 @@
+{
+  "id": "lead-plan.v1",
+  "version": 1,
+  "description": "Lead output contract that proposes worker contracts, risks, evidence needs, no-ship criteria, and model classes without executing workers.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "lead_id", "type": "section_or_marker" },
+    { "name": "phase", "type": "section_or_marker" },
+    { "name": "worker_contracts", "type": "section_or_marker" },
+    { "name": "required_tools", "type": "section_or_marker" },
+    { "name": "allowed_paths", "type": "section_or_marker" },
+    { "name": "forbidden_paths", "type": "section_or_marker" },
+    { "name": "output_contract", "type": "section_or_marker" },
+    { "name": "model_class", "type": "section_or_marker" },
+    { "name": "evidence_needed", "type": "section_or_marker" },
+    { "name": "no_ship_criteria", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

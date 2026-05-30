@@ -1,0 +1,59 @@
+{
+  "factory": "budget-preflight-dry-run",
+  "description": "Batch manifest for gated budget preflight dry-run coverage across safe local source, runtime, smoke, and operating-model evidence. Agentic batch requires completed pilot proof, persisted pilot oracle review, explicit concurrency cap, and batch gate validation.",
+  "items": [
+    {
+      "id": "budget-helper-source-batch",
+      "path": ".pi/extensions/zob-harness/src/chronicle.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "focus": "evaluateBudgetPreflightDryRun and chronicle completion gates"
+      }
+    },
+    {
+      "id": "factory-runtime-batch",
+      "path": ".pi/extensions/zob-harness/src/runtime/tools-factory.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "focus": "agentic factory runtime sentinels and chronicle failure handling"
+      }
+    },
+    {
+      "id": "factory-validation-batch",
+      "path": ".pi/extensions/zob-harness/src/factory/validation.ts",
+      "metadata": {
+        "source": "local-source",
+        "batch": true,
+        "focus": "batch gate validation for pilot, oracle, and concurrency prerequisites"
+      }
+    },
+    {
+      "id": "harness-smoke-batch",
+      "path": "scripts/harness-smoke.mjs",
+      "metadata": {
+        "source": "local-smoke",
+        "batch": true,
+        "focus": "smoke assertions for factory gates and no-execution safety"
+      }
+    },
+    {
+      "id": "operating-model-batch",
+      "path": "docs/OPERATING_MODEL.md",
+      "metadata": {
+        "source": "local-doc",
+        "batch": true,
+        "focus": "operating model for advisory budgets, gates, and no body storage"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ]
+}

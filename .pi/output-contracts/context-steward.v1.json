@@ -1,0 +1,19 @@
+{
+  "id": "context-steward.v1",
+  "version": 1,
+  "description": "Context Steward P0 output with cited context hints, source gaps, stale/missing context warnings, and writeback candidates only.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "context_scope", "type": "section_or_marker" },
+    { "name": "context_hints", "type": "section_or_marker" },
+    { "name": "citations", "type": "section_or_marker" },
+    { "name": "source_gaps", "type": "section_or_marker" },
+    { "name": "writeback_candidates", "type": "section_or_marker" },
+    { "name": "parent_owned", "type": "section_or_marker" },
+    { "name": "no_plan_mutation", "type": "section_or_marker" }
+  ],
+  "final_marker": "deliverable_delivered: yes/no or <deliverable_delivered>yes|no</deliverable_delivered>"
+}

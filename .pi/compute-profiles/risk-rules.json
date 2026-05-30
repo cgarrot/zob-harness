@@ -1,0 +1,16 @@
+{
+  "schema": "zob.compute-profile-risk-rules.v1",
+  "secretPatterns": [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_ed25519", "credentials", "secrets"],
+  "generatedVendorPatterns": ["node_modules", "dist", "build", "coverage", ".next", ".nuxt", "out", "vendor", "generated"],
+  "networkRiskHints": ["network", "browser", "cloud"],
+  "writeRiskHints": ["write", "apply", "mutation", "durable", "promotion"],
+  "riskOverrides": {
+    "secretsTouched": "no_ship",
+    "maxWithoutHumanApproval": "no_ship",
+    "strictBudgetMissingForXhighOrMax": "no_ship",
+    "oracleMissingForHighOrAbove": "no_ship"
+  },
+  "parentOwnedDispatch": true,
+  "childDirectDispatch": false,
+  "bodyStored": false
+}

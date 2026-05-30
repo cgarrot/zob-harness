@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/project-dna/query-steward-report.schema.json",
+  "type": "object",
+  "required": ["schema", "scan_dir", "query_hash", "raw_query_persisted", "intent", "controlled_expansion", "loading_rules", "safety"],
+  "properties": {
+    "schema": { "const": "zob.project-dna-query-steward-report.v1" },
+    "scan_dir": { "type": "string" },
+    "query_hash": { "type": "string" },
+    "raw_query_persisted": { "const": false },
+    "intent": {
+      "type": "object",
+      "required": ["id", "confidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "golden_case_id": { "type": ["string", "null"] }
+      }
+    },
+    "controlled_expansion": {
+      "type": "object",
+      "required": ["stored_raw_terms", "term_hashes", "term_count"],
+      "properties": {
+        "stored_raw_terms": { "const": false },
+        "term_hashes": { "type": "array", "items": { "type": "string" } },
+        "term_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "expected_patterns": { "type": "array", "items": { "type": "string" } },
+    "expected_file_hints": { "type": "array", "items": { "type": "string" } },
+    "loading_rules": {
+      "type": "object",
+      "required": ["bounded_context_only", "citation_required", "agent_loads_entire_project", "writeback_policy"],
+      "properties": {
+        "bounded_context_only": { "const": true },
+        "citation_required": { "const": true },
+        "agent_loads_entire_project": { "const": false },
+        "writeback_policy": { "const": "proposal_only" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["source_project_modified", "knowledge_backend_write_enabled", "durable_promotion_allowed"],
+      "properties": {
+        "source_project_modified": { "const": false },
+        "knowledge_backend_write_enabled": { "const": false },
+        "durable_promotion_allowed": { "const": false }
+      }
+    }
+  },
+  "additionalProperties": true
+}

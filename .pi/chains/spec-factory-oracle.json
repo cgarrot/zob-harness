@@ -1,0 +1,42 @@
+{
+  "name": "spec-factory-oracle",
+  "version": "1.0.0",
+  "description": "Read-only factory-first planning chain: spec, factory design, then oracle review. Does not run factory_run.",
+  "readOnly": true,
+  "defaultExecution": "plan_only",
+  "steps": [
+    {
+      "id": "spec",
+      "agent": "specifier",
+      "task": "Convert goal into a factory-ready spec for repeated work: {goal}. Preserve original ask: {original_user_ask}.",
+      "expectedOutcome": "spec.v1 with factory-oriented acceptance criteria",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "spec.v1",
+      "mustDo": ["Stay read-only", "Identify repeated workflow", "Make acceptance criteria observable", "State assumptions and open questions"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "factory-design",
+      "agent": "factory",
+      "task": "Design a reusable software factory for goal: {goal}, using the prior spec from: {previous_step_ids}. Do not execute factory_run; produce factory.v1 design only.",
+      "expectedOutcome": "factory.v1 with manifest, schema, validators, smoke/pilot, sentinel, and resume/checkpoint strategy",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "factory.v1",
+      "mustDo": ["Stay read-only", "Separate deterministic scaffolding from LLM enrichment", "Define validators and sentinels", "Start with smoke before pilot/batch"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No factory_run", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    },
+    {
+      "id": "oracle",
+      "agent": "oracle",
+      "task": "Review the factory design for goal: {goal}. Verify validators, sentinels, checkpoint/resume, oracle gates, and safety. Return PASS/FAIL/WARN without editing.",
+      "expectedOutcome": "Oracle verdict on whether the factory design is safe to implement",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "mustDo": ["Stay read-only", "Check validators and sentinels", "Flag missing oracle/pilot gates", "Return clear PASS/FAIL/WARN"],
+      "mustNotDo": ["No edits", "No writes", "No bash", "No factory_run", "No secrets or .env reads", "No commits", "No live child execution"],
+      "context": "Chain {chain}, step {step_id}; original ask: {original_user_ask}; previous steps: {previous_step_ids}"
+    }
+  ]
+}

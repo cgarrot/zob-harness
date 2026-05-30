@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/code-knowledge-graph.v1.json",
+  "title": "ProjectDNA Code Knowledge Graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source_id", "nodes", "edges", "citation_required", "promotion"],
+  "properties": {
+    "schema": { "const": "zob.code-knowledge-graph.v1" },
+    "source_id": { "type": "string" },
+    "sample_id": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "type", "label"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "enum": [
+              "Project",
+              "SourceProject",
+              "SampleProject",
+              "File",
+              "Directory",
+              "Module",
+              "Symbol",
+              "Dependency",
+              "Tool",
+              "Route",
+              "Service",
+              "Queue",
+              "Worker",
+              "DatabaseModel",
+              "Config",
+              "Test",
+              "Pattern",
+              "AntiPattern",
+              "Capsule",
+              "ValidationCommand"
+            ]
+          },
+          "label": { "type": "string" },
+          "path": { "type": "string" },
+          "confidence": { "enum": ["low", "medium", "high"] }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["from", "to", "type", "citations"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "type": {
+            "enum": [
+              "contains",
+              "imports",
+              "exports",
+              "calls",
+              "called_by",
+              "configured_by",
+              "tested_by",
+              "implements_pattern",
+              "demonstrates_pattern",
+              "source_equivalent_of",
+              "sample_equivalent_of",
+              "uses_dependency",
+              "uses_tool",
+              "exposes_route",
+              "handles_queue",
+              "runs_worker",
+              "validates_with",
+              "cited_by"
+            ]
+          },
+          "citations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+        }
+      }
+    },
+    "citation_required": { "const": true },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["writeback_policy", "oracle_required"],
+      "properties": {
+        "writeback_policy": { "enum": ["proposal_only", "manual_approval_only"] },
+        "oracle_required": { "const": true },
+        "human_approval_required": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "zob.budget-policy.v1",
+  "version": 1,
+  "description": "Advisory budget policy registry for dry-run planning and future strict budget review. This registry never enables enforcement by itself.",
+  "advisoryOnly": true,
+  "strictBudgetDispatchGateAvailable": true,
+  "strictBudgetRequiresExplicitInput": true,
+  "strictBudgetDefaultEnabled": false,
+  "strictBudgetEnabled": false,
+  "budgetEnforced": false,
+  "wouldBlockDispatch": false,
+  "defaultDispatchDecision": "allow",
+  "modelRouterUsed": false,
+  "childDispatchAllowed": false,
+  "daemonStarted": false,
+  "networkAccessed": false,
+  "noExecution": true,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "defaultCaps": {
+    "maxCostUsd": 5,
+    "maxRuns": 10,
+    "maxDurationMs": 600000,
+    "maxParallelChildren": 4
+  },
+  "profiles": {
+    "smoke": {
+      "maxCostUsd": 1,
+      "maxRuns": 3,
+      "maxDurationMs": 180000,
+      "maxParallelChildren": 1
+    },
+    "pilot": {
+      "maxCostUsd": 5,
+      "maxRuns": 10,
+      "maxDurationMs": 600000,
+      "maxParallelChildren": 2
+    },
+    "batch": {
+      "maxCostUsd": 25,
+      "maxRuns": 50,
+      "maxDurationMs": 1800000,
+      "maxParallelChildren": 4
+    }
+  },
+  "futureStrictBudgetPrerequisites": [
+    "oracle PASS/no_ship=false for strict budget integration",
+    "registered current-source smoke proof after enforcement wiring",
+    "deterministic rollback/stop-condition behavior for blocked dispatch",
+    "human approval metadata for enabling strict mode",
+    "daemon remains disabled until strict budget stop conditions are proven"
+  ]
+}

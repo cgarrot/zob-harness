@@ -1,0 +1,27 @@
+{
+  "factory": "project-dna",
+  "description": "Smoke manifest for the P0 ProjectDNA scaffold. Uses the local plan document as the approved input artifact; does not scan an external project.",
+  "items": [
+    {
+      "id": "project-dna-plan-smoke",
+      "path": "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
+      "metadata": {
+        "source": "local-plan-doc",
+        "execution_posture": "scaffold_validation_only",
+        "expected_signals": [
+          "code-first project truth",
+          "neutral sample quarantine",
+          "code knowledge graph",
+          "capsules with citations",
+          "prior wiki/retrieval inspiration without direct wiki-only reuse"
+        ]
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "project-dna-summary.json",
+    "project-dna-context-pack.json",
+    "project-dna-readiness.json",
+    "project-dna-capsules.md"
+  ]
+}

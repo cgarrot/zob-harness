@@ -1,0 +1,1498 @@
+{
+  "schemaVersion": 1,
+  "description": "Machine-readable registry for public ZOB harness runtime tools and commands. Keep in sync with registerTool/registerCommand and constants.ts mode allowlists.",
+  "defaultSkillRefs": [
+    ".pi/skills/zob-harness/SKILL.md",
+    ".pi/skills/zob-tool-router/SKILL.md",
+    ".pi/skills/zob-compaction-policy/SKILL.md"
+  ],
+  "defaultDocRefs": [
+    "docs/HARNESS_CAPABILITY_MATRIX.md",
+    ".pi/extensions/zob-harness/AGENTS.md",
+    ".pi/extensions/zob-harness/src/AGENTS.md"
+  ],
+  "tools": [
+    {
+      "name": "get_goal",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read current goal only."
+    },
+    {
+      "name": "get_goal_todos",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read TODO tree only."
+    },
+    {
+      "name": "add_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Goal-scoped TODO state only; not a source edit."
+    },
+    {
+      "name": "add_goal_todos",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Bulk goal-scoped TODO state only; not a source edit."
+    },
+    {
+      "name": "update_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Goal TODO metadata update only; cannot mark done/skipped."
+    },
+    {
+      "name": "resolve_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Primary parent-owned TODO transition path; child no_ship is review evidence, not delivery success/failure by itself."
+    },
+    {
+      "name": "complete_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Compatibility wrapper routed through resolve_goal_todo; Goal TODO status update only."
+    },
+    {
+      "name": "block_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Goal TODO status update only."
+    },
+    {
+      "name": "split_goal_todo",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Goal TODO graph update only."
+    },
+    {
+      "name": "validate_goal_todo_claim",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Records oracle validation metadata for a returned delegated TODO claim; auto-accept requires exact claim_hash, PASS, recommended_action=accept_claim, no_ship=false, acceptable confidence, and no blocking issues."
+    },
+    {
+      "name": "accept_goal_todo_claim",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Delegated TODO claim metadata only."
+    },
+    {
+      "name": "reject_goal_todo_claim",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Delegated TODO claim metadata only."
+    },
+    {
+      "name": "import_factory_todos",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-factory/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Imports factory report TODOs into goal state; no source edits."
+    },
+    {
+      "name": "import_orchestration_todos",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Imports orchestration report TODOs into goal state; no source edits."
+    },
+    {
+      "name": "import_chain_todos",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Imports chain report TODOs into goal state; no source edits."
+    },
+    {
+      "name": "create_goal",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Sets active goal metadata only."
+    },
+    {
+      "name": "resume_goal",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Resumes paused/blocked/oracle_failed goal metadata only; does not bypass TODO, proposal, oracle, or update_goal completion gates."
+    },
+    {
+      "name": "propose_goal_completion",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-oracle/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Proposal only; oracle record still required for completion evidence."
+    },
+    {
+      "name": "record_goal_oracle",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-oracle/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Records oracle verdict metadata only."
+    },
+    {
+      "name": "update_goal",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Updates goal metadata only."
+    },
+    {
+      "name": "zob_delegation_catalog",
+      "family": "delegation",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read-only delegation catalog; no child dispatch, network, or source writes."
+    },
+    {
+      "name": "get_delegation_run",
+      "family": "delegation",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read active-session delegation run metadata; no daemon or new dispatch."
+    },
+    {
+      "name": "await_delegation_run",
+      "family": "delegation",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Bounded active-session wait only; no daemon or continuous loop."
+    },
+    {
+      "name": "delegate_agent",
+      "family": "delegation",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, and damage gates."
+    },
+    {
+      "name": "delegate_task",
+      "family": "delegation",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, and damage gates."
+    },
+    {
+      "name": "orchestrate_run",
+      "family": "orchestration",
+      "modes": [
+        "plan",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Orchestration output must remain evidence-gated; no automatic shipment."
+    },
+    {
+      "name": "chain_run",
+      "family": "orchestration",
+      "modes": [
+        "plan",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Chain execution must preserve read-only/write gates per mode."
+    },
+    {
+      "name": "zob_coms_send",
+      "family": "coms",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Live delivery only; hash-only ledgers, no raw bodies."
+    },
+    {
+      "name": "zob_coms_ack",
+      "family": "coms",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Acknowledgement must not count non-live append-only refs as delivery success."
+    },
+    {
+      "name": "zob_coms_status",
+      "family": "coms",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Status only; preserve hash-only posture."
+    },
+    {
+      "name": "zob_coms_reply",
+      "family": "coms",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Reply must use live transport safety gates; no raw bodies stored."
+    },
+    {
+      "name": "zob_coms_list",
+      "family": "coms",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read/list only; no delivery success claim."
+    },
+    {
+      "name": "zob_coms_get",
+      "family": "coms",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read/get only; no raw body persistence beyond tool output."
+    },
+    {
+      "name": "zob_coms_await",
+      "family": "coms",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Await live peer replies only; stale peers are not success."
+    },
+    {
+      "name": "zob_goal_room_send",
+      "family": "goal-room",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Visible typed goal-room message only; hash-only metadata; no hidden worker-to-worker free chat or action execution."
+    },
+    {
+      "name": "zob_goal_room_list",
+      "family": "goal-room",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read/list visible goal-room metadata only; no raw bodies."
+    },
+    {
+      "name": "zob_governed_request_extract",
+      "family": "goal-room",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Extracts typed governed requests from transient text into parent-visible hash-only Goal Room messages; never dispatches, mutates TODOs, or executes requested actions."
+    },
+    {
+      "name": "zob_workspace_claim",
+      "family": "workspace-claims",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Metadata-only path lease for parallel write intent; conflict detection only, no source writes, no auto-apply."
+    },
+    {
+      "name": "zob_workspace_release",
+      "family": "workspace-claims",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Releases metadata-only workspace lease; no source writes or apply."
+    },
+    {
+      "name": "zob_workspace_claims_list",
+      "family": "workspace-claims",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Lists metadata-only workspace leases; no bodies and no source writes."
+    },
+    {
+      "name": "zob_merge_candidate_submit",
+      "family": "merge-queue",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-sandbox/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Submits sandbox diff metadata to parent merge queue only; no raw diff, source writes, auto-apply, or gate bypass."
+    },
+    {
+      "name": "zob_merge_queue_decide",
+      "family": "merge-queue",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-sandbox/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Records parent-owned decision only; approve means manual-apply eligible, not applied."
+    },
+    {
+      "name": "zob_merge_queue_list",
+      "family": "merge-queue",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-sandbox/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Lists metadata-only merge queue; no raw diffs or source writes."
+    },
+    {
+      "name": "zob_coms_readiness",
+      "family": "mission-control",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-mission-control-coms/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Readiness check only."
+    },
+    {
+      "name": "zob_mission_control_snapshot",
+      "family": "mission-control",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-mission-control-coms/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Snapshot/read-only control-plane view."
+    },
+    {
+      "name": "zob_mission_control_propose_command",
+      "family": "mission-control",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-mission-control-coms/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Proposal only; no direct command execution."
+    },
+    {
+      "name": "zob_context_readiness",
+      "family": "context",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Readiness check only."
+    },
+    {
+      "name": "zob_context_validate_scope",
+      "family": "context",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-spec/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Scope validation only."
+    },
+    {
+      "name": "zob_context_writeback_proposal",
+      "family": "context",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Proposal-only writeback; no direct source/document mutation."
+    },
+    {
+      "name": "zob_compute_preview",
+      "family": "compute",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+      ],
+      "noShipNotes": "Metadata-only preview; no child dispatch, network, source writes, or safety/budget bypass."
+    },
+    {
+      "name": "zob_compute_resolve_profile",
+      "family": "compute",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+      ],
+      "noShipNotes": "Resolves effective profile and caps only; no live dispatch or approval bypass."
+    },
+    {
+      "name": "zob_compute_plan_workflow",
+      "family": "compute",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+      ],
+      "noShipNotes": "Builds metadata-only workflow-shape lanes; no live dispatch, network, source writes, or approval bypass."
+    },
+    {
+      "name": "zob_compute_validate_profile",
+      "family": "compute",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+      ],
+      "noShipNotes": "Read-only artifact validation; missing caps/oracle/budget evidence remains no-ship."
+    },
+    {
+      "name": "zob_compute_write_profile_reports",
+      "family": "compute",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+      ],
+      "noShipNotes": "Writes local metadata-only reports under .pi/logs; no child dispatch, network, source writes, or raw bodies."
+    },
+    {
+      "name": "zob_project_dna_readiness",
+      "family": "project-dna",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+      ],
+      "noShipNotes": "Read-only readiness audit from repo-local artifacts; no source scan or backend write."
+    },
+    {
+      "name": "zob_project_dna_plan_workflow",
+      "family": "project-dna",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md",
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+      ],
+      "noShipNotes": "Builds metadata-only agentic workflow plans from manifest v2; no source scan, child dispatch, network, source write, or backend write."
+    },
+    {
+      "name": "zob_project_dna_query",
+      "family": "project-dna",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+      ],
+      "noShipNotes": "Returns bounded cited context from existing scan artifacts only; no external project scan, no child dispatch, no backend write."
+    },
+    {
+      "name": "zob_project_dna_federated_query",
+      "family": "project-dna",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+      ],
+      "noShipNotes": "Metadata-only multi-source context merge; source isolation preserved; durable promotion remains approval-gated."
+    },
+    {
+      "name": "zob_project_dna_writeback_proposal",
+      "family": "project-dna",
+      "modes": [
+        "plan",
+        "implement",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+      ],
+      "noShipNotes": "Hash-only proposal append; no raw bodies, no auto-promotion, no external knowledge-backend write."
+    },
+    {
+      "name": "zob_autonomous_validate_run",
+      "family": "autonomous",
+      "modes": [
+        "explore",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-autonomous-runtime/SKILL.md",
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read-only artifact validation; no child dispatch, network, or production writes."
+    },
+    {
+      "name": "zob_autonomous_validate_smoke",
+      "family": "autonomous",
+      "modes": [
+        "explore",
+        "oracle",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-autonomous-runtime/SKILL.md",
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Read-only smoke artifact validation; no child dispatch, network, or production writes."
+    },
+    {
+      "name": "zob_autonomous_dry_run",
+      "family": "autonomous",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-autonomous-runtime/SKILL.md",
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Factory-only metadata/report generation; no live/global routing or production writes."
+    },
+    {
+      "name": "zob_autonomous_readonly_smoke",
+      "family": "autonomous",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-autonomous-runtime/SKILL.md",
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Factory-only reports smoke; no child dispatch, daemon, production writes, or global autonomy claim."
+    },
+    {
+      "name": "factory_quarantine_review",
+      "family": "factory",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Review-only quarantine metadata before activation."
+    },
+    {
+      "name": "factory_quarantine_activate",
+      "family": "factory",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Factory-mode activation only after review gates."
+    },
+    {
+      "name": "factory_quarantine_verify_activation",
+      "family": "factory",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Verification-only post-activation gate."
+    },
+    {
+      "name": "factory_run",
+      "family": "factory",
+      "modes": [
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-factory/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Factory-mode only; requires manifest/checkpoint/sentinel validation."
+    }
+  ],
+  "commands": [
+    {
+      "name": "zmode",
+      "family": "mode",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        "docs/ZOB_ADAPTIVE_WORKFLOW_RUNTIME_PLAN.md"
+      ],
+      "noShipNotes": "Switches active harness mode only. orchestrator routes to adaptive-chief-vision plan_only defaults; child dispatch requires parent-owned contract/preflight gates and writes remain blocked without sandbox/oracle/human approval."
+    },
+    {
+      "name": "delegates",
+      "family": "delegation-ui",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Opens delegation viewer only."
+    },
+    {
+      "name": "delegate",
+      "family": "delegation-ui",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Alias for delegates viewer only."
+    },
+    {
+      "name": "zstatus",
+      "family": "status",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Refreshes local status widget only."
+    },
+    {
+      "name": "rules_status",
+      "family": "safety",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Resolves active damage-rule profile; no edits."
+    },
+    {
+      "name": "contract",
+      "family": "workflow",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Inserts delegation template only."
+    },
+    {
+      "name": "goal",
+      "family": "goal",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Manages active goal/TODO metadata only."
+    },
+    {
+      "name": "todo",
+      "family": "goal",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Alias for goal TODO metadata only."
+    },
+    {
+      "name": "todos",
+      "family": "goal",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Goal TODO tree or overlay only."
+    },
+    {
+      "name": "goal_gate",
+      "family": "goal",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Sets/inserts active goal gate metadata only."
+    },
+    {
+      "name": "job_intake",
+      "family": "goal",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-spec/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Parses intake into active goal metadata; budget remains advisory."
+    },
+    {
+      "name": "compute",
+      "family": "compute",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md",
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Slash preview/resolve only; metadata-only, no child dispatch, no network, no source writes."
+    },
+    {
+      "name": "effort",
+      "family": "compute",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compute-profile/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md",
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Alias for /compute; metadata-only and cannot bypass approval/budget/oracle gates."
+    },
+    {
+      "name": "project-dna",
+      "family": "project-dna",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-project-dna/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Slash readiness/plan/query only; plan is metadata-only from manifest v2, query reads existing repo-local scan artifacts, and neither scans external projects nor writes a backend."
+    },
+    {
+      "name": "autonomy",
+      "family": "autonomous-runtime",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-autonomous-runtime/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        ".pi/autonomy-policy.json",
+        ".pi/extensions/zob-harness/src/daemon-runtime.ts",
+        ".pi/extensions/zob-harness/src/runtime/commands.ts"
+      ],
+      "noShipNotes": "Sets interactive autonomy policy only: open/controlled/adaptive/status/stop plus daemon status|plan-tick|tick|start|stop. Daemon subcommands are scoped to the active goal, session-local, plan-only, bounded when started, no autostart/no cron/no global loop, and no global autonomy or production readiness claim; launch authorization remains in-scope and safety-gated with no secrets, destructive commands, or production apply."
+    },
+    {
+      "name": "agents",
+      "family": "agents",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Lists specialist agents only."
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "name": "roadmap-smoke-lots",
+  "version": "0.1.0",
+  "description": "Turn docs/ROADMAP.md into parent-owned, smoke-first execution lots with explicit blockers and oracle gates.",
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "patterns_canonicalized",
+    "risks_canonicalized",
+    "quality_gates_written",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ],
+  "stages": [
+    {
+      "name": "map-roadmap-items",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Extract unchecked roadmap items, prerequisites, blockers, and smoke-first lot candidates from one roadmap artifact.",
+      "promptTemplate": "Analyze roadmap item {item.id} at {item.path}. Map unchecked roadmap work into smoke-first lots. Separate safe-now slices from blocked batch/router/daemon/browser/write-adapter work. Return literal_request, actual_need, success_looks_like, files, answer, gaps, next_steps, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Read the roadmap artifact before conclusions.",
+        "Cite roadmap sections and unchecked items as evidence.",
+        "Prefer smoke-first lots with deterministic validation artifacts."
+      ],
+      "mustNotDo": [
+        "No edits.",
+        "No secrets.",
+        "No destructive commands.",
+        "No daemon, pilot, batch, model-router, or browser/write-adapter execution."
+      ],
+      "context": "Factory {factory.name} run {run.id}; map stage for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "reduce-prioritize-lots",
+      "type": "reduce",
+      "agent": "synthesis",
+      "outputContract": "synthesis.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Prioritize roadmap lots into an execution queue with prerequisites, oracle gates, and blocked items.",
+      "promptTemplate": "Synthesize roadmap lot map outputs for factory {factory.name} run {run.id}. Read outputs from {outputs.dir}. Produce consensus, conflicts, missing_evidence, recommended_next_action, tasks_to_rerun, evidence, risks/blockers, compliance, and deliverable_delivered. Prioritize safe smoke-first lots before gated pilot/batch/router/daemon work.",
+      "mustDo": [
+        "Keep parent-owned preflight and oracle gates explicit.",
+        "Mark blocked prerequisites clearly.",
+        "Recommend the next single smoke slice only."
+      ],
+      "mustNotDo": [
+        "No edits outside the run directory.",
+        "No invented evidence.",
+        "No secrets.",
+        "No autonomy, daemon, pilot, batch, or router activation."
+      ],
+      "context": "Factory {factory.name} reduce stage for run {run.id}."
+    },
+    {
+      "name": "validate-roadmap-lots",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate roadmap factory outputs and produce PASS/FAIL/WARN with no_ship decision.",
+      "promptTemplate": "Validate factory {factory.name} run {run.id}. Check manifest, outputs, checkpoints, validation.json, final-report.md, telemetry.json, and DONE.sentinel under {run.dir}. Return verdict, confidence, no_ship, blockers, notes, evidence, merged_lanes, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Fail if sentinel or validation evidence is missing.",
+        "Warn if blocked roadmap items are treated as ready-to-run.",
+        "Cite exact artifact paths."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets.",
+        "No daemon, pilot, batch, model-router, or browser/write-adapter execution."
+      ],
+      "context": "Factory {factory.name} validation stage for run {run.id}."
+    }
+  ]
+}

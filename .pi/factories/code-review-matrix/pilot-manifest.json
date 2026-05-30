@@ -1,0 +1,41 @@
+{
+  "factory": "code-review-matrix",
+  "description": "Pilot manifest for read-only multi-lane code review across local harness factory/runtime source files. Pilot remains gated by registered smoke proof and persisted oracle review; recommendations are prose only.",
+  "items": [
+    {
+      "id": "factory-run-pilot-review",
+      "path": ".pi/extensions/zob-harness/src/factory/run.ts",
+      "metadata": {
+        "source": "local-source",
+        "pilot": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"],
+        "focus": "factory execution lifecycle, sentinels, and agentic dispatch safety"
+      }
+    },
+    {
+      "id": "factory-validation-pilot-review",
+      "path": ".pi/extensions/zob-harness/src/factory/validation.ts",
+      "metadata": {
+        "source": "local-source",
+        "pilot": true,
+        "read_only": true,
+        "autofix": false,
+        "review_lanes": ["architecture", "correctness", "security", "qa", "synthesis", "oracle-merge"],
+        "focus": "mode gates, sentinel validation, oracle review, and batch promotion safety"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md",
+    "code-review-matrix.json",
+    "code-review-blockers.md",
+    "code-review-evidence.md"
+  ]
+}

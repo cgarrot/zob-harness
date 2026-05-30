@@ -1,0 +1,193 @@
+{
+  "schema": "zob.orchestration-profile.v1",
+  "name": "adaptive-chief-vision",
+  "version": "0.1.0",
+  "description": "Adaptive workflow runtime profile: Chief Vision root orchestrates planning, engineering, guidance docs, temp-agent creation, and validation without coding directly.",
+  "goalPolicy": "strict",
+  "modelPolicy": {
+    "classes": {
+      "cheap_scout": {
+        "description": "Fast low-risk exploration",
+        "defaultModel": "provider/cheap-fast",
+        "thinking": "low",
+        "downgradeAllowed": true
+      },
+      "balanced_worker": {
+        "description": "Standard implementation and QA",
+        "defaultModel": "provider/balanced",
+        "thinking": "medium",
+        "downgradeAllowed": true
+      },
+      "strong_reasoning": {
+        "description": "Chief Vision, planning, architecture, temp-agent creation",
+        "defaultModel": "provider/strong-reasoning",
+        "thinking": "high",
+        "downgradeAllowed": false
+      },
+      "strong_oracle": {
+        "description": "Critical validation and security/oracle review",
+        "defaultModel": "provider/strong-oracle",
+        "thinking": "high",
+        "downgradeAllowed": false
+      },
+      "high_context": {
+        "description": "Documentation/guidance synthesis and large context packs",
+        "defaultModel": "provider/high-context",
+        "thinking": "high",
+        "downgradeAllowed": false
+      }
+    }
+  },
+  "orchestrator": {
+    "id": "chief-vision-root",
+    "roleType": "orchestrator",
+    "agent": "chief-vision",
+    "modelClass": "strong_reasoning",
+    "requiredTools": ["read", "grep", "find", "ls"],
+    "outputContract": "plan.v1",
+    "rules": [
+      "Do not code directly",
+      "Coordinate via TODO graph and parent-owned delegation",
+      "Require prompt/model/scale/documentation policies",
+      "Never mark complete without oracle evidence and no_ship=false"
+    ]
+  },
+  "roles": [
+    {
+      "id": "planning-lead",
+      "roleType": "lead",
+      "agent": "planner",
+      "modelClass": "strong_reasoning",
+      "canDelegateTo": ["explore-worker", "doc-steward-worker", "temp-agent-creator-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "engineering-lead",
+      "roleType": "lead",
+      "agent": "planner",
+      "modelClass": "strong_reasoning",
+      "canDelegateTo": ["implementer-worker", "qa-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "validation-lead",
+      "roleType": "lead",
+      "agent": "oracle-merge",
+      "modelClass": "strong_oracle",
+      "canDelegateTo": ["oracle-worker", "security-worker"],
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "lead-plan.v1"
+    },
+    {
+      "id": "explore-worker",
+      "roleType": "worker",
+      "leadId": "planning-lead",
+      "agent": "explore",
+      "modelClass": "cheap_scout",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "explore.v1"
+    },
+    {
+      "id": "doc-steward-worker",
+      "roleType": "worker",
+      "leadId": "planning-lead",
+      "agent": "doc-steward",
+      "modelClass": "high_context",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "guidance-steward.v1"
+    },
+    {
+      "id": "temp-agent-creator-worker",
+      "roleType": "worker",
+      "leadId": "planning-lead",
+      "agent": "temp-agent-creator",
+      "modelClass": "strong_reasoning",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "temp-agent-card.v1"
+    },
+    {
+      "id": "implementer-worker",
+      "roleType": "worker",
+      "leadId": "engineering-lead",
+      "agent": "implementer",
+      "modelClass": "balanced_worker",
+      "requiredTools": ["read", "grep", "find", "ls", "edit"],
+      "allowedPaths": [".pi/extensions/", ".pi/agents/", ".pi/prompts/", ".pi/output-contracts/", ".pi/orchestrations/", ".pi/rules/", "docs/", "scripts/", "package.json"],
+      "forbiddenPaths": [".env", ".git/", "node_modules/", "dist/", "build/"],
+      "outputContract": "implement.v1"
+    },
+    {
+      "id": "qa-worker",
+      "roleType": "worker",
+      "leadId": "engineering-lead",
+      "agent": "qa",
+      "modelClass": "balanced_worker",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputContract": "qa.v1"
+    },
+    {
+      "id": "oracle-worker",
+      "roleType": "worker",
+      "leadId": "validation-lead",
+      "agent": "oracle",
+      "modelClass": "strong_oracle",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1"
+    },
+    {
+      "id": "security-worker",
+      "roleType": "worker",
+      "leadId": "validation-lead",
+      "agent": "oracle",
+      "modelClass": "strong_oracle",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputContract": "oracle.v1",
+      "rules": ["Review secrets exposure", "Review path policy", "Return no_ship=true on critical risk"]
+    }
+  ],
+  "edges": [
+    ["chief-vision-root", "planning-lead"],
+    ["chief-vision-root", "engineering-lead"],
+    ["chief-vision-root", "validation-lead"],
+    ["planning-lead", "explore-worker"],
+    ["planning-lead", "doc-steward-worker"],
+    ["planning-lead", "temp-agent-creator-worker"],
+    ["explore-worker", "planning-lead"],
+    ["doc-steward-worker", "planning-lead"],
+    ["temp-agent-creator-worker", "planning-lead"],
+    ["engineering-lead", "implementer-worker"],
+    ["engineering-lead", "qa-worker"],
+    ["implementer-worker", "engineering-lead"],
+    ["qa-worker", "engineering-lead"],
+    ["validation-lead", "oracle-worker"],
+    ["validation-lead", "security-worker"],
+    ["oracle-worker", "validation-lead"],
+    ["security-worker", "validation-lead"],
+    ["planning-lead", "chief-vision-root"],
+    ["engineering-lead", "chief-vision-root"],
+    ["validation-lead", "chief-vision-root"]
+  ],
+  "phases": [
+    { "id": "goal-intake", "type": "goal_gate", "required": true },
+    { "id": "policy-bootstrap", "type": "adaptive_policy", "run": ["chief-vision-root"], "required": true },
+    { "id": "lead-planning", "type": "parallel_leads", "run": ["planning-lead", "engineering-lead", "validation-lead"], "requiresOutputContract": "lead-plan.v1" },
+    { "id": "guidance-and-temp-agent-review", "type": "proposal_only", "run": ["doc-steward-worker", "temp-agent-creator-worker"] },
+    { "id": "worker-execution", "type": "from_lead_plans", "requiresOutputContract": "lead-plan.v1" },
+    { "id": "oracle-merge", "type": "validation", "run": ["validation-lead"], "noShipOnFail": true },
+    { "id": "final-report", "type": "final_report", "run": ["chief-vision-root"] }
+  ],
+  "finalReportRole": "chief-vision-root",
+  "completionGate": {
+    "requiresEvidence": true,
+    "requiresOracle": true,
+    "requiresDocumentationPolicy": true,
+    "requiresModelPolicy": true,
+    "requiresScalePolicy": true,
+    "requiresPromptStackHashes": true,
+    "noShipOnFail": true,
+    "promptBodiesStored": false,
+    "outputBodiesStored": false
+  }
+}

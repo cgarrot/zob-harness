@@ -1,0 +1,94 @@
+{
+  "name": "budget-preflight-dry-run",
+  "version": "0.1.0",
+  "description": "Smoke-first read-only lot for validating deterministic budget preflight dry-run behavior without enforcement or execution.",
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "patterns_canonicalized",
+    "risks_canonicalized",
+    "quality_gates_written",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "patterns.canonical.json",
+    "risks.canonical.json",
+    "workflow-rules.md",
+    "agent-instructions.md",
+    "quality-gates.json",
+    "dashboard-summary.md"
+  ],
+  "stages": [
+    {
+      "name": "map-budget-preflight-helper",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Map the local budget preflight dry-run helper and smoke coverage for pass/fail caps, advisory metadata, and no-execution flags.",
+      "promptTemplate": "Analyze budget preflight dry-run item {item.id} at {item.path}. Verify the helper is deterministic and read-only, reports maxCostUsd, maxRuns, maxDurationMs, and maxParallelChildren, exposes advisory wouldExceed/strictEnabled:false metadata, and exposes dryRun/no-execution flags. Return literal_request, actual_need, success_looks_like, files, answer, gaps, next_steps, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Read the item path before conclusions.",
+        "Cite helper and smoke assertion evidence.",
+        "Keep the result focused on dry-run preflight only."
+      ],
+      "mustNotDo": [
+        "No edits.",
+        "No secrets.",
+        "No budget enforcement.",
+        "No child dispatch.",
+        "No daemons, model routing, pilot, batch, browser, write-adapter, or cloud actions."
+      ],
+      "context": "Factory {factory.name} run {run.id}; map stage for {item.id} at {item.path}. Outputs directory: {outputs.dir}."
+    },
+    {
+      "name": "reduce-budget-preflight-evidence",
+      "type": "reduce",
+      "agent": "synthesis",
+      "outputContract": "synthesis.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Synthesize pass/fail cap and no-execution evidence into a smoke-first readiness verdict.",
+      "promptTemplate": "Synthesize budget preflight dry-run map outputs for factory {factory.name} run {run.id}. Read outputs from {outputs.dir}. Produce consensus, conflicts, missing_evidence, recommended_next_action, tasks_to_rerun, evidence, risks/blockers, compliance, and deliverable_delivered. Confirm this remains dry-run advisory behavior only.",
+      "mustDo": [
+        "Confirm all four cap checks are represented.",
+        "Confirm mode:advisory, wouldExceed, strictEnabled:false, budgetEnforced:false, dryRun, modelRouterUsed:false, daemonStarted:false, childDispatchAllowed:false, and noExecution:true are represented.",
+        "Identify missing smoke evidence if present."
+      ],
+      "mustNotDo": [
+        "No edits outside the run directory.",
+        "No invented evidence.",
+        "No secrets.",
+        "No budget enforcement.",
+        "No child dispatch.",
+        "No daemons, model routing, pilot, batch, browser, write-adapter, or cloud actions."
+      ],
+      "context": "Factory {factory.name} reduce stage for run {run.id}."
+    },
+    {
+      "name": "validate-budget-preflight-dry-run",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate budget preflight dry-run lot artifacts and produce PASS/FAIL/WARN with no_ship decision.",
+      "promptTemplate": "Validate factory {factory.name} run {run.id}. Check manifest, outputs, checkpoints, validation.json, final-report.md, telemetry.json, and DONE.sentinel under {run.dir}. Return verdict, confidence, no_ship, blockers, notes, evidence, merged_lanes, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Fail if sentinel or validation evidence is missing.",
+        "Fail if the lot implies real budget enforcement or child execution.",
+        "Cite exact artifact paths."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets.",
+        "No budget enforcement.",
+        "No child dispatch.",
+        "No daemons, model routing, pilot, batch, browser, write-adapter, or cloud actions."
+      ],
+      "context": "Factory {factory.name} validation stage for run {run.id}."
+    }
+  ]
+}

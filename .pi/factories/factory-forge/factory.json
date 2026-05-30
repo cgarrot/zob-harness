@@ -1,0 +1,84 @@
+{
+  "name": "factory-forge",
+  "version": "0.1.0",
+  "description": "Deterministically generate a quarantined factory scaffold inside a factory_run directory for manual review only.",
+  "status": "quarantined-generator",
+  "autoActivation": false,
+  "manualActivationRequired": true,
+  "defaultMode": "smoke",
+  "requiredStages": [
+    "manifest_loaded",
+    "agentic_plan_written",
+    "item_processed",
+    "validation",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "factory-forge-summary.json"
+  ],
+  "stages": [
+    {
+      "name": "map-forge-request",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Extract deterministic scaffold requirements from one factory-forge input item.",
+      "promptTemplate": "Read factory-forge item {item.id} at {item.path}. Identify the requested generated factory name and quarantine-only constraints. Return explore.v1 with evidence and risks.",
+      "mustDo": [
+        "Read the input item before conclusions.",
+        "Confirm generated output must stay under {run.dir}/quarantine/.",
+        "Cite evidence."
+      ],
+      "mustNotDo": [
+        "No edits outside the run directory.",
+        "No auto-activation.",
+        "No secrets."
+      ],
+      "context": "Factory {factory.name} run {run.id}; map stage for quarantined scaffold request {item.id}."
+    },
+    {
+      "name": "reduce-quarantine-scaffold",
+      "type": "reduce",
+      "agent": "synthesis",
+      "outputContract": "synthesis.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Synthesize the deterministic quarantined scaffold plan without activation.",
+      "promptTemplate": "Synthesize factory-forge outputs for run {run.id}. Confirm scaffold stays under {run.dir}/quarantine/ and is not registered under .pi/factories. Return explicit synthesis.v1 sections/headings: consensus, conflicts, missing_evidence, recommended_next_action, tasks_to_rerun, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Keep the generated factory quarantined.",
+        "Require manual activation.",
+        "Include the exact words consensus, conflicts, missing_evidence, recommended_next_action, and tasks_to_rerun.",
+        "Cite run-directory evidence."
+      ],
+      "mustNotDo": [
+        "No auto-activation.",
+        "No generated registration under .pi/factories.",
+        "No secrets."
+      ],
+      "context": "Factory {factory.name} reduce stage for run {run.id}."
+    },
+    {
+      "name": "validate-quarantine-only",
+      "type": "validate",
+      "agent": "oracle-merge",
+      "outputContract": "oracle-merge.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate quarantine metadata, no auto-activation, and DONE.sentinel only after validation.",
+      "promptTemplate": "Validate factory-forge run {run.id} before the parent final gate writes phase/DONE sentinels. Check validation.json and quarantine scaffold under {run.dir}/quarantine/; treat final phase/DONE sentinels as pending unless the parent final gate has already written them. Fail if generated factory is registered under .pi/factories or autoActivation is true. Return explicit oracle-merge.v1 sections/headings: verdict, confidence, no_ship, blocking_issues, merged_lanes, evidence, risks/blockers, compliance, and deliverable_delivered.",
+      "mustDo": [
+        "Verify quarantine path is inside the run directory.",
+        "Verify generatedFactoryRegistered=false and autoActivation=false.",
+        "Verify manualActivationRequired=true.",
+        "Do not fail merely because final phase/DONE sentinels are pending before the parent final gate.",
+        "Include the exact words verdict, confidence, no_ship, blocking_issues, and merged_lanes."
+      ],
+      "mustNotDo": [
+        "No patches.",
+        "No commits.",
+        "No secrets."
+      ],
+      "context": "Factory {factory.name} validation stage for run {run.id}."
+    }
+  ]
+}

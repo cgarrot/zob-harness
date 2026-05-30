@@ -1,0 +1,20 @@
+{
+  "id": "todo-split-request.v1",
+  "version": 1,
+  "description": "Parent-owned /goal TODO split/replan request output contract.",
+  "required": [
+    { "name": "deliverable_delivered", "type": "section_or_marker" },
+    { "name": "evidence", "type": "section_or_marker" },
+    { "name": "todo_id", "type": "field" },
+    { "name": "reason", "type": "section_or_marker" },
+    { "name": "recommended_action", "type": "enum", "values": ["split", "replan", "factory", "needs_user", "blocked"] },
+    { "name": "proposed_subtodos", "type": "section_or_marker" },
+    { "name": "risk_level", "type": "enum", "values": ["low", "medium", "high"] },
+    { "name": "validation_plan", "type": "section_or_marker" },
+    { "name": "risks_blockers", "type": "section_or_marker" },
+    { "name": "no_ship", "type": "field" },
+    { "name": "compliance", "type": "section_or_marker" },
+    { "name": "final_marker", "type": "literal" }
+  ],
+  "final_marker": "FINAL_MARKER: TODO_SPLIT_REQUEST_END plus deliverable_delivered: no"
+}

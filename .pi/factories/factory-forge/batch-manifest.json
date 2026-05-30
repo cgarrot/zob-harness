@@ -1,0 +1,56 @@
+{
+  "factory": "factory-forge",
+  "description": "Batch manifest for deterministic quarantined factory scaffold generation across safe local harness inputs. Batch remains gated by pilot proof and oracle review; no activation or registration is permitted.",
+  "items": [
+    {
+      "id": "quarantined-batch-factory-request",
+      "path": "AGENTS.md",
+      "metadata": {
+        "generatedName": "generated-batch-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "batch": true
+      }
+    },
+    {
+      "id": "quarantine-policy-batch-reference",
+      "path": "docs/AUTONOMOUS_SUPER_FACTORY_GOAL.md",
+      "metadata": {
+        "generatedName": "generated-batch-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "batch": true,
+        "focus": "quarantine-only policy and manual activation gates"
+      }
+    },
+    {
+      "id": "forge-runtime-batch-review",
+      "path": ".pi/extensions/zob-harness/src/factory/run.ts",
+      "metadata": {
+        "generatedName": "generated-batch-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "batch": true,
+        "focus": "factory-forge deterministic scaffold generation and sentinel lifecycle"
+      }
+    },
+    {
+      "id": "forge-quarantine-batch-review",
+      "path": ".pi/extensions/zob-harness/src/factory/quarantine.ts",
+      "metadata": {
+        "generatedName": "generated-batch-factory",
+        "status": "quarantined",
+        "autoActivation": false,
+        "manualActivationRequired": true,
+        "batch": true,
+        "focus": "manual review, activation, and verification gates"
+      }
+    }
+  ],
+  "expectedArtifacts": [
+    "factory-forge-summary.json"
+  ]
+}
