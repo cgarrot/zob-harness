@@ -41,7 +41,7 @@ const DelegateParams = Type.Object({
   tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel tasks. Max 8, 4 concurrent." })),
   chain: Type.Optional(Type.Array(TaskItem, { description: "Sequential chain. {previous} is replaced by prior output." })),
   scope: Type.Optional(AgentScopeSchema),
-  model: Type.Optional(Type.String({ description: "Override model for all delegated children" })),
+  model: Type.Optional(Type.String({ description: "Exceptional explicit model override for all delegated children. Normally omit to use the parent/session default. Use only with current runtime availability/auth proof for the concrete provider/model; desired/configured/catalogued models are not availability proof." })),
   tools: Type.Optional(Type.String({ description: "Override comma-separated tool allowlist for all children. Must be a subset of the selected agent tools." })),
   child_goal: Type.Optional(ChildGoalParams),
   allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-local paths delegated children may inspect/change. Required when effective tools include edit/write." })),
@@ -83,7 +83,7 @@ const DelegateTaskParams = Type.Object({
   loadSkills: Type.Optional(Type.Array(Type.String(), { description: "Safe alias for load_skills; still reserved by the P0 gate when non-empty." })),
   cwd: Type.Optional(Type.String({ description: "Override cwd for this child Pi process. Must stay inside repo." })),
   scope: Type.Optional(AgentScopeSchema),
-  model: Type.Optional(Type.String({ description: "Override model for this child" })),
+  model: Type.Optional(Type.String({ description: "Exceptional explicit model override for this child. Normally omit to use the parent/session default. Use only with current runtime availability/auth proof for the concrete provider/model; desired/configured/catalogued models are not availability proof." })),
 });
 
 const DelegationRunParams = Type.Object({

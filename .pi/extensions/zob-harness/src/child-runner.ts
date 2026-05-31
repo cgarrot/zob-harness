@@ -7,6 +7,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { discoverAgents } from "./agents.js";
 import { SUPERVISED_READONLY_CHILD_TOOLS } from "./constants.js";
+import { validateExplicitModelOverride } from "./model-availability.js";
 import { applyChildGates } from "./output-contracts.js";
 import { buildChildEnv } from "./safety.js";
 import { updateUsage, usageEmpty } from "./telemetry.js";
@@ -86,6 +87,20 @@ async function runChildAgent(
     model: modelOverride ?? agent.model,
     usage: usageEmpty(),
   };
+
+  const modelOverrideValidation = validateExplicitModelOverride(ctx.cwd, modelOverride);
+  if (!modelOverrideValidation.ok) {
+    return {
+      ...result,
+      exitCode: 1,
+      output: `Delegation preflight failed (no child launched):\n- ${modelOverrideValidation.errors.join("\n- ")}`,
+      gatePassed: false,
+      gateErrors: modelOverrideValidation.errors,
+      contractErrors: modelOverrideValidation.errors,
+      failureKind: "config",
+      errorMessage: `Configuration blocked; no child launched: ${modelOverrideValidation.errors.join("; ")}`,
+    };
+  }
 
   const tmp = await mkdtemp(join(tmpdir(), "zob-agent-"));
   const agentSessionDir = join(ctx.cwd, ".pi", "agent-sessions");

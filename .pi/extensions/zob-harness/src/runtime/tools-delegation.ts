@@ -9,6 +9,7 @@ import { discoverAgents, formatAgentList } from "../agents.js";
 import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../goal-todos.js";
 import { isFailed, mapWithConcurrency, runChildAgent } from "../child-runner.js";
 import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../chronicle.js";
+import { validateExplicitModelOverride } from "../model-availability.js";
 import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../output-contracts.js";
 import {
   parseToolList,
@@ -968,6 +969,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           ...validateAllowedPathPolicy(params.allowed_paths, "allowed_paths", ctx.cwd),
           ...validateForbiddenPathPolicy(params.forbidden_paths, "forbidden_paths", ctx.cwd),
           ...validateDelegationWriteScope("delegate_agent", effectiveTools, params.allowed_paths),
+          ...validateExplicitModelOverride(ctx.cwd, params.model).errors,
         ];
         if (preflightErrors.length > 0) {
           const result: ChildResult = {
@@ -1437,6 +1439,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         ...validateAllowedPathPolicy(params.allowed_paths, "allowed_paths", ctx.cwd),
         ...validateForbiddenPathPolicy(params.forbidden_paths, "forbidden_paths", ctx.cwd),
         ...validateDelegateTaskWriteScope(effectiveTools, params.allowed_paths),
+        ...validateExplicitModelOverride(ctx.cwd, params.model).errors,
       ];
       if ((params.load_skills?.length ?? 0) > 0) preflightErrors.push("load_skills is reserved for a future explicit skill-loading gate; use [] for P0");
 

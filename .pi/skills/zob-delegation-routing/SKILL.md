@@ -12,7 +12,7 @@ Use this skill whenever you are about to call `delegate_agent` or `delegate_task
 
 1. If you are not certain which agent or output contract to use, call `zob_delegation_catalog` first.
 2. Choose the agent by the deliverable you need.
-3. If `.pi/model-economy.json` exists and a compute profile is known/requested, use it to map compute profile + agent role to a model class; then consult `.pi/model-catalog.json` for a safe concrete `model` unless the user supplied an explicit model. Never downgrade oracle/security work to a weak or unverified default.
+3. Model routing is advisory unless current runtime availability/authentication is proven: normally omit `delegate_task.model` and `delegate_agent.model` so the child uses the parent/session default. A configured, desired, catalogued, or class-mapped model is not evidence that the provider is currently available/authenticated. Set an explicit `model` override only when you have current runtime proof that the concrete model/provider is usable for this session, or when the user explicitly accepts that risk. If proof is missing, omit `model`; never let a catalog preference create a launch-blocking unavailable-provider override. Never downgrade oracle/security work to a weak or unverified default.
 4. Normally omit `delegate_task.output_contract`; the harness infers the correct contract from the selected agent.
 5. Normally omit `delegate_task.required_tools`; the harness infers the selected agent's declared tools.
 6. Never invent output contract IDs or add tools not shown for the chosen agent in `zob_delegation_catalog`.
@@ -58,6 +58,7 @@ Use this skill whenever you are about to call `delegate_agent` or `delegate_task
 | `load_skills` | `loadSkills` (still reserved/non-empty values are gated) |
 
 - `delegate_task` infers `required_tools` from the selected agent when omitted.
+- Omit `delegate_task.model`/`delegate_agent.model` by default. Explicit model overrides are exceptional and require current availability/auth proof for the concrete provider/model; desired/configured/catalogued models are preferences only, not availability. Fallback is to omit `model` and use the parent/session default.
 - Set `required_tools` only to narrow the agent's tools, not to add tools.
 - Do not request `bash` for `planner`; planner is read-only with `read`, `grep`, `find`, and `ls`.
 - If a task truly needs `bash`, choose an agent whose catalog entry allows `bash`, or keep the work in the parent if appropriate.

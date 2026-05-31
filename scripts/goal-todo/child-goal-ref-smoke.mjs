@@ -40,11 +40,33 @@ for (const file of listTsFiles(srcRoot)) {
 }
 
 const goalTodos = await import(pathToFileURL(join(outRoot, "goal-todos.js")).href);
+const modelAvailability = await import(pathToFileURL(join(outRoot, "model-availability.js")).href);
 const toolsDelegationSource = readFileSync(join(srcRoot, "runtime", "tools-delegation.ts"), "utf8");
 assert(!toolsDelegationSource.includes("childGoalTodoErrors"), "delegation runtime must not reference stale childGoalTodoErrors symbol");
 assert(toolsDelegationSource.includes("...childGoalResolution.errors"), "delegation preflight must include structured childGoalResolution.errors");
 assert(toolsDelegationSource.includes("subtodos/XDEF leaves"), "TODO-linked child prompts must recommend XDEF/subtodo split before parallel work");
 assert(toolsDelegationSource.includes("TODO_SPLIT_REQUEST.v1"), "TODO-linked child prompts must preserve split request guidance");
+
+const noModelOverride = modelAvailability.validateExplicitModelOverride(repoRoot, undefined);
+assert.equal(noModelOverride.ok, true, "missing explicit model override should pass and use the parent/session default");
+assert.deepEqual(noModelOverride.errors, [], "missing explicit model override should not produce validation errors");
+
+const unknownModelOverride = modelAvailability.validateExplicitModelOverride(repoRoot, "gpt-5-codex");
+assert.equal(unknownModelOverride.ok, false, "unknown explicit model override should be blocked before child launch");
+assert(unknownModelOverride.errors.some((error) => error.includes("gpt-5-codex") && error.includes("model is not present") && error.includes("omit model to use the parent/session default")), `unknown model override should explain omission/default guidance; got ${JSON.stringify(unknownModelOverride.errors)}`);
+assert(unknownModelOverride.errors.some((error) => error.includes("desired, configured, or catalogued model names are not runtime availability/authentication proof")), `unknown model override should reject catalog preference as auth proof; got ${JSON.stringify(unknownModelOverride.errors)}`);
+
+const unverifiedCatalogOverride = modelAvailability.validateExplicitModelOverride(repoRoot, "openrouter/moonshotai/kimi-k2.6:free");
+assert.equal(unverifiedCatalogOverride.ok, false, "unverified catalog model override should be blocked before child launch");
+assert(unverifiedCatalogOverride.errors.some((error) => error.includes("catalog resolutionStatus is 'unverified', not 'verified'") && error.includes("omit model to use the parent/session default")), `unverified catalog override should explain verified-only gate; got ${JSON.stringify(unverifiedCatalogOverride.errors)}`);
+
+const needsUserCatalogOverride = modelAvailability.validateExplicitModelOverride(repoRoot, "zai/glm-5.1");
+assert.equal(needsUserCatalogOverride.ok, false, "needs_user catalog model override should be blocked before child launch");
+assert(needsUserCatalogOverride.errors.some((error) => error.includes("catalog resolutionStatus is 'needs_user', not 'verified'") && error.includes("omit model to use the parent/session default")), `needs_user catalog override should explain verified-only gate; got ${JSON.stringify(needsUserCatalogOverride.errors)}`);
+
+const verifiedCatalogOverride = modelAvailability.validateExplicitModelOverride(repoRoot, "openai-codex/gpt-5.5:medium");
+assert.equal(verifiedCatalogOverride.ok, true, "verified catalog model override should pass the repo-local validation gate");
+assert.deepEqual(verifiedCatalogOverride.errors, [], "verified catalog model override should not produce validation errors");
 
 const goalId = "goal-child-ref-smoke";
 const baseNode = {

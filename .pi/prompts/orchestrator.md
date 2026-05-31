@@ -29,6 +29,7 @@ Orchestrator loop:
    - Before TODO-linked delegation, refresh active TODO refs; pass a canonical active `child_goal.todo_id` only when freshly verified, otherwise pass visible `child_goal.todo_path` for parent/runtime resolution.
    - Safe auto-open/delegation is allowed only for runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) with no active child/run; stale delegated/recovery leaves may be recovered only when no active child/run owns them, otherwise block/review instead of redelegating.
    - Delegate substantive work with six-part contracts and explicit allowed/forbidden paths.
+   - Omit `delegate_task.model`/`delegate_agent.model` by default so children use the parent/session default. Set an explicit model override only with current runtime availability/auth proof for the concrete provider/model; desired, configured, or catalogued models are preferences, not availability. If proof is missing, omit `model`.
    - Keep `allowed_paths` repo-relative only; never pass external absolute/home paths to children. Use repo-local `reports/...` snapshots or `context_ref` artifacts for external context. Keep `forbidden_paths` deny-only.
    - Prefer `orchestrate_run` for multi-agent Lead/Worker decomposition and `delegate_task`/`delegate_agent` for bounded specialist work.
 5. Evidence
