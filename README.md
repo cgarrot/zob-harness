@@ -98,6 +98,7 @@ Once Pi starts with this harness, the common workflow commands are:
 - `/goal todo` or `/todo` — manage goal-linked TODO trees.
 - `/goal_gate` — set a scope anchor for dispatch.
 - `/compute` or `/effort` — preview and resolve compute profiles.
+- `/zcompact` — configure proactive context compaction (`observe`, `on`, `off`, `status`, `threshold`, `target`, `fraction`, `trigger`).
 
 ## The six-part task contract
 

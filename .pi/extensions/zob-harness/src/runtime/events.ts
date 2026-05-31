@@ -26,6 +26,7 @@ import { pathMatches } from "../utils/paths.js";
 import { isRecord, textFromMessage } from "../utils/records.js";
 import { showDelegationOverlay } from "./delegation-overlay.js";
 import { buildDeterministicZobCompactionResult, buildDeterministicZobCompactionSummary, buildZobCompactionInstructions, buildZobCompactionLedgerEntry, withZobCompactionDetails, ZOB_COMPACTION_ENTRY_TYPE, zobCompactionBodyFreeViolations } from "./compaction-policy.js";
+import { buildZcompactPreparation, cancelZcompactPending, maybeTriggerZcompact, runZcompactCompactionHook } from "./auto-compaction.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import type { HarnessRuntimeState, ZobLiveLastEvent } from "./state.js";
 import { bashLooksLikeFileMutation, inferModeFromUserIntent, restoreHarnessState } from "./state.js";
@@ -463,20 +464,47 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
   });
 
   pi.on("session_before_compact", async (event, ctx) => {
+    const zcompactPending = state.zcompact.pending;
+    const compactionReason = zcompactPending ? zcompactPending.reason : event.customInstructions ? "manual" : "threshold";
+    const cancelZcompact = (reason: string) => {
+      cancelZcompactPending(pi, state.zcompact, reason);
+      notifyWhenUi(ctx, `ZOB zcompact cancelled: ${reason}`, "warning");
+      return { cancel: true };
+    };
     const fallback = (reason: string) => {
       notifyWhenUi(ctx, `ZOB-aware deterministic compaction fallback: ${reason}`, "warning");
+      let preparation = event.preparation;
+      try {
+        preparation = zcompactPending ? buildZcompactPreparation(state, event.preparation, event.branchEntries) : event.preparation;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return cancelZcompact(message);
+      }
       return {
-        compaction: buildDeterministicZobCompactionResult(state, event.preparation, {
-          reason: event.customInstructions ? "manual" : "threshold",
+        compaction: buildDeterministicZobCompactionResult(state, preparation, {
+          reason: compactionReason,
           customInstructions: event.customInstructions,
-          fileOps: event.preparation.fileOps,
+          fileOps: preparation.fileOps,
         }),
       };
     };
     const auth = await compactionAuth(ctx);
+    if ((!ctx.model || !auth) && zcompactPending) return cancelZcompact("model/auth unavailable");
     if (!ctx.model || !auth) return fallback("model/auth unavailable");
+    if (zcompactPending) {
+      try {
+        const compaction = await runZcompactCompactionHook(state, { preparation: event.preparation, branchEntries: event.branchEntries, ctx, apiKey: auth.apiKey, headers: auth.headers, signal: event.signal });
+        if (!compaction.summary.trim()) return fallback("model returned empty zcompact summary");
+        const violations = zobCompactionBodyFreeViolations(compaction.details);
+        if (violations.length > 0) return fallback(`body-free detail violation: ${violations.slice(0, 2).join(", ")}`);
+        return { compaction };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fallback(message);
+      }
+    }
     const customInstructions = buildZobCompactionInstructions(state, {
-      reason: event.customInstructions ? "manual" : "threshold",
+      reason: compactionReason,
       customInstructions: event.customInstructions,
       fileOps: event.preparation.fileOps,
     });
@@ -584,6 +612,11 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     renderHarnessWidget(pi, state, ctx);
   });
 
+  pi.on("turn_end", async (_event, ctx) => {
+    await maybeTriggerZcompact(pi, state, ctx, { source: "turn_end", render: () => renderHarnessWidget(pi, state, ctx) });
+    renderHarnessWidget(pi, state, ctx);
+  });
+
   pi.on("agent_end", async (event) => {
     try {
       await sendInboundZobLiveResponse(pi, state, event);
@@ -610,5 +643,6 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     ctx.ui.setWidget("zob-harness", undefined);
     ctx.ui.setStatus("zob-mode", undefined);
     ctx.ui.setStatus("zob-usage", undefined);
+    ctx.ui.setStatus("zob-zcompact", undefined);
   });
 }

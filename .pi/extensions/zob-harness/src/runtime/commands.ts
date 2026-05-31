@@ -10,6 +10,7 @@ import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, 
 import { runQueueDaemonTick } from "../queue.js";
 import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
+import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../utils/hashing.js";
 import { writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, refreshZpeerSelf, sendZpeerPrompt, type ZpeerSendMode } from "../coms-v2/zpeer.js";
@@ -629,6 +630,31 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
       }
       renderHarnessWidget(pi, state, ctx);
       ctx.ui.notify("ZOB status refreshed from reports/", "info");
+    },
+  });
+
+  pi.registerCommand("zcompact", {
+    description: "Configure/session-run proactive ZOB compaction: /zcompact observe|on|off|status|threshold 60|target 25|fraction 25|trigger",
+    getArgumentCompletions: (prefix) => {
+      const query = prefix.trim().toLowerCase();
+      const items = [
+        { value: "status", label: "status", description: "show context usage and zcompact settings" },
+        { value: "observe", label: "observe", description: "report threshold hits without compacting" },
+        { value: "on", label: "on", description: "enable auto-compaction at threshold" },
+        { value: "off", label: "off", description: "disable proactive compaction" },
+        { value: "threshold 60", label: "threshold 60", description: "trigger at 60% context" },
+        { value: "target 25", label: "target 25", description: "compact enough to return near 25% context" },
+        { value: "fraction 25", label: "fraction 25", description: "minimum oldest batch if target needs less" },
+        { value: "trigger", label: "trigger", description: "compact now using current strategy" },
+        { value: "help", label: "help", description: "insert command help" },
+      ];
+      const filtered = query
+        ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+        : items;
+      return filtered.length > 0 ? filtered.slice(0, 20) : null;
+    },
+    handler: async (args, ctx) => {
+      await handleZcompactCommand(pi, state, args, ctx, () => renderHarnessWidget(pi, state, ctx));
     },
   });
 

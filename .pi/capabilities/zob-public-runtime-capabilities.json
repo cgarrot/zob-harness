@@ -1339,6 +1339,23 @@
       "noShipNotes": "Refreshes local status widget only."
     },
     {
+      "name": "zcompact",
+      "family": "compaction",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-compaction-policy/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_COMPACTION_POLICY.md",
+        "README.md",
+        ".pi/extensions/zob-harness/src/runtime/auto-compaction.ts"
+      ],
+      "noShipNotes": "Session-local proactive compaction UX. Default policy triggers around 60% context and targets roughly 25% after compaction by summarizing older compactable conversation entries while keeping recent user/assistant messages clear. observe mode is no-mutation; on/trigger call ctx.compact only when idle/no queued messages except explicit trigger; ledgers remain metadata/hash-only and summaries are continuity indexes, not evidence."
+    },
+    {
       "name": "zpeer",
       "family": "coms-v2-live",
       "modes": [

@@ -15,6 +15,7 @@ import { createDelegationMonitorState, trimDelegationRuns, type DelegationMonito
 import { DEFAULT_DAEMON_RUNTIME_POLICY, type DaemonLoopSnapshot, type DaemonRuntimePolicy, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
 import { createInteractiveAutonomyRuntimeState, restoreInteractiveAutonomyState, type InteractiveAutonomyRuntimeState } from "../interactive-autonomy.js";
 import type { ZobModeIntent } from "./mode-intent.js";
+import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
 
 export interface DelegationMouseRuntimeState {
   tui?: TUI;
@@ -99,6 +100,7 @@ export interface HarnessRuntimeState {
   zobLive: ZobLiveRuntimeState;
   autonomy: InteractiveAutonomyRuntimeState;
   daemon: DaemonHarnessRuntimeState;
+  zcompact: ZcompactRuntimeState;
   backgroundDelegations: Map<string, BackgroundDelegationRuntimeRun>;
 }
 
@@ -137,6 +139,7 @@ export function createHarnessRuntimeState(): HarnessRuntimeState {
         cronEnabled: false,
       },
     },
+    zcompact: createZcompactRuntimeState(),
     backgroundDelegations: new Map(),
   };
 }
@@ -314,6 +317,7 @@ export function restoreHarnessState(state: HarnessRuntimeState, ctx: ExtensionCo
   state.goalActivationMode = restoreGoalActivationModeFromBranch(branch) ?? state.goalActivationMode;
   state.goalTodos = restoreGoalTodosFromBranch(branch);
   state.autonomy = restoreInteractiveAutonomyState(ctx.cwd, branch, state.autonomy);
+  state.zcompact = restoreZcompactStateFromBranch(branch, state.zcompact);
   restoreDaemonMetadataFromEntries(state, branch);
   state.daemon.lastStatus = undefined;
   state.daemon.lastPlan = undefined;

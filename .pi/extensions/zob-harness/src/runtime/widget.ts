@@ -10,6 +10,7 @@ import { readHarnessReadinessWidgetData } from "../orchestration/widget-readers.
 import { buildZpeerRoomSummary } from "../coms-v2/zpeer.js";
 import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
+import { formatZcompactHudLine } from "./auto-compaction.js";
 import type { HarnessRuntimeState } from "./state.js";
 
 const PRODUCT_HUD_IGNORED_READINESS_BLOCKERS = new Set(["global_autonomy_not_proven_for_arbitrary_factories"]);
@@ -189,7 +190,10 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
         const statusTime = runtimeGoal || state.delegations.runs.length > 0
           ? `elapsed ${elapsedTime} · agent ${formatAgentSeconds(runtimeGoal?.usage.activeSeconds)} · sub ${state.delegations.runs.length > 0 ? formatDuration(subDurationMs) : "—"} cum`
           : "—";
+        const zcompactLine = formatZcompactHudLine(state.zcompact, ctx);
+        const zcompactColor = state.zcompact.running ? "warning" : state.zcompact.mode === "auto" ? "success" : state.zcompact.mode === "observe" ? "accent" : "dim";
         ctx.ui.setStatus("zob-usage", theme.fg("muted", `usage ${statusCost} · tok total ${statusTokens} · time ${statusTime}`));
+        ctx.ui.setStatus("zob-zcompact", theme.fg(zcompactColor, zcompactLine));
         const closedTodos = runtimeTodoSummary ? runtimeTodoSummary.done + runtimeTodoSummary.skipped : 0;
         const totalTodos = runtimeTodoSummary?.total ?? 0;
         const progress = totalTodos > 0
@@ -292,7 +296,8 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           `${theme.fg("accent", "Next")} ${theme.fg(mainState === "Ready" ? "dim" : "muted", nextAction)}`,
           `${theme.fg(uniqueAlerts.length > 0 ? "warning" : "success", "Need")} ${theme.fg(uniqueAlerts.length > 0 ? "warning" : "muted", needLine)}`,
           `${theme.fg("dim", "Daemon")} ${theme.fg("muted", daemonLine)}`,
-          `${theme.fg("dim", "Open")} ${theme.fg("muted", "/zpeer · /zstatus · /todos overlay · /delegates")}`,
+          `${theme.fg("dim", "Context")} ${theme.fg(zcompactColor, zcompactLine)}`,
+          `${theme.fg("dim", "Open")} ${theme.fg("muted", "/zcompact · /zpeer · /zstatus · /todos overlay · /delegates")}`,
         ];
         const rightLines = [
           `${theme.fg("accent", "Focus")} ${theme.fg("muted", state.activeMode)}`,
@@ -305,7 +310,7 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
 
         if (panelWidth < 72) return leftLines.slice(0, 4).map((line) => truncateToWidth(line, panelWidth, "…"));
         if (panelWidth < 112) {
-          const contextLine = `${theme.fg("dim", "Context")} ${theme.fg("muted", `Focus ${state.activeMode} · Activity ${activityState} · Review ${reviewState} · Quality ${qualityState}`)}`;
+          const contextLine = `${theme.fg("dim", "Context")} ${theme.fg(zcompactColor, zcompactLine)}`;
           return [
             border("top", panelWidth, `${theme.fg("accent", "◆ ZOB")} ${theme.fg("muted", "live")}`),
             ...leftLines.map((line) => row(panelWidth, line)),
