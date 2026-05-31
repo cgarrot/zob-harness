@@ -27,6 +27,10 @@ reports/
 .pi/mission-control/command-proposals.jsonl
 .pi/mission-control/proposals/
 
+# User-local model routing preferences. Commit *.example.json instead.
+.pi/model-catalog.json
+.pi/model-economy.json
+
 # Keep internal one-off proof/smoke scripts local. Public script folders are allowlisted below.
 scripts/*.mjs
 !scripts/compute-profile/

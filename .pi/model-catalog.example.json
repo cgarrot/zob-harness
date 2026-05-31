@@ -1,0 +1,345 @@
+{
+  "schema": "zob.model-catalog.v1",
+  "version": 1,
+  "description": "Human-maintained advisory catalog for selecting concrete Pi models for ZOB child agents. Model identifiers should be Pi --model patterns, not provider credentials.",
+  "advisoryOnly": true,
+  "routingConfigRef": ".pi/model-routing.json",
+  "liveRoutingEnabled": false,
+  "modelRouterUsed": false,
+  "routingApplied": false,
+  "childDispatchAllowed": false,
+  "networkAccessed": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "selectionPolicy": {
+    "order": [
+      "explicit_user_model",
+      "agent_preference",
+      "model_class_default",
+      "parent_manual_choice"
+    ],
+    "oracleSecurityDowngradePolicy": "blocked",
+    "unknownModelPolicy": "allowed_as_unverified_candidate_not_default",
+    "secretStoragePolicy": "forbidden"
+  },
+  "models": {
+    "openai-codex/gpt-5.5:xhigh": {
+      "label": "GPT-5.5 Codex xhigh fast",
+      "status": "preferred",
+      "resolutionStatus": "verified",
+      "classes": ["balanced_worker", "strong_reasoning", "strong_oracle", "high_context"],
+      "whyWeLikeIt": "Primary default Codex route for real coding work, implementation, complex reasoning, oracle review, and large refactors.",
+      "bestFor": ["default_coding", "implementation", "complex_implementation", "architecture", "large_refactor", "oracle_review", "high_context_review"],
+      "avoidFor": ["cheap_bulk_scouting", "free_tier_experiments"],
+      "costTier": "high",
+      "qualityTier": "strong",
+      "contextWindow": 272000,
+      "supportsReasoning": true,
+      "thinkingLevels": ["medium", "high", "xhigh"],
+      "defaultThinking": "xhigh",
+      "fastMode": {
+        "supported": true,
+        "preference": "prefer",
+        "optional": true,
+        "plugin": "codex-fast-mode",
+        "serviceTier": "priority"
+      },
+      "notes": ["User preference: use this model by default for real work and coding unless the user asks to change model/profile; prefer xhigh reasoning and Codex fast mode when available."],
+      "lastUpdated": "2026-05-31"
+    },
+    "openai-codex/gpt-5.5:high": {
+      "label": "GPT-5.5 Codex high fast",
+      "status": "fallback",
+      "resolutionStatus": "verified",
+      "classes": ["balanced_worker", "strong_reasoning", "strong_oracle"],
+      "whyWeLikeIt": "Cost-aware Codex variant for strong coding and reasoning when xhigh is not necessary.",
+      "bestFor": ["implementation", "planning", "code_review", "medium_complexity_reasoning"],
+      "avoidFor": ["cheap_bulk_scouting", "free_tier_experiments"],
+      "costTier": "high",
+      "qualityTier": "strong",
+      "contextWindow": 272000,
+      "supportsReasoning": true,
+      "thinkingLevels": ["high", "xhigh"],
+      "defaultThinking": "high",
+      "fastMode": {
+        "supported": true,
+        "preference": "prefer",
+        "optional": true,
+        "plugin": "codex-fast-mode",
+        "serviceTier": "priority"
+      },
+      "notes": ["Use when strong reasoning is useful but xhigh budget is excessive."],
+      "lastUpdated": "2026-05-31"
+    },
+    "openai-codex/gpt-5.5:medium": {
+      "label": "GPT-5.5 Codex medium fast",
+      "status": "fallback",
+      "resolutionStatus": "verified",
+      "classes": ["cheap_scout", "balanced_worker"],
+      "whyWeLikeIt": "Lower-reasoning Codex variant for budget-aware coding help, repo lookup, and lighter implementation tasks.",
+      "bestFor": ["simple_implementation", "repo_search", "targeted_code_navigation", "cost_aware_coding"],
+      "avoidFor": ["oracle_final_security", "high_risk_architecture"],
+      "costTier": "medium",
+      "qualityTier": "reliable",
+      "contextWindow": 272000,
+      "supportsReasoning": true,
+      "thinkingLevels": ["medium", "high", "xhigh"],
+      "defaultThinking": "medium",
+      "fastMode": {
+        "supported": true,
+        "preference": "prefer",
+        "optional": true,
+        "plugin": "codex-fast-mode",
+        "serviceTier": "priority"
+      },
+      "notes": ["Use for cheaper Codex runs where medium reasoning is enough."],
+      "lastUpdated": "2026-05-31"
+    },
+    "openrouter/moonshotai/kimi-k2.6:free": {
+      "label": "Kimi K2.6 free via OpenRouter",
+      "status": "fallback",
+      "resolutionStatus": "unverified",
+      "classes": ["cheap_scout", "balanced_worker"],
+      "whyWeLikeIt": "Interesting free model for small coding tasks, simple implementation help, and fast repository research.",
+      "bestFor": ["simple_coding", "small_implementation", "repo_search", "directory_research", "cheap_scouting"],
+      "avoidFor": ["oracle_final_security", "high_risk_architecture", "large_refactor"],
+      "costTier": "free",
+      "qualityTier": "reliable",
+      "supportsReasoning": false,
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["User likes Kimi K2.6 for simple coding and repo/dir research; verify exact OpenRouter model pattern in Pi before relying on it."],
+      "lastUpdated": "2026-05-31"
+    },
+    "openrouter/google/gemma-4-31b-it:free": {
+      "label": "Gemma 4 31B IT free via OpenRouter",
+      "status": "candidate",
+      "resolutionStatus": "unverified",
+      "classes": ["cheap_scout"],
+      "whyWeLikeIt": "Free small-task model kept for experiments and tests, not production coding.",
+      "bestFor": ["model_smoke_tests", "non_code_experiments", "cheap_test_runs"],
+      "avoidFor": ["implementation", "production_code", "oracle_final_security", "high_risk_architecture"],
+      "costTier": "free",
+      "qualityTier": "experimental",
+      "supportsReasoning": false,
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["User wants this for tests only, not code work."],
+      "lastUpdated": "2026-05-31"
+    },
+    "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+      "label": "Nemotron 3 Nano Omni reasoning free via OpenRouter",
+      "status": "candidate",
+      "resolutionStatus": "unverified",
+      "classes": ["cheap_scout"],
+      "whyWeLikeIt": "Free reasoning-flavored candidate for experiments and tests, not normal coding.",
+      "bestFor": ["model_smoke_tests", "reasoning_experiments", "cheap_test_runs"],
+      "avoidFor": ["implementation", "production_code", "oracle_final_security", "high_risk_architecture"],
+      "costTier": "free",
+      "qualityTier": "experimental",
+      "supportsReasoning": true,
+      "thinkingLevels": ["unknown"],
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["User wants this for tests only; verify exact OpenRouter model pattern and reasoning controls in Pi."],
+      "lastUpdated": "2026-05-31"
+    },
+    "zai/glm-5.1": {
+      "label": "GLM 5.1 via ZAI",
+      "status": "candidate",
+      "resolutionStatus": "needs_user",
+      "classes": ["cheap_scout", "balanced_worker"],
+      "whyWeLikeIt": "Good Kimi-like option for simple coding and repo research, but perceived as a bit slower.",
+      "bestFor": ["simple_coding", "repo_search", "small_implementation", "cheap_scouting"],
+      "avoidFor": ["oracle_final_security", "high_risk_architecture", "large_refactor"],
+      "costTier": "unknown",
+      "qualityTier": "reliable",
+      "supportsReasoning": true,
+      "thinkingLevels": ["unknown"],
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["Provider/model pattern needs confirmation against Pi's ZAI model list."],
+      "lastUpdated": "2026-05-31"
+    },
+    "zai/glm-5-turbo": {
+      "label": "GLM 5 Turbo via ZAI",
+      "status": "candidate",
+      "resolutionStatus": "needs_user",
+      "classes": ["cheap_scout"],
+      "whyWeLikeIt": "Fast ZAI option for very quick simple tasks and lookup-style work.",
+      "bestFor": ["fast_simple_tasks", "repo_search", "cheap_scouting", "quick_checks"],
+      "avoidFor": ["implementation_heavy", "oracle_final_security", "high_risk_architecture"],
+      "costTier": "unknown",
+      "qualityTier": "reliable",
+      "supportsReasoning": false,
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["Provider/model pattern needs confirmation against Pi's ZAI model list."],
+      "lastUpdated": "2026-05-31"
+    },
+    "ollama-cloud/deepseek-v4-flash": {
+      "label": "DeepSeek V4 Flash via Ollama Cloud",
+      "status": "candidate",
+      "resolutionStatus": "needs_user",
+      "classes": ["cheap_scout", "high_context"],
+      "whyWeLikeIt": "Very fast simple-task model with reported 1M context, useful for large repo search and quick checks.",
+      "bestFor": ["very_simple_tasks", "fast_repo_search", "large_context_lookup", "cheap_scouting"],
+      "avoidFor": ["oracle_final_security", "high_risk_architecture", "complex_implementation"],
+      "costTier": "low",
+      "qualityTier": "reliable",
+      "contextWindow": 1000000,
+      "supportsReasoning": true,
+      "thinkingLevels": ["unknown"],
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["User ranks this as very fast for simple tasks; provider/model pattern needs confirmation in Pi."],
+      "lastUpdated": "2026-05-31"
+    },
+    "ollama-cloud/deepseek-v4-pro": {
+      "label": "DeepSeek V4 Pro via Ollama Cloud",
+      "status": "candidate",
+      "resolutionStatus": "needs_user",
+      "classes": ["balanced_worker", "high_context"],
+      "whyWeLikeIt": "Kimi-like balanced worker with reported 1M context, useful when huge context matters.",
+      "bestFor": ["large_context_review", "simple_to_medium_implementation", "repo_wide_research", "context_heavy_synthesis"],
+      "avoidFor": ["oracle_final_security", "highest_risk_architecture"],
+      "costTier": "medium",
+      "qualityTier": "reliable",
+      "contextWindow": 1000000,
+      "supportsReasoning": true,
+      "thinkingLevels": ["unknown"],
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["User sees this as close to Kimi K2.6 but with enormous context; provider/model pattern needs confirmation in Pi."],
+      "lastUpdated": "2026-05-31"
+    },
+    "ollama-cloud/minimax-m2.7": {
+      "label": "MiniMax M2.7 via Ollama Cloud",
+      "status": "candidate",
+      "resolutionStatus": "needs_user",
+      "classes": ["cheap_scout"],
+      "whyWeLikeIt": "Lower-tier fast research/scout option, below DeepSeek V4 Flash in preference.",
+      "bestFor": ["repo_search", "directory_research", "cheap_scouting", "quick_tests"],
+      "avoidFor": ["implementation_heavy", "oracle_final_security", "high_risk_architecture"],
+      "costTier": "low",
+      "qualityTier": "reliable",
+      "supportsReasoning": false,
+      "fastMode": {
+        "supported": false,
+        "preference": "off",
+        "optional": true
+      },
+      "notes": ["Use for research/scouting under DeepSeek V4 Flash; provider/model pattern needs confirmation in Pi."],
+      "lastUpdated": "2026-05-31"
+    }
+  },
+  "classDefaults": {
+    "cheap_scout": [
+      "openrouter/moonshotai/kimi-k2.6:free",
+      "ollama-cloud/deepseek-v4-flash",
+      "zai/glm-5-turbo",
+      "ollama-cloud/minimax-m2.7",
+      "openai-codex/gpt-5.5:medium",
+      "openrouter/google/gemma-4-31b-it:free",
+      "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    ],
+    "balanced_worker": [
+      "openai-codex/gpt-5.5:xhigh",
+      "openai-codex/gpt-5.5:high",
+      "openai-codex/gpt-5.5:medium",
+      "openrouter/moonshotai/kimi-k2.6:free",
+      "ollama-cloud/deepseek-v4-pro",
+      "zai/glm-5.1"
+    ],
+    "strong_reasoning": [
+      "openai-codex/gpt-5.5:xhigh",
+      "openai-codex/gpt-5.5:high"
+    ],
+    "strong_oracle": [
+      "openai-codex/gpt-5.5:xhigh",
+      "openai-codex/gpt-5.5:high"
+    ],
+    "high_context": [
+      "openai-codex/gpt-5.5:xhigh",
+      "ollama-cloud/deepseek-v4-pro",
+      "ollama-cloud/deepseek-v4-flash"
+    ]
+  },
+  "agentPreferences": {
+    "explore": {
+      "preferred": [
+        "openrouter/moonshotai/kimi-k2.6:free",
+        "ollama-cloud/deepseek-v4-flash",
+        "zai/glm-5-turbo",
+        "ollama-cloud/minimax-m2.7"
+      ],
+      "fallback": ["openai-codex/gpt-5.5:medium"],
+      "avoid": ["openrouter/google/gemma-4-31b-it:free", "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
+      "notes": ["Prefer cheap/free fast repo research models before Codex for bounded scouting."]
+    },
+    "repo-scout": {
+      "preferred": [
+        "openrouter/moonshotai/kimi-k2.6:free",
+        "ollama-cloud/deepseek-v4-flash",
+        "ollama-cloud/minimax-m2.7"
+      ],
+      "fallback": ["openai-codex/gpt-5.5:medium"],
+      "notes": ["Repo and directory research should use cheap fast scouts when safe."]
+    },
+    "implementer": {
+      "preferred": ["openai-codex/gpt-5.5:xhigh", "openai-codex/gpt-5.5:high"],
+      "fallback": ["openai-codex/gpt-5.5:medium", "openrouter/moonshotai/kimi-k2.6:free", "ollama-cloud/deepseek-v4-pro"],
+      "avoid": ["openrouter/google/gemma-4-31b-it:free", "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
+      "notes": ["Use Codex first for real code edits; Kimi/DeepSeek are fallback for simpler implementation only."]
+    },
+    "qa": {
+      "preferred": ["openai-codex/gpt-5.5:medium", "openrouter/google/gemma-4-31b-it:free", "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
+      "fallback": ["openrouter/moonshotai/kimi-k2.6:free"],
+      "avoid": [],
+      "notes": ["Free experimental models are acceptable for model tests and non-code QA experiments, not production code edits."]
+    },
+    "oracle": {
+      "preferred": ["openai-codex/gpt-5.5:xhigh"],
+      "fallback": ["openai-codex/gpt-5.5:high"],
+      "avoid": [
+        "openrouter/moonshotai/kimi-k2.6:free",
+        "openrouter/google/gemma-4-31b-it:free",
+        "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "zai/glm-5.1",
+        "zai/glm-5-turbo",
+        "ollama-cloud/deepseek-v4-flash",
+        "ollama-cloud/deepseek-v4-pro",
+        "ollama-cloud/minimax-m2.7"
+      ],
+      "notes": ["Oracle/no-ship review stays on strong Codex reasoning; do not downgrade to cheap/free candidates."]
+    }
+  },
+  "notes": [
+    "Default human preference: use openai-codex/gpt-5.5:xhigh for real coding/work unless the user asks for a different model or cheaper profile.",
+    "Use /model-catalog with natural language to add or update entries.",
+    "Keep API keys and provider secrets in Pi auth or the user-level Pi models config, never in this repo catalog.",
+    "First model in each classDefaults array is the preferred model for that class."
+  ]
+}

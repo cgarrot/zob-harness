@@ -1,0 +1,196 @@
+{
+  "schema": "zob.model-economy-policy.v1",
+  "version": 1,
+  "description": "Advisory policy that maps ZOB compute profiles to model classes, cost tiers, and quality gates before selecting concrete models from .pi/model-catalog.json.",
+  "advisoryOnly": true,
+  "computeProfileRef": ".pi/compute-profiles/defaults.json",
+  "modelRoutingRef": ".pi/model-routing.json",
+  "modelCatalogRef": ".pi/model-catalog.json",
+  "liveRoutingEnabled": false,
+  "modelRouterUsed": false,
+  "routingApplied": false,
+  "childDispatchAllowed": false,
+  "budgetEnforced": false,
+  "strictEnabled": false,
+  "networkAccessed": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "selectionOrder": [
+    "explicit_user_model",
+    "compute_profile_role_class",
+    "agent_preference",
+    "model_class_default",
+    "parent_manual_choice"
+  ],
+  "concreteModelPreference": {
+    "defaultRealWorkModel": "openai-codex/gpt-5.5:xhigh",
+    "defaultRealWorkThinking": "xhigh",
+    "defaultRealWorkFastMode": "prefer",
+    "appliesTo": ["coding", "implementation", "architecture", "refactor", "oracle", "security", "serious_work"],
+    "cheapModelUseOnlyFor": ["explicit_low_profile", "repo_or_directory_research", "scouting", "model_tests", "simple_non_critical_tasks"],
+    "notes": [
+      "For real coding/work, route through classes whose catalog defaults prefer openai-codex/gpt-5.5:xhigh unless the user asks for a different model or explicit economy profile.",
+      "Cheap/free models are for exploration, repo/dir research, model tests, or explicitly simple non-critical work."
+    ]
+  },
+  "downgradePolicy": {
+    "oracleSecurityDowngrade": "blocked",
+    "maxProfileUnverified": "blocked",
+    "unknownModelAsDefault": "blocked",
+    "missingClassDefault": "ask_or_fallback_to_parent_choice"
+  },
+  "roles": [
+    "root",
+    "orchestrator",
+    "lead",
+    "planner",
+    "scout",
+    "worker",
+    "implementer",
+    "qa",
+    "oracle",
+    "security",
+    "high_context"
+  ],
+  "profiles": {
+    "low": {
+      "intent": "explicit_economy_only",
+      "preferCostTier": ["free", "low"],
+      "minimumQualityTier": "unknown",
+      "allowedStatuses": ["preferred", "fallback", "candidate"],
+      "allowUnverified": true,
+      "requireVerified": false,
+      "requireReliable": false,
+      "requireStrongQuality": false,
+      "roleClasses": {
+        "root": "balanced_worker",
+        "orchestrator": "balanced_worker",
+        "lead": "balanced_worker",
+        "planner": "balanced_worker",
+        "scout": "cheap_scout",
+        "worker": "cheap_scout",
+        "implementer": "balanced_worker",
+        "qa": "cheap_scout",
+        "oracle": "strong_oracle",
+        "security": "strong_reasoning",
+        "high_context": "high_context"
+      },
+      "notes": [
+        "Use cheap/free models only when the user explicitly asks for low/economy or the task is simple and non-critical.",
+        "Real implementation remains balanced_worker; do not use free/candidate models for critical code.",
+        "Oracle and security stay on strong classes; if no safe model exists, ask instead of downgrading."
+      ]
+    },
+    "medium": {
+      "intent": "practical_default_real_work",
+      "preferCostTier": ["high", "medium", "low"],
+      "minimumQualityTier": "reliable",
+      "allowedStatuses": ["preferred", "fallback", "candidate"],
+      "allowUnverified": true,
+      "requireVerified": false,
+      "requireReliable": true,
+      "requireStrongQuality": false,
+      "roleClasses": {
+        "root": "strong_reasoning",
+        "orchestrator": "strong_reasoning",
+        "lead": "strong_reasoning",
+        "planner": "strong_reasoning",
+        "scout": "cheap_scout",
+        "worker": "balanced_worker",
+        "implementer": "balanced_worker",
+        "qa": "cheap_scout",
+        "oracle": "strong_oracle",
+        "security": "strong_reasoning",
+        "high_context": "high_context"
+      },
+      "notes": [
+        "Default practical profile: real coding should still prefer openai-codex/gpt-5.5:xhigh through balanced_worker or strong_reasoning catalog defaults.",
+        "Use stronger reasoning for coordination and planning.",
+        "Keep read-only scouts cheap and workers balanced."
+      ]
+    },
+    "high": {
+      "intent": "quality_first",
+      "preferCostTier": ["medium", "high"],
+      "minimumQualityTier": "reliable",
+      "allowedStatuses": ["preferred", "fallback"],
+      "allowUnverified": false,
+      "requireVerified": true,
+      "requireReliable": true,
+      "requireStrongQuality": false,
+      "roleClasses": {
+        "root": "strong_reasoning",
+        "orchestrator": "strong_reasoning",
+        "lead": "strong_reasoning",
+        "planner": "strong_reasoning",
+        "scout": "cheap_scout",
+        "worker": "strong_reasoning",
+        "implementer": "strong_reasoning",
+        "qa": "balanced_worker",
+        "oracle": "strong_oracle",
+        "security": "strong_reasoning",
+        "high_context": "high_context"
+      },
+      "notes": [
+        "Prefer verified reliable models and use openai-codex/gpt-5.5:xhigh when available for workers/implementers.",
+        "Cheap models are allowed only for bounded read-only scouting."
+      ]
+    },
+    "xhigh": {
+      "intent": "strong_models_for_most_lanes",
+      "preferCostTier": ["medium", "high"],
+      "minimumQualityTier": "strong",
+      "allowedStatuses": ["preferred", "fallback"],
+      "allowUnverified": false,
+      "requireVerified": true,
+      "requireReliable": true,
+      "requireStrongQuality": true,
+      "roleClasses": {
+        "root": "strong_reasoning",
+        "orchestrator": "strong_reasoning",
+        "lead": "strong_reasoning",
+        "planner": "strong_reasoning",
+        "scout": "strong_reasoning",
+        "worker": "strong_reasoning",
+        "implementer": "strong_reasoning",
+        "qa": "strong_reasoning",
+        "oracle": "strong_oracle",
+        "security": "strong_reasoning",
+        "high_context": "high_context"
+      },
+      "notes": [
+        "Strong classes for root/orchestrator/planner/lead/worker/implementer/qa/security; use openai-codex/gpt-5.5:xhigh primarily.",
+        "No candidate/free models by default."
+      ]
+    },
+    "max": {
+      "intent": "best_available_verified_models",
+      "preferCostTier": ["high", "medium"],
+      "minimumQualityTier": "strong",
+      "allowedStatuses": ["preferred", "fallback"],
+      "allowUnverified": false,
+      "requireVerified": true,
+      "requireReliable": true,
+      "requireStrongQuality": true,
+      "roleClasses": {
+        "root": "strong_reasoning",
+        "orchestrator": "strong_reasoning",
+        "lead": "strong_reasoning",
+        "planner": "strong_reasoning",
+        "scout": "strong_reasoning",
+        "worker": "strong_reasoning",
+        "implementer": "strong_reasoning",
+        "qa": "strong_reasoning",
+        "oracle": "strong_oracle",
+        "security": "strong_reasoning",
+        "high_context": "high_context"
+      },
+      "notes": [
+        "Best available profile: use openai-codex/gpt-5.5:xhigh for real work unless instructed otherwise.",
+        "Use only verified strong-quality models for defaults.",
+        "If no verified strong model is configured, ask instead of silently using a weaker model."
+      ]
+    }
+  }
+}

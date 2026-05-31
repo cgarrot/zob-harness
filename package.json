@@ -58,7 +58,10 @@
     ".pi/teams",
     "scripts/compute-profile",
     "scripts/project-dna",
-    "scripts/start-pi.sh"
+    "scripts/start-pi.sh",
+    ".pi/model-catalog.example.json",
+    ".pi/model-economy.example.json",
+    "scripts/model-catalog"
   ],
   "scripts": {
     "pi": "pi",
@@ -73,7 +76,9 @@
     "smoke:compute-profile-regression": "node scripts/compute-profile/regression-smoke.mjs",
     "validate:project-dna": "node scripts/project-dna/validate-scaffold.mjs",
     "smoke:project-dna-scan": "node scripts/project-dna/scan.mjs --source-path .pi/factories/project-dna --source-id project-dna-factory --out-dir reports/project-dna-scans/project-dna-factory-smoke",
-    "validate:project-dna-scan:smoke": "node scripts/project-dna/validate-scan-artifacts.mjs --scan-dir reports/project-dna-scans/project-dna-factory-smoke"
+    "validate:project-dna-scan:smoke": "node scripts/project-dna/validate-scan-artifacts.mjs --scan-dir reports/project-dna-scans/project-dna-factory-smoke",
+    "validate:model-catalog": "node scripts/model-catalog/validate.mjs",
+    "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs"
   },
   "pi": {
     "extensions": [

@@ -12,10 +12,11 @@ Use this skill whenever you are about to call `delegate_agent` or `delegate_task
 
 1. If you are not certain which agent or output contract to use, call `zob_delegation_catalog` first.
 2. Choose the agent by the deliverable you need.
-3. Normally omit `delegate_task.output_contract`; the harness infers the correct contract from the selected agent.
-4. Normally omit `delegate_task.required_tools`; the harness infers the selected agent's declared tools.
-5. Never invent output contract IDs or add tools not shown for the chosen agent in `zob_delegation_catalog`.
-6. Treat preflight as a safety net, not as the first source of routing information.
+3. If `.pi/model-economy.json` exists and a compute profile is known/requested, use it to map compute profile + agent role to a model class; then consult `.pi/model-catalog.json` for a safe concrete `model` unless the user supplied an explicit model. Never downgrade oracle/security work to a weak or unverified default.
+4. Normally omit `delegate_task.output_contract`; the harness infers the correct contract from the selected agent.
+5. Normally omit `delegate_task.required_tools`; the harness infers the selected agent's declared tools.
+6. Never invent output contract IDs or add tools not shown for the chosen agent in `zob_delegation_catalog`.
+7. Treat preflight as a safety net, not as the first source of routing information.
 
 ## Common agent routing
 
