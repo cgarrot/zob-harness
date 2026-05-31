@@ -63,8 +63,13 @@ Use this skill whenever you are about to call `delegate_agent` or `delegate_task
 
 ## Safety reminders
 
-- For write/edit tools, set top-level `original_user_ask`, non-empty repo-local `allowed_paths`, and safe `forbidden_paths`.
+- For write/edit tools, set top-level `original_user_ask`, non-empty repo-relative-only `allowed_paths`, and safe `forbidden_paths`.
+- `allowed_paths` are capability grants and must never be absolute, home-relative (`~`), traversal (`..`), broad roots (`.`), or contain NUL. If external context is needed, first create/cite a repo-local snapshot or `context_ref` under `reports/...` and pass that repo-relative ref.
+- `forbidden_paths` are deny-only patterns; they may be repo-local, absolute, or home-relative when specific and safe, but broad roots remain rejected.
 - Preserve the six-part contract: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.
 - Do not ask child agents to mark parent goals or TODOs complete directly; children return evidence/claims for parent review.
-- For TODO-linked high/xhigh/max work, children that discover the assigned TODO is too broad should return `TODO_SPLIT_REQUEST.v1` or a metadata-only split request; the parent validates and applies `split_goal_todo`.
+- For TODO-linked delegation, refresh with `get_goal_todos` first and use `child_goal.todo_id=<canonical-active-todo-id>` only when that id is freshly verified. If only the visible path is known, set `child_goal.todo_path=<visible-todo-path>`; do not fabricate shorthand ids. The parent runtime can resolve unique active paths/shorthands to canonical ids, and blocks stale refs with active-id hints.
+- Safe auto-open/delegation is for runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) only when no active child/run owns the leaf. Recover delegated/recovery TODOs only when no active child/run owns the leaf; otherwise block/review instead of redelegating.
+- Split-before-parallel: no same-leaf parallel write workers. If a TODO needs multiple agents or is too broad, parent splits it into subtodos first and dispatches one bounded owner per leaf.
+- For TODO-linked high/xhigh/max work, children that discover the assigned TODO is too broad or needs deeper XDEF decomposition should return `TODO_SPLIT_REQUEST.v1` or a metadata-only split request; the parent validates and applies `split_goal_todo`.
 - `delegate_task(run_in_background=true)` is active-session only: it returns a run id immediately, can be inspected with `get_delegation_run`, and can be waited on with bounded `await_delegation_run`; it does not start an always-on daemon.

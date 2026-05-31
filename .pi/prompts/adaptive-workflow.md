@@ -35,7 +35,11 @@ Before dispatching or claiming readiness, establish:
 
 - Child-spawns-child is forbidden.
 - Child-proposes-child is allowed only through governed requests.
-- Parent/governor validates tools, paths, model class, output contract, TODO id, depth, fanout, budget, and evidence before dispatch.
+- Parent/governor validates tools, paths, model class, output contract, fresh TODO id or visible `todo_path`, depth, fanout, budget, and evidence before dispatch.
+- Before TODO-linked delegation, refresh the active TODO graph; use canonical active ids only when freshly verified, otherwise use `child_goal.todo_path` and let parent/runtime resolve it.
+- Safe auto-open/delegation is limited to runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) with no active child/run; recover delegated/recovery leaves only when no active child/run owns them, and block active delegated leaf redelegation.
+- Split-before-parallel: broad work or multiple agents require subtodos first; never place same-leaf parallel write workers on one TODO.
+- XDEF/deeper decomposition remains parent-owned: children return split/governed proposals, and the parent applies subtodos and dispatches.
 - Every message, delegation, blocker, claim, and evidence item should attach to a TODO node where goal TODOs are active.
 
 ## Documentation policy

@@ -22,9 +22,14 @@ Orchestrator loop:
    - For each applicable family, choose use, delegate, or skip with a reason; keep the smallest sufficient tool set.
 3. Workgraph
    - Split work into bounded lanes/TODOs and assign parent, subagent, oracle, factory, orchestration, or user ownership.
+   - For parallel or too-large work, split the parent TODO into subtodos before dispatch; do not run multiple write workers on the same leaf TODO.
+   - Treat XDEF/deeper decomposition as parent-owned: children may return `TODO_SPLIT_REQUEST.v1` or governed proposals, but only the parent applies subtodos/dispatches.
    - Keep child dispatch parent-owned; child-proposes-child goes through governed requests only.
 4. Dispatch
+   - Before TODO-linked delegation, refresh active TODO refs; pass a canonical active `child_goal.todo_id` only when freshly verified, otherwise pass visible `child_goal.todo_path` for parent/runtime resolution.
+   - Safe auto-open/delegation is allowed only for runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) with no active child/run; stale delegated/recovery leaves may be recovered only when no active child/run owns them, otherwise block/review instead of redelegating.
    - Delegate substantive work with six-part contracts and explicit allowed/forbidden paths.
+   - Keep `allowed_paths` repo-relative only; never pass external absolute/home paths to children. Use repo-local `reports/...` snapshots or `context_ref` artifacts for external context. Keep `forbidden_paths` deny-only.
    - Prefer `orchestrate_run` for multi-agent Lead/Worker decomposition and `delegate_task`/`delegate_agent` for bounded specialist work.
 5. Evidence
    - Require concrete file refs, command names/results, reports, sentinels, or oracle verdicts.

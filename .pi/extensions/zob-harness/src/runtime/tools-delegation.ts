@@ -6,7 +6,7 @@ import { Text } from "@earendil-works/pi-tui";
 import type { AgentScope, ChildResult, ChildStopCondition, DelegationDetails, DelegationFailureKind } from "../types.js";
 import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "../schemas.js";
 import { discoverAgents, formatAgentList } from "../agents.js";
-import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, returnGoalTodoClaim, type GoalTodoNode } from "../goal-todos.js";
+import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../goal-todos.js";
 import { isFailed, mapWithConcurrency, runChildAgent } from "../child-runner.js";
 import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../chronicle.js";
 import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../output-contracts.js";
@@ -253,6 +253,7 @@ function childGoalGuidance(childGoal: ChildGoalInput | undefined, parentGoalId: 
     "- Child no_ship is advisory/readiness evidence: parent/oracle decides review_no_ship and the runtime computes hard_no_ship/effective_no_ship.",
     childGoal.todo_id ? "- This is a TODO-linked child goal. Do not mark the parent TODO done directly; return TODO_CHILD_RESULT.v2 (v1 remains accepted) fields for parent acceptance." : undefined,
     childGoal.todo_id ? "- TODO_CHILD_RESULT.v2 should include acceptance_blockers and target_readiness: ready_for_parent_acceptance | needs_parent_review | blocked." : undefined,
+    childGoal.todo_id ? "- Do not run multiple write-capable workers on this same leaf TODO. If parallel work is needed, ask the parent to split the TODO into subtodos/XDEF leaves and delegate separate leaves/workspaces." : undefined,
     childGoal.todo_id ? "- If explicitly operating under compute high/xhigh/max and this TODO is too broad for your scope/context, return TODO_SPLIT_REQUEST.v1 instead of forcing a poor completion; parent will decide/apply any split." : undefined,
     childGoal.todo_id ? "- TODO_SPLIT_REQUEST.v1 must include deliverable_delivered: yes, todo_id, reason, recommended_action, proposed_subtodos, risk_level, validation_plan, evidence, risks_blockers, no_ship, compliance, and FINAL_MARKER: TODO_SPLIT_REQUEST_END." : undefined,
     childGoal.agentic_validation?.mode === "oracle_then_auto_accept" ? "- After your claim returns, the parent runtime may launch an oracle validation child and auto-accept only on PASS/no_ship=false." : undefined,
@@ -266,14 +267,31 @@ function appendChildGoalToTask(task: string, childGoal: ChildGoalInput | undefin
   return guidance.length > 0 ? `${guidance.join("\n")}\n${task}` : task;
 }
 
-function childGoalTodoErrors(state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined): string[] {
-  if (!childGoal?.todo_id) return [];
+function resolveChildGoalTodoRef(state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined): { childGoal: ChildGoalInput | undefined; errors: string[]; node?: GoalTodoNode } {
+  if (!childGoal) return { childGoal, errors: [] };
+  const requestedRef = childGoal.todo_id ?? childGoal.todo_path;
+  if (!requestedRef) return { childGoal, errors: [] };
   const goalId = state.runtimeGoal?.goalId;
-  if (!goalId) return ["child_goal.todo_id requires an active runtime goal"];
-  const node = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === childGoal.todo_id);
-  if (!node) return [`child_goal.todo_id not found: ${childGoal.todo_id}`];
-  if (childGoal.delegation_depth !== undefined && childGoal.delegation_depth > state.goalTodos.policy.maxDelegationDepth) return [`child_goal.delegation_depth exceeds maxDelegationDepth=${state.goalTodos.policy.maxDelegationDepth}`];
-  return [];
+  const resolution = resolveGoalTodoReference(state.goalTodos, goalId, requestedRef, childGoal.todo_id ? "child_goal.todo_id" : "child_goal.todo_path", { requireDelegatable: true });
+  const errors = [...resolution.errors];
+  if (childGoal.delegation_depth !== undefined && childGoal.delegation_depth > state.goalTodos.policy.maxDelegationDepth) errors.push(`child_goal.delegation_depth exceeds maxDelegationDepth=${state.goalTodos.policy.maxDelegationDepth}`);
+  if (!resolution.node || errors.length > 0) return { childGoal: { ...childGoal, todo_id: undefined }, errors };
+  return {
+    childGoal: {
+      ...childGoal,
+      todo_id: resolution.node.id,
+      todo_path: childGoal.todo_path ?? resolution.node.path,
+    },
+    errors,
+    node: resolution.node,
+  };
+}
+
+function linkChildGoalTodoDelegationIfReady(pi: ExtensionAPI, state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined, runId: string, agent?: string): void {
+  const goalId = state.runtimeGoal?.goalId;
+  if (!goalId || !childGoal?.todo_id) return;
+  if (!state.goalTodos.nodes.some((node) => node.goalId === goalId && node.id === childGoal.todo_id)) return;
+  linkGoalTodoDelegation(pi, state, goalId, childGoal.todo_id, { runId, agent, requestId: childGoal.request_id, delegationDepth: childGoal.delegation_depth }, "delegation");
 }
 
 function retargetTodoSplitRequestResult(result: ChildResult, childGoal: ChildGoalInput | undefined, repoRoot: string): void {
@@ -574,7 +592,7 @@ function finalFormatGuidance(outputContract: string): string[] {
       "- body_hash: sha256 hash of the transient request body; do not include raw body/text/prompt/output/content",
       "- agent: target agent role/name if delegation-request.v1, else none",
       "- required_tools: comma-separated tool names or none",
-      "- allowed_paths: repo-relative paths or none",
+      "- allowed_paths: repo-relative-only paths or none (use reports/... snapshot/context_ref refs for external context)",
       "- forbidden_paths: deny-only paths or none",
       "- context_scope_id: context scope id if context-request.v1, else none",
       "- evidence_refs: safe repo-relative evidence refs or none",
@@ -802,7 +820,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       "If agent routing is uncertain, call zob_delegation_catalog before the first delegation.",
       "Use delegate_agent for broad discovery, external research, skeptical review, or independent QA before making risky edits.",
       "When using delegate_agent, give each child a bounded six-part contract and a concrete final output shape.",
-      "If effective tools include edit/write, provide non-empty allowed_paths; otherwise use read-only tool overrides.",
+      "If effective tools include edit/write, provide non-empty repo-relative-only allowed_paths; use repo-local reports/... snapshot/context_ref refs for external context.",
     ],
     parameters: DelegateParams,
     renderCall(args, theme) {
@@ -855,7 +873,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
 
       const runOne = async (item: { agent: string; task: string; cwd?: string; child_goal?: ChildGoalInput }, monitor: { mode: DelegationRunMode; index?: number }, update?: (result: ChildResult) => void): Promise<ChildResult> => {
         const runId = newRunId("delegate");
-        const effectiveChildGoal = item.child_goal ?? params.child_goal;
+        const childGoalResolution = resolveChildGoalTodoRef(state, item.child_goal ?? params.child_goal);
+        const effectiveChildGoal = childGoalResolution.childGoal;
         const taskText = appendChildGoalToTask(item.task, effectiveChildGoal, state.runtimeGoal?.goalId, runId);
         const startedAtMs = Date.now();
         const startedAt = new Date(startedAtMs).toISOString();
@@ -870,9 +889,6 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           task: taskText,
           startedAtMs,
         });
-        if (state.runtimeGoal?.goalId && effectiveChildGoal?.todo_id && state.goalTodos.nodes.some((node) => node.goalId === state.runtimeGoal?.goalId && node.id === effectiveChildGoal.todo_id)) {
-          linkGoalTodoDelegation(pi, state, state.runtimeGoal.goalId, effectiveChildGoal.todo_id, { runId, agent: item.agent, requestId: effectiveChildGoal.request_id, delegationDepth: effectiveChildGoal.delegation_depth }, "delegation");
-        }
         renderDelegationMonitor();
         const agent = byName.get(item.agent.toLowerCase());
         if (!agent) {
@@ -945,7 +961,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const preflightErrors = [
           ...strictGoalErrors(state),
           ...strictGoalSpecErrors(state, { kind: "delegate_write", taskText, requiredTools: effectiveTools }),
-          ...childGoalTodoErrors(state, effectiveChildGoal),
+          ...childGoalResolution.errors,
           ...validateSixPartContract(taskText),
           ...validateToolList(agent, requestedTools),
           ...cwdResult.errors,
@@ -1017,6 +1033,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           return result;
         }
 
+        linkChildGoalTodoDelegationIfReady(pi, state, effectiveChildGoal, runId, agent.name);
+        renderDelegationMonitor();
         const outputContract = inferOutputContract(agent.name);
         appendDelegationLedger({
           event: "start",
@@ -1254,7 +1272,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       "If effective tools include edit/write, set top-level original_user_ask to the original human request; context or task text does not satisfy the strict write preflight gate.",
       "Use canonical JSON keys expected_outcome, must_do, must_not_do, context, original_user_ask, allowed_paths, forbidden_paths; safe aliases are accepted only when non-conflicting.",
       "Accepted aliases: expectedOutcome, mustDo, mustNotDo/must_not/mustNot, originalUserAsk, allowedPaths, forbiddenPaths, requiredTools, outputContract, runInBackground, childGoal, loadSkills.",
-      "Always set expected_outcome, must_do, must_not_do, context, allowed_paths, and forbidden_paths when known.",
+      "Always set expected_outcome, must_do, must_not_do, context, repo-relative-only allowed_paths, and deny-only forbidden_paths when known. Use reports/... snapshot/context_ref refs instead of external allowed_paths.",
       "For implementer/QA, require the exact output-contract headings and final line marker so format repair does not look like a failed subagent.",
     ],
     parameters: DelegateTaskParams,
@@ -1273,6 +1291,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       const agents = discoverAgents(ctx.cwd, scope);
       const agent = agents.find((candidate) => candidate.name.toLowerCase() === params.agent.toLowerCase());
       const runId = newRunId("task");
+      const childGoalResolution = resolveChildGoalTodoRef(state, params.child_goal);
+      const effectiveChildGoal = childGoalResolution.childGoal;
       const startedAtMs = Date.now();
       const startedAt = new Date(startedAtMs).toISOString();
       const appendDelegationLedger = (entry: Record<string, unknown>): void => {
@@ -1313,9 +1333,6 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         task: params.task,
         startedAtMs,
       });
-      if (state.runtimeGoal?.goalId && params.child_goal?.todo_id && state.goalTodos.nodes.some((node) => node.goalId === state.runtimeGoal?.goalId && node.id === params.child_goal?.todo_id)) {
-        linkGoalTodoDelegation(pi, state, state.runtimeGoal.goalId, params.child_goal.todo_id, { runId, agent: params.agent, requestId: params.child_goal.request_id, delegationDepth: params.child_goal.delegation_depth }, "delegation");
-      }
       renderDelegationMonitor();
       startMonitorTicker();
 
@@ -1379,7 +1396,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           failureKind: result.failureKind,
           errorMessage: "Configuration blocked; no child launched: unknown agent",
         });
-        recordTodoClaimFromChildResult(pi, state, params.child_goal, result);
+        recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
         return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
       }
@@ -1393,7 +1410,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         params.output_contract ? `OUTPUT_CONTRACT: ${params.output_contract}` : undefined,
         params.allowed_paths?.length ? `ALLOWED_PATHS: ${params.allowed_paths.join(", ")}` : undefined,
         params.forbidden_paths?.length ? `FORBIDDEN_PATHS: ${params.forbidden_paths.join(", ")}` : undefined,
-        ...childGoalGuidance(params.child_goal, state.runtimeGoal?.goalId, runId),
+        ...childGoalGuidance(effectiveChildGoal, state.runtimeGoal?.goalId, runId),
         "",
         `1. TASK: ${params.task}`,
         `2. EXPECTED OUTCOME: ${params.expected_outcome}`,
@@ -1412,7 +1429,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         ...normalized.errors,
         ...strictGoalErrors(state),
         ...strictGoalSpecErrors(state, { kind: "delegate_write", originalUserAsk: params.original_user_ask, taskText: structuredTask, requiredTools: effectiveTools }),
-        ...childGoalTodoErrors(state, params.child_goal),
+        ...childGoalResolution.errors,
         ...validateSixPartContract(structuredTask),
         ...validateToolList(agent, params.required_tools),
         ...validateOutputContractId(params.output_contract),
@@ -1482,13 +1499,15 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           failureKind: result.failureKind,
           errorMessage: delegateTaskPreflightHelp(preflightErrors).replace(/\n/g, " "),
         });
-        recordTodoClaimFromChildResult(pi, state, params.child_goal, result);
+        recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
         return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
       }
 
       const runDelegateTaskChild = async (childSignal: AbortSignal | undefined, emitToolUpdates: boolean): Promise<ChildResult> => {
         const outputContract = requestedOutputContract;
+        linkChildGoalTodoDelegationIfReady(pi, state, effectiveChildGoal, runId, agent.name);
+        renderDelegationMonitor();
         appendDelegationLedger({
           event: "start",
           runId,
@@ -1522,10 +1541,10 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         result.outputContract = outputContract;
         result.contractErrors = [];
         applyChildGates(result, { repoRoot: ctx.cwd });
-        retargetTodoSplitRequestResult(result, params.child_goal, ctx.cwd);
+        retargetTodoSplitRequestResult(result, effectiveChildGoal, ctx.cwd);
         result.failureKind = classifyChildFailure(result);
         const outputHash = result.output ? sha256(result.output) : undefined;
-        const claimRecord = recordTodoClaimFromChildResult(pi, state, params.child_goal, result, { runId, outputHash });
+        const claimRecord = recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result, { runId, outputHash });
         const endedAtMs = Date.now();
         const endedAt = new Date(endedAtMs).toISOString();
         const status = isFailed(result) ? "incomplete_or_failed" : "complete";
@@ -1632,8 +1651,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           errorMessage: childFailureMessage(result.failureKind, result.gateErrors, result.errorMessage),
           usage: result.usage,
         });
-        if (shouldRunAgenticClaimValidation(params.child_goal, claimRecord)) {
-          await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: params.child_goal, claimRecord, parentRunId: runId, appendDelegationLedger, signal: childSignal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
+        if (shouldRunAgenticClaimValidation(effectiveChildGoal, claimRecord)) {
+          await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: effectiveChildGoal, claimRecord, parentRunId: runId, appendDelegationLedger, signal: childSignal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
         }
         stopMonitorTicker();
 

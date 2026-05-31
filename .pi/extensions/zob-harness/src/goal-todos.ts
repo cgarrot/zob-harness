@@ -810,6 +810,68 @@ function goalNodes(todoState: GoalTodoState, goalId: string): GoalTodoNode[] {
   return todoState.nodes.filter((node) => node.goalId === goalId).map(cloneNode);
 }
 
+const GOAL_TODO_PATH_PATTERN = /^\d+(?:\.\d+)*$/;
+const DELEGATABLE_GOAL_TODO_STATUSES = new Set<GoalTodoStatus>(["planned", "ready", "in_progress", "needs_review"]);
+const ACTIVE_DELEGATION_STATUSES = new Set<GoalTodoDelegationStatus>(["queued", "running", "claim_returned"]);
+const RECOVERABLE_DELEGATION_STATUSES = new Set<GoalTodoDelegationStatus>(["failed", "rejected"]);
+
+function hasActiveGoalTodoDelegation(node: GoalTodoNode): boolean {
+  return Boolean(node.delegation && ACTIVE_DELEGATION_STATUSES.has(node.delegation.status));
+}
+
+function isRecoverableDelegatedGoalTodoNode(node: GoalTodoNode): boolean {
+  return node.status === "delegated" && (!node.delegation || RECOVERABLE_DELEGATION_STATUSES.has(node.delegation.status));
+}
+
+function isDelegatableGoalTodoNode(node: GoalTodoNode): boolean {
+  return (DELEGATABLE_GOAL_TODO_STATUSES.has(node.status) || isRecoverableDelegatedGoalTodoNode(node)) && !hasActiveGoalTodoDelegation(node);
+}
+
+function goalTodoRefHint(nodes: GoalTodoNode[]): string {
+  if (nodes.length === 0) return "none";
+  return nodes
+    .slice()
+    .sort((left, right) => left.path.localeCompare(right.path, undefined, { numeric: true }) || left.createdAt - right.createdAt)
+    .slice(0, 8)
+    .map((node) => `${node.path}=${node.id}`)
+    .join(", ");
+}
+
+function legacyTodoPathFromRef(ref: string): string | undefined {
+  const match = ref.match(/^todo_(\d+(?:\.\d+)*)$/);
+  return match?.[1];
+}
+
+export function resolveGoalTodoReference(todoState: GoalTodoState, goalId: string | undefined, todoRef: string | undefined, label = "goal TODO ref", options: { requireDelegatable?: boolean } = {}): { node?: GoalTodoNode; matchedBy?: "id" | "path" | "legacy_path"; errors: string[] } {
+  if (!todoRef?.trim()) return { errors: [] };
+  if (!goalId) return { errors: [`${label} requires an active runtime goal`] };
+  const ref = todoRef.trim();
+  const allNodes = goalNodes(todoState, goalId);
+  const nodes = options.requireDelegatable ? allNodes.filter(isDelegatableGoalTodoNode) : allNodes;
+  const exact = nodes.find((node) => node.id === ref);
+  if (exact) return { node: exact, matchedBy: "id", errors: [] };
+
+  const legacyPath = legacyTodoPathFromRef(ref);
+  const pathRef = GOAL_TODO_PATH_PATTERN.test(ref) ? ref : legacyPath;
+  const inactiveMatch = options.requireDelegatable
+    ? allNodes.find((node) => node.id === ref || (pathRef !== undefined && node.path === pathRef))
+    : undefined;
+  const inactiveNote = inactiveMatch
+    ? hasActiveGoalTodoDelegation(inactiveMatch)
+      ? ` It matches inactive TODO ${inactiveMatch.path} (${inactiveMatch.status}/${inactiveMatch.delegation?.status}) with active delegated work; do not double-delegate the same leaf. Wait for queued/running work, accept/reject/reopen a returned claim, or split into subtodos for parallel agents/workspaces.`
+      : ` It matches inactive TODO ${inactiveMatch.path} (${inactiveMatch.status}${inactiveMatch.delegation ? `/${inactiveMatch.delegation.status}` : ""}); refresh active refs from get_goal_todos, reopen/resolve it first, or split into subtodos before parallel delegation.`
+    : "";
+  if (pathRef) {
+    const matches = nodes.filter((node) => node.path === pathRef);
+    if (matches.length === 1) return { node: matches[0], matchedBy: legacyPath ? "legacy_path" : "path", errors: [] };
+    if (matches.length > 1) return { errors: [`${label} is ambiguous: ${ref} matched ${matches.length} active TODOs with path ${pathRef}; use a canonical TODO id from get_goal_todos.`] };
+    const legacyNote = legacyPath && !inactiveNote ? ` It looks like legacy shorthand for visible TODO path ${legacyPath}, but that path is not active on this goal.` : "";
+    return { errors: [`${label} not found: ${ref}.${inactiveNote}${legacyNote} Use a canonical active TODO id from get_goal_todos, or set child_goal.todo_path to a unique active visible path; for parallel work split the parent into subtodos and delegate separate leaves. Active TODO refs: ${goalTodoRefHint(nodes)}`] };
+  }
+
+  return { errors: [`${label} not found: ${ref}.${inactiveNote} Use a canonical active TODO id from get_goal_todos, or set child_goal.todo_path to a unique active visible path; for parallel work split the parent into subtodos and delegate separate leaves. Active TODO refs: ${goalTodoRefHint(nodes)}`] };
+}
+
 function childrenOf(todoState: GoalTodoState, goalId: string, parentId: string | undefined): GoalTodoNode[] {
   return goalNodes(todoState, goalId)
     .filter((node) => (node.parentId ?? undefined) === parentId)

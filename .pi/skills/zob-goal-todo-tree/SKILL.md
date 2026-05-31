@@ -42,8 +42,14 @@ EvidenceGraph = validation commands, reports, checkpoints, sentinels, hashes
 - Use `resolve_goal_todo` as the primary API for TODO transitions (`auto`, `complete`, `accept_claim`, `reject_claim`, `block`, `skip`, `reopen`).
 - Do not use `update_goal_todo` to mark TODOs `done` or `skipped`; it is metadata-only.
 - Do not let a subagent directly mutate canonical TODO state.
+- Refresh active TODO refs with `get_goal_todos` before TODO-linked delegation.
+- Do not pass stale or invented `child_goal.todo_id` values. Prefer canonical active IDs from `get_goal_todos`; if you only know the visible tree path, use `child_goal.todo_path` rather than fabricating shorthand IDs.
+- Safe auto-open/delegation is allowed for runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) when no active child/run owns the leaf and scope/ownership are clear; do not auto-open `needs_user`, `needs_oracle`, `blocked`, `claim_returned`, or active delegated/review states.
+- Recover delegated/recovery leaves only when no active child/run owns the TODO and stale metadata can be safely cleared; otherwise block/review and do not redelegate the same leaf.
+- No same-leaf parallel write workers. If multiple agents or parallel work are needed, split into subtodos first and dispatch one owner per writable leaf.
 - A subagent returns a claim; the parent accepts or rejects it.
 - Child-spawns-child is forbidden. Child-proposes-child is allowed only through parent-owned adaptive delegation gates.
+- Children may propose XDEF/deeper splits with `TODO_SPLIT_REQUEST.v1`; only the parent applies `split_goal_todo` and dispatches follow-up agents.
 - Persisted coms/Mission Control/adaptive TODO refs must remain hash-only/body-free.
 
 ## Stop-on-blocker context layer
@@ -73,12 +79,13 @@ When creating TODOs:
 0. For an initial plan, batch top-level items with `add_goal_todos`; use `get_goal_todos` or `/goal todo tree` only when the full tree is needed.
 1. Keep TODOs atomic and evidence-oriented.
 2. Prefer 3-9 top-level TODOs for a normal feature.
-3. Use subtodos only when a step is too broad or needs delegation.
-4. Mark required vs optional explicitly.
-5. Assign owner: `agent`, `user`, `oracle`, `subagent`, `factory`, or `orchestration`.
-6. Add acceptance criteria for critical TODOs.
-7. Add expected evidence refs or validation commands where possible.
-8. Avoid over-splitting; respect depth/fanout caps.
+3. Use subtodos when a step is too broad, needs delegation, or would require multiple agents/parallel writable work.
+4. Split-before-parallel: create distinct child leaves and acceptance criteria before dispatching concurrent workers.
+5. Mark required vs optional explicitly.
+6. Assign owner: `agent`, `user`, `oracle`, `subagent`, `factory`, or `orchestration`.
+7. Add acceptance criteria for critical TODOs.
+8. Add expected evidence refs or validation commands where possible.
+9. Avoid over-splitting; respect depth/fanout caps.
 
 ## Status meanings
 
@@ -104,9 +111,9 @@ When delegating a TODO, pass TODO metadata via `child_goal` once the runtime sup
 
 ```text
 child_goal.objective = bounded child objective
-child_goal.todo_id = canonical TODO id
-child_goal.parent_todo_id = parent TODO id if any
-child_goal.todo_path = tree path such as 1.2
+child_goal.todo_id = <canonical-active-todo-id from get_goal_todos>  # only when freshly verified
+child_goal.parent_todo_id = <canonical-active-parent-todo-id if freshly verified>
+child_goal.todo_path = <visible-todo-path such as 1.2>  # safe fallback when canonical id is not freshly known; parent resolves it before dispatch when unique
 child_goal.delegation_depth = current agent-depth + 1
 child_goal.completion_policy = return_claim
 child_goal.agentic_validation.mode = oracle_then_auto_accept  # optional; validates claim with oracle child before safe auto-accept
@@ -164,7 +171,7 @@ If a delegated TODO claim has returned:
 - Never mark delegated TODOs `done` while the delegation is queued/running/failed and no returned claim exists.
 - If evidence is missing or `no_ship=true`, call `reject_goal_todo_claim` or `block_goal_todo` unless parent review explicitly accepts the advisory risk.
 
-If a high/xhigh/max TODO-linked child determines the TODO is too broad for its scope/context, it may return a split request instead of a poor completion:
+If a high/xhigh/max TODO-linked child determines the TODO is too broad for its scope/context, or discovers safe completion requires multiple agents/parallel writable leaves, it may return a split request instead of a poor completion:
 
 ```text
 TODO_SPLIT_REQUEST.v1

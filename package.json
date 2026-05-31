@@ -66,6 +66,8 @@
     "pi:check": "pi --offline --no-session --no-extensions -e ./.pi/extensions/zob-harness/index.ts -p 'Reply exactly: zob-harness-ok'",
     "check": "tsc --noEmit --pretty false",
     "check:ci": "npm run check -- --pretty false",
+    "smoke:child-goal-ref": "node scripts/goal-todo/child-goal-ref-smoke.mjs",
+    "smoke:harness": "npm run smoke:child-goal-ref",
     "pack:dry-run": "npm pack --dry-run --json",
     "validate:compute-profile-policy": "node scripts/compute-profile/validate-policy.mjs",
     "smoke:compute-profile-regression": "node scripts/compute-profile/regression-smoke.mjs",
