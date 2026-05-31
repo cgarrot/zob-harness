@@ -9,6 +9,8 @@ import { appendLiveCompletedRef } from "../coms-v2/ledger-bridge.js";
 import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../coms-v2/registry.js";
+import { readZpeerLocalProfile } from "../coms-v2/zpeer-profile.js";
+import { buildZpeerRoomSummary, ensureZpeerFields, refreshZpeerSelf } from "../coms-v2/zpeer.js";
 import { buildZobLiveResponseEnvelope } from "../coms-v2/response-capture.js";
 import { writeZobComsRedactedCapture } from "../coms-v2/transcript-capture.js";
 import { formatGoalActivationMode, runtimeGoalStatusLine } from "../goal-runtime.js";
@@ -25,7 +27,7 @@ import { isRecord, textFromMessage } from "../utils/records.js";
 import { showDelegationOverlay } from "./delegation-overlay.js";
 import { buildDeterministicZobCompactionResult, buildDeterministicZobCompactionSummary, buildZobCompactionInstructions, buildZobCompactionLedgerEntry, withZobCompactionDetails, ZOB_COMPACTION_ENTRY_TYPE, zobCompactionBodyFreeViolations } from "./compaction-policy.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
-import type { HarnessRuntimeState } from "./state.js";
+import type { HarnessRuntimeState, ZobLiveLastEvent } from "./state.js";
 import { bashLooksLikeFileMutation, inferModeFromUserIntent, restoreHarnessState } from "./state.js";
 import { extractModeIntent, stripModeIntentMarkup, validateModeIntent, type ZobModeIntent } from "./mode-intent.js";
 import { capturePlanArtifact } from "./plan-capture.js";
@@ -39,6 +41,63 @@ function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" 
   } catch {
     // Live presence is observe-only in this phase and must not break the harness runtime.
   }
+}
+
+function setZpeerLastEvent(state: HarnessRuntimeState, event: Omit<ZobLiveLastEvent, "at" | "localOnly" | "networkEnabled" | "bodyStored"> & { at?: string }): void {
+  state.zobLive.lastEvent = {
+    ...event,
+    at: event.at ?? new Date().toISOString(),
+    localOnly: true,
+    networkEnabled: false,
+    bodyStored: false,
+  };
+}
+
+const ZPEER_HEARTBEAT_MIN_INTERVAL_MS = 20_000;
+
+function clearZpeerHeartbeatTimer(state: HarnessRuntimeState): void {
+  if (state.zobLive.heartbeatTimer) clearTimeout(state.zobLive.heartbeatTimer);
+  state.zobLive.heartbeatTimer = undefined;
+}
+
+function scheduleZpeerHeartbeat(state: HarnessRuntimeState, repoRoot: string): void {
+  if (!state.zobLive.server || !state.zobLive.peerCard) return;
+  clearZpeerHeartbeatTimer(state);
+  const peer = state.zobLive.peerCard;
+  const intervalMs = Math.max(ZPEER_HEARTBEAT_MIN_INTERVAL_MS, Math.min(peer.staleAfterMs / 2, 60_000));
+  const timer = setTimeout(() => {
+    try {
+      if (!state.zobLive.server || !state.zobLive.peerCard) return;
+      state.zobLive.peerCard = refreshZpeerSelf(repoRoot, state.zobLive.peerCard);
+      state.zobLive.lastHeartbeatMs = Date.now();
+    } catch {
+      // Heartbeat is best-effort and must not break the harness runtime.
+    } finally {
+      if (state.zobLive.server && state.zobLive.peerCard) scheduleZpeerHeartbeat(state, repoRoot);
+    }
+  }, intervalMs);
+  timer.unref?.();
+  state.zobLive.heartbeatTimer = timer;
+}
+
+function formatZpeerLastEvent(event: ZobLiveLastEvent | undefined): string {
+  if (!event) return "none";
+  const route = event.fromAlias || event.toAlias ? `${event.fromAlias ? `@${event.fromAlias}` : "?"}→${event.toAlias ? `@${event.toAlias}` : "?"}` : "room";
+  const hash = event.outputHash ? ` outputHash=${event.outputHash.slice(0, 12)}` : event.taskHash ? ` taskHash=${event.taskHash.slice(0, 12)}` : "";
+  const reason = event.reason ? ` · ${event.reason}` : "";
+  return `${event.kind} ${route} ${event.status}${hash}${reason}`;
+}
+
+function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string): string {
+  if (!state.zobLive.peerCard) {
+    return "\n\nZPEER AWARENESS\n- local peer endpoint: unavailable this turn\n- Use zpeer_ask with mode=\"async\" or /zpeer only when useful or user-requested for peer coordination; avoid spam/loops and do not invent hidden worker-to-worker chat.";
+  }
+  const summary = buildZpeerRoomSummary(repoRoot, state.zobLive.peerCard);
+  const selfAlias = summary.selfAlias ?? "?";
+  const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 8).map((alias) => `@${alias}`);
+  const unavailable = summary.stale + summary.offline;
+  const duplicateLine = summary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${summary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [
@@ -97,7 +156,7 @@ function handleSameAgentModeIntent(pi: ExtensionAPI, state: HarnessRuntimeState,
 
 async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string): Promise<void> {
   const policy = readZobComsV2Policy(repoRoot);
-  if (policy.mode !== "required_local") {
+  if (policy.mode === "off" || policy.mode === "required_network") {
     safelyUpdateZobLivePeer(repoRoot, state.zobLive.peerCard ? "touch" : "register");
     return;
   }
@@ -105,6 +164,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
   const errors = [...team.errors, ...validateTeamDefinition(repoRoot, team.definition)];
   if (errors.length > 0 || !team.definition) throw new Error(errors.join("; "));
   const definition = team.definition;
+  const zpeerProfile = readZpeerLocalProfile(repoRoot);
   if (!state.zobLive.server || !state.zobLive.peerCard) {
     const basePeer = buildCurrentZobLivePeerCard(repoRoot, definition, policy);
     const endpoint = makeZobLocalEndpoint(basePeer.sessionId);
@@ -112,6 +172,30 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       if (envelope.type === "ping") return buildZobLivePongEnvelope(envelope);
       if (envelope.type === "response") {
         state.zobLive.pendingReplies.complete(envelope.msgId, envelope);
+        setZpeerLastEvent(state, {
+          kind: "reply",
+          roomId: envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined,
+          fromAlias: envelope.sender,
+          toAlias: envelope.receiver,
+          status: "reply",
+          msgId: envelope.msgId,
+          taskHash: envelope.taskHash,
+          outputHash: envelope.outputHash,
+        });
+        void pi.sendMessage({
+          customType: "zob-zpeer-event",
+          content: "ZPeer reply received (transient response available; durable records remain hash-only)",
+          display: true,
+          details: { kind: "reply", roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: "reply", msgId: envelope.msgId, taskHash: envelope.taskHash, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
+        }, { triggerTurn: false });
+        if (envelope.transientResponse) {
+          void pi.sendMessage({
+            customType: "zob-zpeer-response",
+            content: envelope.transientResponse,
+            display: true,
+            details: { msgId: envelope.msgId, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
+          }, { triggerTurn: false });
+        }
         const parentMsgId = envelope.runId && envelope.receiver && envelope.sender ? `${envelope.runId}:${envelope.receiver}:${envelope.sender}:${envelope.msgId}` : undefined;
         if (parentMsgId) {
           try { appendLiveCompletedRef(repoRoot, definition, parentMsgId, envelope); } catch { /* best-effort ledger correlation; await response still completes */ }
@@ -120,6 +204,21 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }
       if (envelope.type !== "prompt") return buildZobLiveErrorEnvelope(envelope, `Unsupported inbound envelope type: ${envelope.type}`, "unsupported_envelope");
       state.zobLive.inbound = { envelope, receivedAt: new Date().toISOString(), responseSent: false, repoRoot };
+      setZpeerLastEvent(state, {
+        kind: "inbound",
+        roomId: envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined,
+        fromAlias: envelope.sender,
+        toAlias: envelope.receiver,
+        status: "prompt_received",
+        msgId: envelope.msgId,
+        taskHash: envelope.taskHash,
+      });
+      void pi.sendMessage({
+        customType: "zob-zpeer-event",
+        content: "ZPeer inbound prompt received (transient body delivered only to agent turn)",
+        display: true,
+        details: { kind: "inbound", roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: "prompt_received", msgId: envelope.msgId, taskHash: envelope.taskHash, bodyStored: false, localOnly: true, networkEnabled: false },
+      }, { triggerTurn: false });
       void pi.sendMessage({
         customType: "zob-coms-inbound",
         content: envelope.transientPrompt ?? "",
@@ -128,17 +227,21 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }, { triggerTurn: true, deliverAs: "followUp" });
       return buildZobLiveAckEnvelope(envelope);
     });
-    const peerCard = { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const };
-    writeZobLivePeerCard(repoRoot, peerCard);
+    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfile?.roomId, zpeerProfile?.alias);
     state.zobLive.server = server;
-    state.zobLive.peerCard = peerCard;
+    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
+    state.zobLive.lastHeartbeatMs = Date.now();
+    scheduleZpeerHeartbeat(state, repoRoot);
   } else {
-    state.zobLive.peerCard = writeZobLivePeerCard(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" });
+    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfile?.roomId, zpeerProfile?.alias));
+    state.zobLive.lastHeartbeatMs = Date.now();
+    scheduleZpeerHeartbeat(state, repoRoot);
   }
 }
 
 async function stopZobLiveRuntime(state: HarnessRuntimeState, repoRoot: string): Promise<void> {
   try {
+    clearZpeerHeartbeatTimer(state);
     if (state.zobLive.peerCard) writeZobLivePeerCard(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "offline" });
     if (state.zobLive.server) await state.zobLive.server.close();
   } finally {
@@ -158,7 +261,7 @@ async function compactionAuth(ctx: ExtensionContext): Promise<{ apiKey?: string;
   return { apiKey: auth.apiKey, headers: auth.headers };
 }
 
-async function sendInboundZobLiveResponse(state: HarnessRuntimeState, event: unknown): Promise<void> {
+async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntimeState, event: unknown): Promise<void> {
   const inbound = state.zobLive.inbound;
   if (!inbound || inbound.responseSent || !inbound.envelope.replyEndpoint) return;
   const responseText = latestAssistantText(event);
@@ -187,9 +290,49 @@ async function sendInboundZobLiveResponse(state: HarnessRuntimeState, event: unk
   const responseEnvelope = buildZobLiveResponseEnvelope(inbound.envelope, responseText, artifactRefs, artifactHashes);
   await sendZobLocalEnvelope(inbound.envelope.replyEndpoint, responseEnvelope, { timeoutMs: 5_000 });
   state.zobLive.inbound = { ...inbound, responseSent: true };
+  setZpeerLastEvent(state, {
+    kind: "response_sent",
+    roomId: inbound.envelope.runId?.startsWith("zpeer:") ? inbound.envelope.runId.slice("zpeer:".length) : undefined,
+    fromAlias: inbound.envelope.receiver,
+    toAlias: inbound.envelope.sender,
+    status: "response_sent",
+    msgId: inbound.envelope.msgId,
+    taskHash: inbound.envelope.taskHash,
+    outputHash: responseEnvelope.outputHash,
+  });
+  void pi.sendMessage({
+    customType: "zob-zpeer-event",
+    content: "ZPeer response sent (transient response delivered over local socket; durable records remain hash-only)",
+    display: true,
+    details: { kind: "response_sent", roomId: state.zobLive.lastEvent?.roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
+  }, { triggerTurn: false });
 }
 
 export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeState): void {
+  pi.registerMessageRenderer("zob-zpeer-event", (message, { expanded }, theme) => {
+    const details = isRecord(message.details) ? message.details : {};
+    const kind = typeof details.kind === "string" ? details.kind : "event";
+    const roomId = typeof details.roomId === "string" ? details.roomId : "default";
+    const fromAlias = typeof details.fromAlias === "string" ? details.fromAlias : undefined;
+    const toAlias = typeof details.toAlias === "string" ? details.toAlias : undefined;
+    const status = typeof details.status === "string" ? details.status : "unknown";
+    const reason = typeof details.reason === "string" ? details.reason : undefined;
+    const taskHash = typeof details.taskHash === "string" ? details.taskHash : undefined;
+    const outputHash = typeof details.outputHash === "string" ? details.outputHash : undefined;
+    const route = fromAlias || toAlias ? `${fromAlias ? `@${fromAlias}` : "?"} → ${toAlias ? `@${toAlias}` : "?"}` : "room status";
+    const statusColor = status === "completed" || status === "sent" || status === "prompt_received" || status === "response_sent" ? "success" : status === "blocked" || status === "timeout" || status === "error" ? "warning" : "muted";
+    const line = [
+      theme.fg("accent", "◆ ZPeer"),
+      theme.fg("muted", kind),
+      theme.fg("dim", `room ${roomId}`),
+      theme.fg("muted", route),
+      theme.fg(statusColor, status),
+    ].join(theme.fg("dim", " · "));
+    const hashes = [taskHash ? `taskHash=${taskHash.slice(0, 12)}` : undefined, outputHash ? `outputHash=${outputHash.slice(0, 12)}` : undefined].filter(Boolean).join(" · ");
+    const expandedLine = expanded ? `\n${theme.fg("dim", [reason, hashes, "localOnly=true networkEnabled=false bodyStored=false"].filter(Boolean).join(" · "))}` : reason ? ` ${theme.fg("dim", `(${reason})`)}` : "";
+    return new Text(`${line}${expandedLine}`, 0, 0);
+  });
+
   pi.registerMessageRenderer("zob-mode-intent", (message, { expanded }, theme) => {
     const details = isRecord(message.details) ? message.details : {};
     const intent = isRecord(details.intent) ? details.intent : {};
@@ -420,7 +563,8 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       ? `\n\nZOB RULE PROFILE\n- profile: ${rules.profile}\n- rule packs: ${rules.rulePacks.join(", ") || "none"}\n- required validation: ${rules.requiredValidation.join(" | ") || "not specified"}\n- oracle required: ${String(rules.oracleRequired)}\n- no-ship conditions: ${rules.noShipConditions.slice(0, 6).join(" | ") || "none"}`
       : "\n\nZOB RULE PROFILE\n- Not resolved yet. Use /rules_status for diagnostics when scope is unclear.";
     const autonomyHint = `\n\n${formatInteractiveAutonomyPromptHint(state.autonomy)}`;
-    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}`;
+    const zpeerHint = buildZpeerAwarenessPrompt(state, state.zobLive.inbound?.repoRoot ?? process.cwd());
+    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zpeerHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });
 
@@ -442,7 +586,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
 
   pi.on("agent_end", async (event) => {
     try {
-      await sendInboundZobLiveResponse(state, event);
+      await sendInboundZobLiveResponse(pi, state, event);
     } catch {
       // Response capture is best-effort until the full live await path is enabled.
     }

@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { readZobLiveRegistrySnapshot } from "../coms-v2/registry.js";
+import { refreshZpeerSelf, safeZpeerAlias, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../coms-v2/zpeer.js";
 import { buildZobLiveEnvelope } from "../coms-v2/envelope.js";
 import { sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
 import { appendLiveDeliveredStatus, appendLiveErrorStatus, appendLiveSendRequestedRef } from "../coms-v2/ledger-bridge.js";
@@ -15,6 +16,7 @@ import {
   ZobComsReplyParams,
   ZobComsSendParams,
   ZobComsStatusParams,
+  ZpeerAskParams,
 } from "../schemas.js";
 import {
   ackZobComsMessage,
@@ -53,6 +55,40 @@ type ZobComsSendToolParams = {
   status?: string;
   team?: string;
 };
+
+type ZpeerAskToolParams = {
+  targetAlias: string;
+  message: string;
+  mode?: ZpeerSendMode;
+  reason?: string;
+  timeoutMs?: number;
+};
+
+function boundedZpeerAskTimeoutMs(mode: ZpeerSendMode, raw: number | undefined): number {
+  const fallback = mode === "long" ? 30 * 60 * 1000 : 10 * 60 * 1000;
+  const cap = mode === "long" ? 30 * 60 * 1000 : 10 * 60 * 1000;
+  return Math.max(1_000, Math.min(cap, Math.floor(raw ?? fallback)));
+}
+
+function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolParams, selfAlias?: string): string | undefined {
+  const targetAlias = safeZpeerAlias(params.targetAlias);
+  if (!targetAlias) return "invalid target alias";
+  if (selfAlias && targetAlias === selfAlias) return "cannot send to self";
+  if (/\b(zpeer_ask|\/zpeer)\b/i.test(params.message)) return "loop guard blocked recursive ZPeer instruction";
+  const messageHash = sha256(params.message);
+  const now = Date.now();
+  const windowMs = 60_000;
+  const current = state.zobLive.zpeerAskGuard;
+  const guard = current && now - current.windowStartedMs < windowMs ? current : { windowStartedMs: now, count: 0 };
+  if (guard.count >= 3) return "rate guard blocked: max 3 agent-initiated ZPeer asks per 60s window";
+  if (guard.lastTargetAlias === targetAlias && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate target/message in ask window";
+  state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, lastTargetAlias: targetAlias, lastMessageHash: messageHash };
+  return undefined;
+}
+
+function zpeerTerminalKind(status: ZpeerSendResult["status"]): "delivered" | "waiting" | "reply" | "blocked" | "error" | "timeout" | "expired" {
+  return status === "reply" || status === "completed" ? "reply" : status === "blocked" ? "blocked" : status === "timeout" ? "timeout" : status === "expired" ? "expired" : status === "error" ? "error" : status === "waiting" ? "waiting" : "delivered";
+}
 
 function appendBlockedLiveSend(repoRoot: string, definition: TeamDefinition, params: ZobComsSendToolParams, status: string, reason: string): Record<string, unknown> {
   return appendZobComsMessage(repoRoot, definition, {
@@ -128,6 +164,51 @@ async function executeRequiredLocalLiveSend(repoRoot: string, definition: TeamDe
 }
 
 export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState): void {
+  pi.registerTool({
+    name: "zpeer_ask",
+    label: "ZPeer Ask",
+    description: "Ask a visible local ZPeer via the governed room-scoped local_socket path. Defaults to mode=async; raw message/reply bodies are transient and durable metadata is hash-only.",
+    promptSnippet: "Use zpeer_ask with mode=\"async\" for useful non-trivial peer review/debug/planning coordination; avoid spam and loops.",
+    parameters: ZpeerAskParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (!state?.zobLive.peerCard) return { content: [{ type: "text", text: "zpeer_ask blocked: current session has not registered a local peer endpoint" }], details: { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: "local_peer_unavailable", bodyStored: false } };
+      const mode = params.mode ?? "async";
+      const self = refreshZpeerSelf(ctx.cwd, state.zobLive.peerCard);
+      state.zobLive.peerCard = self;
+      const targetAlias = safeZpeerAlias(params.targetAlias) ?? params.targetAlias.replace(/^@+/, "");
+      const guardReason = zpeerAskGuardBlock(state, params, self.zpeerAlias);
+      const emitZpeerAskEvent = (event: { kind: NonNullable<HarnessRuntimeState["zobLive"]["lastEvent"]>["kind"]; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string }): void => {
+        state.zobLive.lastEvent = { kind: event.kind, roomId: self.zpeerRoomId ?? "default", fromAlias: self.zpeerAlias, toAlias: targetAlias, status: event.status, reason: event.reason, msgId: event.msgId, taskHash: event.taskHash, outputHash: event.outputHash, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
+        void pi.sendMessage({
+          customType: "zob-zpeer-event",
+          content: `ZPeer agent-request @${self.zpeerAlias ?? "?"} → @${targetAlias} ${event.status}`,
+          display: true,
+          details: { ...state.zobLive.lastEvent, source: "agent-request", mode, bodyStored: false, localOnly: true, networkEnabled: false },
+        }, { triggerTurn: false });
+      };
+      const taskHash = params.message.trim() ? sha256(params.message) : undefined;
+      if (guardReason) {
+        const result = { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: guardReason, targetAlias, taskHash, bodyStored: false };
+        emitZpeerAskEvent({ kind: "blocked", status: "blocked", reason: guardReason, taskHash });
+        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request_blocked", mode, status: "blocked", reasonHash: sha256(guardReason), targetAliasHash: sha256(targetAlias), roomIdHash: sha256(self.zpeerRoomId ?? "default"), taskHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+        return { content: [{ type: "text", text: `zpeer_ask blocked: ${guardReason}` }], details: result };
+      }
+      const timeoutMs = boundedZpeerAskTimeoutMs(mode, params.timeoutMs);
+      let feedbackEmittedTerminal = false;
+      const result = await sendZpeerPrompt(ctx.cwd, self, targetAlias, params.message, (msgId) => state.zobLive.pendingReplies.wait(msgId, timeoutMs), {
+        mode,
+        onFeedback: (feedback) => {
+          feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired";
+          emitZpeerAskEvent({ kind: feedback.kind, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash });
+        },
+      });
+      if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(self.zpeerRoomId ?? "default"), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
+      return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
+    },
+  });
+
   pi.registerTool({
     name: "zob_coms_send",
     label: "ZOB Coms Send",

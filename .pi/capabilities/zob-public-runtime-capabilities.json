@@ -478,7 +478,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, and damage gates."
+      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, damage gates, and repo-relative-only allowed_paths. Use reports/... snapshot/context_ref refs for external context."
     },
     {
       "name": "delegate_task",
@@ -498,7 +498,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, and damage gates."
+      "noShipNotes": "Child-agent dispatch; obey active mode, rule profile, damage gates, and repo-relative-only allowed_paths. Use reports/... snapshot/context_ref refs for external context."
     },
     {
       "name": "orchestrate_run",
@@ -661,6 +661,26 @@
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
       "noShipNotes": "Await live peer replies only; stale peers are not success."
+    },
+    {
+      "name": "zpeer_ask",
+      "family": "coms-v2-live",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, mode defaults async, rate/loop guarded, raw bodies transient and durable records hash-only."
     },
     {
       "name": "zob_goal_room_send",
@@ -1317,6 +1337,22 @@
         "AGENTS.md"
       ],
       "noShipNotes": "Refreshes local status widget only."
+    },
+    {
+      "name": "zpeer",
+      "family": "coms-v2-live",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Local-only room-scoped peer UX; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
     },
     {
       "name": "rules_status",

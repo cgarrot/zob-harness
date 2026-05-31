@@ -7,6 +7,7 @@ import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../goal-todos
 import { isRecord } from "../utils/records.js";
 import type { AssistantLikeMessage, ModeName } from "../types.js";
 import { readHarnessReadinessWidgetData } from "../orchestration/widget-readers.js";
+import { buildZpeerRoomSummary } from "../coms-v2/zpeer.js";
 import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import type { HarnessRuntimeState } from "./state.js";
@@ -145,6 +146,10 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
       return `${theme.fg("dim", "│ ")}${fit(left, leftWidth)}${theme.fg("dim", " │ ")}${fit(right, rightWidth)}${theme.fg("dim", " │")}`;
     };
 
+    const threeColumnRow = (leftWidth: number, middleWidth: number, rightWidth: number, left: string, middle: string, right: string): string => {
+      return `${theme.fg("dim", "│ ")}${fit(left, leftWidth)}${theme.fg("dim", " │ ")}${fit(middle, middleWidth)}${theme.fg("dim", " │ ")}${fit(right, rightWidth)}${theme.fg("dim", " │")}`;
+    };
+
     const meter = (done: number, total: number, size: number): string => {
       const safeTotal = Math.max(1, total);
       const ratio = Math.min(1, Math.max(0, done / safeTotal));
@@ -257,6 +262,29 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
         const assistantsState = assistantsCount > 0
           ? `${assistantsCount} active`
           : "none";
+        const zpeerSummary = state.zobLive.peerCard ? buildZpeerRoomSummary(ctx.cwd, state.zobLive.peerCard) : undefined;
+        const zpeerAliases = zpeerSummary?.aliases.slice(0, 4).map((alias) => `@${alias}`).join(" ") || "none";
+        const zpeerLast = state.zobLive.lastEvent
+          ? `${state.zobLive.lastEvent.kind} ${state.zobLive.lastEvent.fromAlias ? `@${state.zobLive.lastEvent.fromAlias}` : "?"}→${state.zobLive.lastEvent.toAlias ? `@${state.zobLive.lastEvent.toAlias}` : "?"} ${state.zobLive.lastEvent.status}`
+          : "none";
+        const zpeerPending = state.zobLive.pendingReplies.snapshot().filter((item) => item.status === "pending").length;
+        const zpeerHeartbeatAge = state.zobLive.lastHeartbeatMs ? formatDuration(nowMs - state.zobLive.lastHeartbeatMs) : "—";
+        const zpeerLines = zpeerSummary
+          ? [
+            `${theme.fg("accent", "ZPeer")}`,
+            `${theme.fg("dim", "Room")} ${theme.fg("muted", zpeerSummary.roomId)}`,
+            `${theme.fg("dim", "Self")} ${theme.fg("muted", `@${zpeerSummary.selfAlias ?? "?"}`)}`,
+            `${theme.fg("dim", "Peers")} ${theme.fg("muted", `${zpeerSummary.online}/${zpeerSummary.peerCount}`)}`,
+            `${theme.fg("dim", "Aliases")} ${theme.fg(zpeerAliases === "none" ? "dim" : "muted", zpeerAliases)}`,
+            `${theme.fg("dim", "Last")} ${theme.fg(state.zobLive.lastEvent ? "muted" : "dim", zpeerLast)}`,
+            `${theme.fg("dim", "Wait")} ${theme.fg(zpeerPending > 0 ? "warning" : "muted", `${zpeerPending} pending · hb ${zpeerHeartbeatAge}`)}`,
+            `${theme.fg("dim", "Status")} ${theme.fg("success", "connected")}`,
+          ]
+          : [
+            `${theme.fg("accent", "ZPeer")}`,
+            `${theme.fg("dim", "Last")} ${theme.fg(state.zobLive.lastEvent ? "muted" : "dim", zpeerLast)}`,
+            `${theme.fg("dim", "Status")} ${theme.fg("dim", "not connected")}`,
+          ];
 
         const leftLines = [
           `${theme.fg("accent", "Mission")} ${theme.fg(runtimeGoal ? "muted" : "dim", mission)}`,
@@ -264,7 +292,7 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           `${theme.fg("accent", "Next")} ${theme.fg(mainState === "Ready" ? "dim" : "muted", nextAction)}`,
           `${theme.fg(uniqueAlerts.length > 0 ? "warning" : "success", "Need")} ${theme.fg(uniqueAlerts.length > 0 ? "warning" : "muted", needLine)}`,
           `${theme.fg("dim", "Daemon")} ${theme.fg("muted", daemonLine)}`,
-          `${theme.fg("dim", "Open")} ${theme.fg("muted", "/zstatus · /todos overlay · /delegates")}`,
+          `${theme.fg("dim", "Open")} ${theme.fg("muted", "/zpeer · /zstatus · /todos overlay · /delegates")}`,
         ];
         const rightLines = [
           `${theme.fg("accent", "Focus")} ${theme.fg("muted", state.activeMode)}`,
@@ -273,7 +301,7 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           `${theme.fg(qualityState === "check OK" ? "success" : "warning", "Quality")} ${theme.fg(qualityState === "check OK" ? "muted" : "warning", qualityState)}`,
           `${theme.fg("accent", "Assistants")} ${theme.fg(assistantsCount > 0 ? "muted" : "dim", assistantsState)}`,
         ];
-        const wideRows = Math.max(leftLines.length, rightLines.length);
+        const wideRows = Math.max(leftLines.length, zpeerLines.length, rightLines.length);
 
         if (panelWidth < 72) return leftLines.slice(0, 4).map((line) => truncateToWidth(line, panelWidth, "…"));
         if (panelWidth < 112) {
@@ -281,18 +309,20 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           return [
             border("top", panelWidth, `${theme.fg("accent", "◆ ZOB")} ${theme.fg("muted", "live")}`),
             ...leftLines.map((line) => row(panelWidth, line)),
+            row(panelWidth, ""),
+            ...zpeerLines.map((line) => row(panelWidth, line)),
             row(panelWidth, contextLine),
             border("bottom", panelWidth),
           ];
         }
 
-        const gutter = 3;
-        const innerWidth = Math.max(1, panelWidth - 4);
-        const rightWidth = Math.min(38, Math.max(28, Math.floor(innerWidth * 0.34)));
-        const leftWidth = Math.max(24, innerWidth - rightWidth - gutter);
+        const availableColumnWidth = Math.max(1, panelWidth - 10);
+        const zpeerWidth = Math.min(34, Math.max(26, Math.floor(availableColumnWidth * 0.28)));
+        const rightWidth = Math.min(36, Math.max(28, Math.floor(availableColumnWidth * 0.30)));
+        const leftWidth = Math.max(24, availableColumnWidth - zpeerWidth - rightWidth);
         return [
           border("top", panelWidth, `${theme.fg("accent", "◆ ZOB")} ${theme.fg("muted", "live")}`),
-          ...Array.from({ length: wideRows }, (_, index) => twoColumnRow(leftWidth, rightWidth, leftLines[index] ?? "", rightLines[index] ?? "")),
+          ...Array.from({ length: wideRows }, (_, index) => threeColumnRow(leftWidth, zpeerWidth, rightWidth, leftLines[index] ?? "", zpeerLines[index] ?? "", rightLines[index] ?? "")),
           border("bottom", panelWidth),
         ];
       },

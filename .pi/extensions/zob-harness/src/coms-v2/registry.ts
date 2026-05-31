@@ -29,9 +29,9 @@ function projectAgentsDir(repoRoot: string): { dir: string; projectId: string; k
   return { dir: join(root.path, "projects", projectId, "agents"), projectId, kind: root.kind };
 }
 
-function peerPath(repoRoot: string, roleId: string): string {
+function peerPath(repoRoot: string, peer: Pick<ZobLivePeerCard, "roleId" | "sessionHash">): string {
   const { dir } = projectAgentsDir(repoRoot);
-  return join(dir, `${safeFileStem(roleId)}.json`);
+  return join(dir, `${safeFileStem(`${peer.roleId}-${peer.sessionHash.slice(0, 12)}`)}.json`);
 }
 
 function parsePeerCard(value: unknown): ZobLivePeerCard | undefined {
@@ -55,7 +55,7 @@ export function writeZobLivePeerCard(repoRoot: string, peer: ZobLivePeerCard): Z
   if (peer.bodyStored !== false) throw new Error("ZOB live peer card bodyStored must be false");
   const { dir } = projectAgentsDir(repoRoot);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(peerPath(repoRoot, peer.roleId), `${JSON.stringify(peer, null, 2)}\n`, "utf8");
+  writeFileSync(peerPath(repoRoot, peer), `${JSON.stringify(peer, null, 2)}\n`, "utf8");
   return peer;
 }
 

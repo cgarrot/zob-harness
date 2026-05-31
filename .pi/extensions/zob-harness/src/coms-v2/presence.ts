@@ -1,3 +1,4 @@
+import { sha256 } from "../utils/hashing.js";
 import { readZobLiveRegistrySnapshot } from "./registry.js";
 import { readZobComsV2Policy } from "./policy.js";
 import type { ZobLivePeerCard, ZobLivePresenceSummary } from "./types.js";
@@ -38,6 +39,9 @@ export function redactZobLivePeerForMissionControl(peer: ZobLivePeerCard): Recor
     contextUsedPct: peer.contextUsedPct,
     queueDepth: peer.queueDepth,
     status: peer.status,
+    zpeerRoomIdHash: peer.zpeerRoomId ? sha256(peer.zpeerRoomId) : undefined,
+    zpeerAliasHash: peer.zpeerAlias ? sha256(peer.zpeerAlias) : undefined,
+    zpeerLocalOnly: peer.zpeerLocalOnly === true ? true : undefined,
     staleAfterMs: peer.staleAfterMs,
     offlineAfterMs: peer.offlineAfterMs,
     bodyStored: false,

@@ -6,6 +6,10 @@ const AgentScopeSchema = StringEnum(["project", "user", "both"] as const, {
   default: "project",
 });
 
+const ThinkingLevelSchema = StringEnum(["low", "medium", "high", "xhigh"] as const, {
+  description: "Optional explicit child reasoning effort override. Defaults remain agent/session-configured when omitted.",
+});
+
 const AgenticClaimValidationParams = Type.Object({
   mode: Type.Optional(StringEnum(["off", "oracle_then_auto_accept"] as const, { description: "Agentic validation mode for TODO-linked child claims. Default off for compatibility." })),
   oracle_agent: Type.Optional(Type.String({ description: "Oracle agent to validate returned claim. Default oracle." })),
@@ -16,9 +20,9 @@ const AgenticClaimValidationParams = Type.Object({
 const ChildGoalParams = Type.Object({
   enabled: Type.Optional(Type.Boolean({ description: "Enable parent-owned child goal guidance for long delegated tasks. Default true when child_goal is provided." })),
   objective: Type.String({ description: "Child goal objective to pursue inside the delegated task." }),
-  todo_id: Type.Optional(Type.String({ description: "Parent-owned /goal TODO id this child should work on." })),
+  todo_id: Type.Optional(Type.String({ description: "Parent-owned /goal TODO id this child should work on. Prefer the canonical id from get_goal_todos; unique visible paths and legacy todo_<path> shorthands are resolved to the active canonical id when possible." })),
   parent_todo_id: Type.Optional(Type.String({ description: "Parent TODO id for the delegated TODO, if any." })),
-  todo_path: Type.Optional(Type.String({ description: "Human-readable TODO tree path, e.g. 1.2." })),
+  todo_path: Type.Optional(Type.String({ description: "Human-readable TODO tree path, e.g. 1.2. If todo_id is omitted, a unique active todo_path can be resolved to the canonical TODO id." })),
   delegation_depth: Type.Optional(Type.Integer({ description: "Parent-owned delegation depth for TODO-linked child work.", minimum: 0 })),
   request_id: Type.Optional(Type.String({ description: "Adaptive delegation request id when this child is dispatched from a governor decision." })),
   oracle_required: Type.Optional(Type.Boolean({ description: "Whether parent/oracle review is required before accepting the child goal. Default true." })),
@@ -32,6 +36,7 @@ const TaskItem = Type.Object({
   agent: Type.String({ description: "Specialist agent name" }),
   task: Type.String({ description: "Six-part task contract or focused prompt" }),
   cwd: Type.Optional(Type.String({ description: "Override cwd for this child Pi process" })),
+  thinking: Type.Optional(ThinkingLevelSchema),
   child_goal: Type.Optional(ChildGoalParams),
 });
 
@@ -42,9 +47,10 @@ const DelegateParams = Type.Object({
   chain: Type.Optional(Type.Array(TaskItem, { description: "Sequential chain. {previous} is replaced by prior output." })),
   scope: Type.Optional(AgentScopeSchema),
   model: Type.Optional(Type.String({ description: "Exceptional explicit model override for all delegated children. Normally omit to use the parent/session default. Use only with current runtime availability/auth proof for the concrete provider/model; desired/configured/catalogued models are not availability proof." })),
+  thinking: Type.Optional(ThinkingLevelSchema),
   tools: Type.Optional(Type.String({ description: "Override comma-separated tool allowlist for all children. Must be a subset of the selected agent tools." })),
   child_goal: Type.Optional(ChildGoalParams),
-  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-local paths delegated children may inspect/change. Required when effective tools include edit/write." })),
+  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative-only paths delegated children may inspect/change. Absolute, home, traversal, broad-root, and NUL paths are rejected; use repo-local reports/... snapshot/context_ref artifacts for external context. Required when effective tools include edit/write." })),
   forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Deny-only path patterns delegated children must not touch. May be repo-local, absolute, or home-relative; broad roots are rejected." })),
 });
 
@@ -69,8 +75,8 @@ const DelegateTaskParams = Type.Object({
   context: Type.String({ description: "Paths, prior evidence, downstream use" }),
   original_user_ask: Type.Optional(Type.String({ description: "Original human request for scope anchoring. Required for write-enabled delegate_task calls when effective tools include edit/write; context text does not satisfy the strict write preflight gate." })),
   originalUserAsk: Type.Optional(Type.String({ description: "Safe alias for original_user_ask. Conflicts with canonical values are blocked before child launch." })),
-  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-local paths this task is allowed to inspect/change" })),
-  allowedPaths: Type.Optional(Type.Array(Type.String(), { description: "Safe alias for allowed_paths. Conflicts with canonical values are blocked before child launch." })),
+  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative-only paths this task is allowed to inspect/change; external context must be represented by repo-local reports/... snapshot/context_ref refs" })),
+  allowedPaths: Type.Optional(Type.Array(Type.String(), { description: "Safe alias for allowed_paths. Conflicts with canonical values are blocked before child launch; values must remain repo-relative only." })),
   forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Deny-only path patterns this task must not touch. May be repo-local, absolute, or home-relative; broad roots are rejected." })),
   forbiddenPaths: Type.Optional(Type.Array(Type.String(), { description: "Safe alias for forbidden_paths. Conflicts with canonical values are blocked before child launch." })),
   output_contract: Type.Optional(Type.String({ description: "Optional exact output contract id. Normally omit; the harness infers it from agent. If uncertain, call zob_delegation_catalog first. Do not invent ids." })),
@@ -84,6 +90,7 @@ const DelegateTaskParams = Type.Object({
   cwd: Type.Optional(Type.String({ description: "Override cwd for this child Pi process. Must stay inside repo." })),
   scope: Type.Optional(AgentScopeSchema),
   model: Type.Optional(Type.String({ description: "Exceptional explicit model override for this child. Normally omit to use the parent/session default. Use only with current runtime availability/auth proof for the concrete provider/model; desired/configured/catalogued models are not availability proof." })),
+  thinking: Type.Optional(ThinkingLevelSchema),
 });
 
 const DelegationRunParams = Type.Object({
@@ -340,6 +347,14 @@ const ZobComsAwaitParams = Type.Object({
   pollMs: Type.Optional(Type.Number({ description: "Poll interval. Default 100ms" })),
 });
 
+const ZpeerAskParams = Type.Object({
+  targetAlias: Type.String({ description: "ZPeer target alias in the current local room. May include or omit the leading @." }),
+  message: Type.String({ description: "Transient peer request body. Used only for local live delivery; never persisted in durable ledgers or reports." }),
+  mode: Type.Optional(StringEnum(["async", "await", "long"] as const, { description: "Send mode. Default async for agent-initiated coordination.", default: "async" })),
+  reason: Type.Optional(Type.String({ description: "Optional transient coordination reason. Hashed only in visible metadata; raw value is not persisted." })),
+  timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes. Ignored by async mode; capped by runtime." })),
+});
+
 const ZobComsReadinessParams = Type.Object({
   team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
 });
@@ -532,7 +547,7 @@ const AutonomousDryRunParams = Type.Object({
   constraints: Type.Optional(Type.Array(Type.String(), { description: "Optional constraints; persisted as hashes only." })),
   acceptance_criteria: Type.Optional(Type.Array(Type.String(), { description: "Spec-lock acceptance criteria; persisted as hashes only." })),
   expected_artifacts: Type.Optional(Type.Array(Type.String(), { description: "Expected artifact descriptions; persisted as hashes only." })),
-  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative allowed paths for future gated work." })),
+  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative-only allowed paths for future gated work; use reports/... snapshot/context_ref refs for external context." })),
   forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Forbidden source/path patterns for future gated work." })),
   allowed_sources: Type.Optional(Type.Array(Type.String(), { description: "Allowed context source ids for context_scope." })),
   max_context_tokens: Type.Optional(Type.Number({ description: "Bounded context limit. P0 cap is enforced by context_scope." })),
@@ -553,7 +568,7 @@ const AutonomousReadOnlySmokeParams = Type.Object({
   constraints: Type.Optional(Type.Array(Type.String(), { description: "Optional constraints; persisted as hashes only." })),
   acceptance_criteria: Type.Optional(Type.Array(Type.String(), { description: "Spec-lock acceptance criteria; persisted as hashes only." })),
   expected_artifacts: Type.Optional(Type.Array(Type.String(), { description: "Expected artifact descriptions; persisted as hashes only." })),
-  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative allowed paths for future gated work." })),
+  allowed_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative-only allowed paths for future gated work; use reports/... snapshot/context_ref refs for external context." })),
   forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Forbidden source/path patterns for future gated work." })),
   allowed_sources: Type.Optional(Type.Array(Type.String(), { description: "Allowed context source ids for context_scope." })),
   max_context_tokens: Type.Optional(Type.Number({ description: "Bounded context limit. P0 cap is enforced by context_scope." })),
@@ -576,6 +591,7 @@ const AutonomousValidateSmokeParams = Type.Object({
 
 export {
   AgentScopeSchema,
+  ThinkingLevelSchema,
   AutonomousDryRunParams,
   AutonomousReadOnlySmokeParams,
   AutonomousValidateRunParams,
@@ -606,6 +622,7 @@ export {
   ZobComsReplyParams,
   ZobComsSendParams,
   ZobComsStatusParams,
+  ZpeerAskParams,
   ZobGoalRoomSendParams,
   ZobGoalRoomListParams,
   GovernedRequestExtractParams,

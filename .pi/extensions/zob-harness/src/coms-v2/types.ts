@@ -93,6 +93,9 @@ export interface ZobLivePeerCard {
   contextUsedPct: number;
   queueDepth: number;
   status: ZobLivePeerStatus;
+  zpeerRoomId?: string;
+  zpeerAlias?: string;
+  zpeerLocalOnly?: true;
   staleAfterMs: number;
   offlineAfterMs: number;
   bodyStored: false;

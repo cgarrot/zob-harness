@@ -11,6 +11,8 @@ import { runQueueDaemonTick } from "../queue.js";
 import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { sha256 } from "../utils/hashing.js";
+import { writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
+import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, refreshZpeerSelf, sendZpeerPrompt, type ZpeerSendMode } from "../coms-v2/zpeer.js";
 import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
 import { handleGoalCommand, handleGoalGateCommand } from "../goal-runtime.js";
 import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
@@ -475,6 +477,141 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
     description: "Alias for /delegates. Optional: /delegate <id|agent>",
     getArgumentCompletions: (prefix) => delegationArgumentCompletions(state, prefix),
     handler: openDelegatesCommand,
+  });
+
+  const rememberZpeerEvent = (event: { kind: NonNullable<typeof state.zobLive.lastEvent>["kind"]; roomId?: string; fromAlias?: string; toAlias?: string; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string }): void => {
+    state.zobLive.lastEvent = { ...event, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
+  };
+
+  const emitZpeerEvent = (event: Parameters<typeof rememberZpeerEvent>[0]): void => {
+    rememberZpeerEvent(event);
+    void pi.sendMessage({
+      customType: "zob-zpeer-event",
+      content: `ZPeer ${event.kind} ${event.fromAlias ? `@${event.fromAlias}` : "?"} → ${event.toAlias ? `@${event.toAlias}` : "?"} ${event.status}`,
+      display: true,
+      details: { ...state.zobLive.lastEvent },
+    }, { triggerTurn: false });
+  };
+
+  pi.registerCommand("zpeer", {
+    description: "Room-scoped local peer sessions: /zpeer, /zpeer name <alias>, /zpeer room <roomId>, /zpeer @alias <prompt>",
+    handler: async (args, ctx) => {
+      if (!state.zobLive.peerCard) {
+        ctx.ui.notify("/zpeer unavailable: current session has not registered a local peer endpoint yet", "warning");
+        return;
+      }
+      const self = refreshZpeerSelf(ctx.cwd, state.zobLive.peerCard);
+      state.zobLive.peerCard = self;
+      const trimmed = args.trim();
+      if (!trimmed) {
+        const summary = buildZpeerRoomSummary(ctx.cwd, self);
+        pi.appendEntry("zob-zpeer", {
+          schema: "zob.zpeer-command.v1",
+          action: "status",
+          roomIdHash: sha256(summary.roomId),
+          aliasHash: sha256(summary.selfAlias ?? ""),
+          peerCount: summary.peerCount,
+          online: summary.online,
+          stale: summary.stale,
+          offline: summary.offline,
+          duplicateAliasCount: summary.duplicateAliases.length,
+          localOnly: true,
+          networkEnabled: false,
+          bodyStored: false,
+          promptBodiesStored: false,
+          outputBodiesStored: false,
+          generatedAt: new Date().toISOString(),
+        });
+        emitZpeerEvent({ kind: "status", roomId: summary.roomId, fromAlias: summary.selfAlias, status: `online=${summary.online}/${summary.peerCount}`, reason: `stale=${summary.stale} offline=${summary.offline}` });
+        renderHarnessWidget(pi, state, ctx);
+        const availableAliases = summary.aliases.filter((alias) => alias !== summary.selfAlias).map((alias) => `@${alias}`).join(", ") || "none";
+        const unavailable = summary.stale + summary.offline;
+        ctx.ui.notify(`zpeer room=${summary.roomId} self=@${summary.selfAlias ?? "?"} onlinePeers=${Math.max(0, summary.online - 1)} unavailable=${unavailable} peers=${availableAliases} · usage: /zpeer @alias <prompt> · safety: local-only/hash-only/bodyStored=false`, "info");
+        return;
+      }
+      const parts = trimmed.split(/\s+/);
+      const verb = parts[0]?.toLowerCase();
+      if (verb === "name") {
+        const result = changeZpeerAlias(ctx.cwd, self, parts[1] ?? "");
+        if (!result.ok) {
+          ctx.ui.notify(`/zpeer name blocked: ${result.reason}`, "warning");
+          return;
+        }
+        state.zobLive.peerCard = result.peer;
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "name", aliasHash: sha256(result.peer.zpeerAlias ?? ""), roomIdHash: sha256(result.peer.zpeerRoomId ?? "default"), localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(`zpeer alias set to @${result.peer.zpeerAlias}`, "info");
+        return;
+      }
+      if (verb === "room") {
+        const result = changeZpeerRoom(ctx.cwd, self, parts[1] ?? "");
+        if (!result.ok) {
+          ctx.ui.notify(`/zpeer room blocked: ${result.reason}`, "warning");
+          return;
+        }
+        state.zobLive.peerCard = result.peer;
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "room", aliasHash: sha256(result.peer.zpeerAlias ?? ""), roomIdHash: sha256(result.peer.zpeerRoomId ?? "default"), localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(`zpeer room set to ${result.peer.zpeerRoomId} as @${result.peer.zpeerAlias}`, "info");
+        return;
+      }
+      const sendModeFromParts = (inputParts: string[]): { mode: ZpeerSendMode; aliasToken?: string; bodyStartIndex: number } => {
+        const first = inputParts[0]?.toLowerCase();
+        if (first === "async" || first === "await" || first === "long") return { mode: first, aliasToken: inputParts[1], bodyStartIndex: 2 };
+        return { mode: inputParts.includes("--async") ? "async" : inputParts.includes("--long") ? "long" : "await", aliasToken: inputParts[0], bodyStartIndex: 1 };
+      };
+      const sendMode = sendModeFromParts(parts);
+      if (sendMode.aliasToken?.startsWith("@")) {
+        const targetAlias = sendMode.aliasToken.slice(1);
+        const transientPrompt = parts.slice(sendMode.bodyStartIndex).filter((part) => part !== "--async" && part !== "--long").join(" ").trim();
+        const replyTimeoutMs = sendMode.mode === "long" ? 30 * 60 * 1000 : 10 * 60 * 1000;
+        if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt", roomId: state.zobLive.peerCard.zpeerRoomId ?? "default", fromAlias: state.zobLive.peerCard.zpeerAlias, toAlias: targetAlias, status: "attempt", taskHash: transientPrompt.trim() ? sha256(transientPrompt) : undefined });
+        let feedbackEmittedTerminal = false;
+        const result = await sendZpeerPrompt(ctx.cwd, state.zobLive.peerCard, targetAlias, transientPrompt, (msgId) => state.zobLive.pendingReplies.wait(msgId, replyTimeoutMs), {
+          mode: sendMode.mode,
+          onFeedback: (feedback) => {
+            feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired";
+            emitZpeerEvent({ kind: feedback.kind, roomId: state.zobLive.peerCard?.zpeerRoomId ?? "default", fromAlias: state.zobLive.peerCard?.zpeerAlias, toAlias: feedback.result.targetAlias ?? targetAlias, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash });
+          },
+        });
+        const terminalKind = result.status === "reply" || result.status === "completed" ? "reply" : result.status === "blocked" ? "blocked" : result.status === "timeout" ? "timeout" : result.status === "expired" ? "expired" : result.status === "error" ? "error" : result.status === "waiting" ? "waiting" : "delivered";
+        if (!feedbackEmittedTerminal) emitZpeerEvent({ kind: terminalKind, roomId: state.zobLive.peerCard.zpeerRoomId ?? "default", fromAlias: state.zobLive.peerCard.zpeerAlias, toAlias: result.targetAlias ?? targetAlias, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
+        pi.appendEntry("zob-zpeer", {
+          schema: "zob.zpeer-command.v1",
+          action: sendMode.mode === "async" ? "send_async" : sendMode.mode === "long" ? "send_long_await" : "send_await",
+          status: result.status,
+          reasonHash: result.reason ? sha256(result.reason) : undefined,
+          msgId: result.msgId,
+          targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : undefined,
+          roomIdHash: sha256(state.zobLive.peerCard.zpeerRoomId ?? "default"),
+          taskHash: result.taskHash,
+          outputHash: result.outputHash,
+          localOnly: true,
+          networkEnabled: false,
+          bodyStored: false,
+          promptBodiesStored: false,
+          outputBodiesStored: false,
+          generatedAt: new Date().toISOString(),
+        });
+        renderHarnessWidget(pi, state, ctx);
+        if ((result.status === "reply" || result.status === "completed") && result.transientResponse) {
+          void pi.sendMessage({
+            customType: "zob-zpeer-response",
+            content: result.transientResponse,
+            display: true,
+            details: { msgId: result.msgId, targetAlias, outputHash: result.outputHash, bodyStored: false },
+          }, { triggerTurn: false });
+          ctx.ui.notify(`zpeer @${targetAlias} reply · response displayed transiently · outputHash=${result.outputHash ?? "present"}`, "info");
+        } else {
+          const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
+          ctx.ui.notify(ok ? `zpeer @${targetAlias} ${result.status}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}` : `zpeer @${targetAlias} ${result.status}: ${result.reason ?? "see metadata"}`, ok ? "info" : "warning");
+        }
+        return;
+      }
+      ctx.ui.notify("Usage: /zpeer | /zpeer name <alias> | /zpeer room <roomId> | /zpeer @alias <prompt>", "warning");
+    },
   });
 
   pi.registerCommand("zstatus", {

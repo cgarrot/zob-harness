@@ -31,11 +31,31 @@ export interface DelegationMouseRuntimeState {
   widgetOwner?: symbol;
 }
 
+export interface ZobLiveLastEvent {
+  kind: "status" | "attempt" | "delivered" | "waiting" | "reply" | "sent" | "completed" | "blocked" | "error" | "timeout" | "expired" | "inbound" | "response_sent" | "heartbeat";
+  roomId?: string;
+  fromAlias?: string;
+  toAlias?: string;
+  status: string;
+  reason?: string;
+  msgId?: string;
+  taskHash?: string;
+  outputHash?: string;
+  at: string;
+  localOnly: true;
+  networkEnabled: false;
+  bodyStored: false;
+}
+
 export interface ZobLiveRuntimeState {
   pendingReplies: ZobPendingReplies;
   server?: ZobLocalTransportServer;
   peerCard?: ZobLivePeerCard;
   inbound?: { envelope: ZobLiveEnvelope; receivedAt: string; responseSent: boolean; repoRoot: string };
+  lastEvent?: ZobLiveLastEvent;
+  zpeerAskGuard?: { windowStartedMs: number; count: number; lastTargetAlias?: string; lastMessageHash?: string };
+  heartbeatTimer?: ReturnType<typeof setTimeout>;
+  lastHeartbeatMs?: number;
 }
 
 export interface DaemonHarnessRuntimeState {

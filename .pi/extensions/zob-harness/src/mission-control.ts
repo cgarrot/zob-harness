@@ -50,6 +50,32 @@ function isHexSha256(value: unknown): boolean {
   return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 }
 
+function summarizeZpeerRooms(peers: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const rooms = new Map<string, Array<Record<string, unknown>>>();
+  for (const peer of peers) {
+    const roomId = typeof peer.zpeerRoomId === "string" ? peer.zpeerRoomId : "default";
+    const list = rooms.get(roomId) ?? [];
+    list.push(peer);
+    rooms.set(roomId, list);
+  }
+  return [...rooms.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([roomId, roomPeers]) => {
+    const aliases = roomPeers.map((peer) => typeof peer.zpeerAlias === "string" ? peer.zpeerAlias : undefined).filter((alias): alias is string => Boolean(alias)).sort();
+    return {
+      schema: "zob.zpeer-room-summary.v1",
+      roomIdHash: sha256(roomId),
+      peerCount: roomPeers.length,
+      online: roomPeers.filter((peer) => peer.status === "online").length,
+      stale: roomPeers.filter((peer) => peer.status === "stale").length,
+      offline: roomPeers.filter((peer) => peer.status === "offline").length,
+      aliasHashes: aliases.map((alias) => sha256(alias)),
+      duplicateAliasHashes: aliases.filter((alias, index) => aliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index).map((alias) => sha256(alias)),
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+    };
+  });
+}
+
 function isSafeArtifactRef(value: string): boolean {
   if (value.length === 0 || value.startsWith("/") || value.includes("\\") || value.includes("..")) return false;
   if (value === ".env" || value.startsWith(".env.") || value.includes("/.env")) return false;
@@ -521,6 +547,8 @@ export function buildMissionControlSnapshot(repoRoot: string, definition: TeamDe
       latest: comsMessages.map(redactComsMessage),
       livePresence,
       livePeers: liveRegistry.peers.map(redactZobLivePeerForMissionControl),
+      zpeerRooms: summarizeZpeerRooms(liveRegistry.peers as unknown as Array<Record<string, unknown>>),
+      zpeerReadiness: { localOnly: true, networkEnabled: false, bodyStored: false },
       bodySafety: { ledgersBodyFree: ![...comsLedgerRecords, ...comsStatusRecords].some(hasForbiddenBodyKey), liveRegistryBodyFree: !hasForbiddenBodyKey(liveRegistry) },
     },
     autonomy: autonomyAudit ? { verdict: autonomyAudit.verdict, globalAutonomyReady: autonomyAudit.globalAutonomyReady, globalAutonomyNoShip: autonomyAudit.globalAutonomyNoShip, blockers: autonomyAudit.blockers } : { missing: true },
