@@ -126,6 +126,21 @@ async function main() {
   const reloadPeer = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'reloadbase', roomId: 'default', endpoint: join(root, 'reload.sock'), endpointHash: hashing.sha256(join(root, 'reload.sock')), sha256: hashing.sha256 }), restoredAlphaProfile.roomId, restoredAlphaProfile.alias);
   assert(reloadPeer.zpeerAlias === 'persistedalpha', 'simulated reload must apply restored profile alias before registration');
   assert(reloadPeer.zpeerRoomId === 'persisted-room', 'simulated reload must apply restored profile room before registration');
+  const restoredOnlyPeer = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'reloadbase', roomId: 'default', endpoint: join(root, 'reload-restored.sock'), endpointHash: hashing.sha256(join(root, 'reload-restored.sock')), sha256: hashing.sha256 }), undefined, undefined, [{ roomId: 'persisted-room', alias: 'persistedalpha', role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false }]);
+  const restoredOnlyMemberships = zpeer.zpeerMembershipsForPeer(restoredOnlyPeer);
+  assert(restoredOnlyPeer.zpeerRoomId === 'persisted-room' && restoredOnlyPeer.zpeerAlias === 'persistedalpha', 'restored memberships must set active room/alias without legacy default input');
+  assert(restoredOnlyMemberships.length === 1 && restoredOnlyMemberships[0].roomId === 'persisted-room', 'restored memberships must not inject an unrequested default membership');
+  const staleBasePeer = makePeer({ alias: 'stalealias', roomId: 'default', endpoint: join(root, 'reload-stale.sock'), endpointHash: hashing.sha256(join(root, 'reload-stale.sock')), sha256: hashing.sha256 });
+  staleBasePeer.zpeerActiveRoomId = 'stale-room';
+  const restoredMultiPeer = zpeer.ensureZpeerFields(repoRoot, staleBasePeer, undefined, undefined, [
+    { roomId: 'room-b', alias: 'bravo', role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false },
+    { roomId: 'room-a', alias: 'alpha', role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false },
+  ]);
+  const restoredMultiMemberships = zpeer.zpeerMembershipsForPeer(restoredMultiPeer);
+  const restoredMultiRoomIds = restoredMultiMemberships.map((membership) => membership.roomId);
+  assert(restoredMultiRoomIds.length === 2 && restoredMultiRoomIds.includes('room-a') && restoredMultiRoomIds.includes('room-b'), 'restored memberships with stale/default legacy room ids must keep only restored rooms');
+  assert(!restoredMultiRoomIds.includes('default') && !restoredMultiRoomIds.includes('stale-room'), 'stale/default legacy active room ids must not create restored membership parasites');
+  assert(restoredMultiPeer.zpeerRoomId === 'room-a' && restoredMultiPeer.zpeerActiveRoomId === 'room-a' && restoredMultiPeer.zpeerAlias === 'alpha', 'restored memberships must fall back to first restored room/alias when legacy active room is stale');
 
   delete process.env.ZOB_ZPEER_PROFILE_ID;
   delete process.env.ZPEER_PROFILE;
@@ -217,14 +232,52 @@ async function main() {
     });
   });
 
+  const joinedAlpha = zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
+  assert(joinedAlpha.ok === true, `alpha multi-room join expected ok, got ${joinedAlpha.reason ?? 'not ok'}`);
+  alpha = joinedAlpha.peer;
+  const joinedBeta = zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedbeta');
+  assert(joinedBeta.ok === true, `beta multi-room join expected ok, got ${joinedBeta.reason ?? 'not ok'}`);
+  beta = joinedBeta.peer;
+  assert(zpeer.zpeerMembershipsForPeer(alpha).length === 2, 'alpha must be in two zpeer rooms after join');
+  const sharedSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha, 'shared-room');
+  assert(sharedSummary.peerCount === 2 && sharedSummary.aliases.includes('sharedalpha') && sharedSummary.aliases.includes('sharedbeta'), 'shared-room summary must include alpha/beta aliases');
+  const stillActiveSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
+  assert(stillActiveSummary.roomId === 'room-one' && stillActiveSummary.aliases.includes('alpha') && !stillActiveSummary.aliases.includes('sharedalpha'), 'join must preserve active room-one compatibility');
+  const explicitRoomResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'sharedbeta', rawPrompt, waitForReply, { roomId: 'shared-room' });
+  assert(explicitRoomResult.status === 'reply' && explicitRoomResult.roomId === 'shared-room', `explicit room send expected shared-room reply, got ${explicitRoomResult.status}`);
+  const explicitRoomEnvelope = receivedPrompts.at(-1);
+  assert(explicitRoomEnvelope.sender === 'sharedalpha' && explicitRoomEnvelope.receiver === 'sharedbeta' && explicitRoomEnvelope.runId === 'zpeer:shared-room', 'explicit room envelope must use room-scoped sender/receiver aliases and runId');
+  const implicitBlocked = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'sharedbeta', rawPrompt, waitForReply);
+  assert(implicitBlocked.status === 'blocked' && String(implicitBlocked.reason).includes("not found in room 'room-one'"), 'implicit active-room send must not cross into shared-room');
+  const duplicateJoin = zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedalpha');
+  assert(duplicateJoin.ok === false && String(duplicateJoin.reason).includes('already exists'), 'duplicate alias in the same room must be blocked');
+  const crossRoomAlias = zpeer.joinZpeerRoom(repoRoot, alpha, 'alias-room', 'beta');
+  assert(crossRoomAlias.ok === true, 'same alias in a different room must be allowed');
+  alpha = crossRoomAlias.peer;
+  const peerRoomSummaries = zpeer.buildZpeerPeerRoomSummaries(repoRoot, alpha);
+  assert(peerRoomSummaries.length === 3, `multi-room helper expected 3 alpha rooms, got ${peerRoomSummaries.length}`);
+  assert(peerRoomSummaries.filter((summary) => summary.active).length === 1 && peerRoomSummaries[0].active === true && peerRoomSummaries[0].roomId === 'room-one', 'multi-room helper must mark exactly one active room first');
+  const roomOneSummary = peerRoomSummaries.find((summary) => summary.roomId === 'room-one');
+  const sharedRoomSummary = peerRoomSummaries.find((summary) => summary.roomId === 'shared-room');
+  const aliasRoomSummary = peerRoomSummaries.find((summary) => summary.roomId === 'alias-room');
+  assert(roomOneSummary?.selfAlias === 'alpha' && sharedRoomSummary?.selfAlias === 'sharedalpha' && aliasRoomSummary?.selfAlias === 'beta', 'multi-room helper must expose room-scoped self aliases');
+  assert(roomOneSummary?.peerCount === 2 && sharedRoomSummary?.peerCount === 2 && aliasRoomSummary?.peerCount === 1, 'multi-room helper peer counts must remain scoped per room');
+  assert(roomOneSummary?.aliases.includes('beta') && !roomOneSummary.aliases.includes('sharedbeta'), 'room-one summary must not leak shared-room aliases');
+  assert(sharedRoomSummary?.aliases.includes('sharedbeta') && !sharedRoomSummary.aliases.includes('alpha'), 'shared-room summary must not leak room-one aliases');
+  const useShared = zpeer.useZpeerRoom(repoRoot, alpha, 'shared-room');
+  assert(useShared.ok === true && useShared.peer.zpeerRoomId === 'shared-room' && useShared.peer.zpeerAlias === 'sharedalpha', 'useZpeerRoom must switch active room and alias');
+  alpha = zpeer.useZpeerRoom(repoRoot, useShared.peer, 'room-one').peer;
+
+  const directPromptCountBefore = receivedPrompts.length;
+  const directResponseCountBefore = receivedResponses.length;
   const result = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply);
   assert(result.status === 'reply', `sendZpeerPrompt expected reply, got ${result.status}${result.reason ? `: ${result.reason}` : ''}`);
   assert(typeof result.transientResponse === 'string' && result.transientResponse === rawResponse, 'reply result must include transientResponse from peer');
   assert(result.taskHash === hashing.sha256(rawPrompt), 'reply result must include prompt taskHash');
   assert(result.outputHash === hashing.sha256(rawResponse), 'reply result must include response outputHash');
   assert(result.bodyStored === false, 'reply result must be bodyStored=false');
-  assert(receivedPrompts.length === 1 && receivedPrompts[0].replyEndpoint === alphaEndpoint, 'beta must receive one prompt with alpha replyEndpoint');
-  assert(receivedResponses.length === 1 && receivedResponses[0].msgId === result.msgId, 'alpha must receive async response on replyEndpoint');
+  assert(receivedPrompts.length === directPromptCountBefore + 1 && receivedPrompts.at(-1).replyEndpoint === alphaEndpoint, 'beta must receive one prompt with alpha replyEndpoint');
+  assert(receivedResponses.length === directResponseCountBefore + 1 && receivedResponses.at(-1).msgId === result.msgId, 'alpha must receive async response on replyEndpoint');
 
   const feedback = [];
   const responseCountBeforeAsync = receivedResponses.length;
@@ -266,6 +319,12 @@ async function main() {
   assert(duplicateGuard?.details?.status === 'blocked' && String(duplicateGuard?.details?.reason).includes('duplicate'), 'zpeer_ask must block duplicate target/message loop attempts');
   const selfGuard = await zpeerAsk.execute('tool-call-zpeer-ask-self', { targetAlias: 'alpha', message: 'different smoke prompt' }, undefined, undefined, { cwd: repoRoot });
   assert(selfGuard?.details?.status === 'blocked' && String(selfGuard?.details?.reason).includes('self'), 'zpeer_ask must block self-target attempts');
+  const explicitRoomToolResult = await zpeerAsk.execute('tool-call-zpeer-ask-room', { roomId: 'shared-room', targetAlias: 'sharedbeta', message: rawPrompt }, undefined, undefined, { cwd: repoRoot });
+  assert(explicitRoomToolResult?.details?.status === 'waiting' && explicitRoomToolResult?.details?.roomId === 'shared-room', 'zpeer_ask roomId must route to explicit membership room');
+  const explicitRoomFeed = feedMessages.find((item) => item.customType === 'zob-zpeer-event' && item.details?.source === 'agent-request' && item.details?.msgId === explicitRoomToolResult?.details?.msgId);
+  assert(explicitRoomFeed?.details?.roomId === 'shared-room' && explicitRoomFeed?.details?.fromAlias === 'sharedalpha' && explicitRoomFeed?.details?.toAlias === 'sharedbeta', 'zpeer_ask explicit room feed must use room-scoped fromAlias/toAlias/roomId');
+  assert(toolState.zobLive.lastEvent?.roomId === 'shared-room' && toolState.zobLive.lastEvent?.fromAlias === 'sharedalpha' && toolState.zobLive.lastEvent?.toAlias === 'sharedbeta', 'zpeer_ask explicit room lastEvent must use room-scoped aliases');
+  assert(!containsRawBody(explicitRoomToolResult), 'zpeer_ask explicit room tool result must not echo the full prompt/response body');
   const promptCountBeforeWorkerTool = receivedPrompts.length;
   const workerToolState = { zobLive: { peerCard: workerOne, pendingReplies: { wait: waitForReply } } };
   const workerRegisteredTools = new Map();

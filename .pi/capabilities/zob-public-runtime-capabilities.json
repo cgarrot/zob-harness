@@ -680,7 +680,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, mode defaults async, rate/loop guarded, raw bodies transient and durable records hash-only."
+      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, room-scoped with optional explicit roomId, mode defaults async, rate/loop guarded, raw bodies transient and durable records hash-only."
     },
     {
       "name": "zob_goal_room_send",
@@ -1369,7 +1369,7 @@
         "AGENTS.md",
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Local-only room-scoped peer UX; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
+      "noShipNotes": "Local-only multi-room-scoped peer UX with active-room compatibility; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
     },
     {
       "name": "rules_status",

@@ -2,6 +2,7 @@ import { sha256 } from "../utils/hashing.js";
 import { readZobLiveRegistrySnapshot } from "./registry.js";
 import { readZobComsV2Policy } from "./policy.js";
 import type { ZobLivePeerCard, ZobLivePresenceSummary } from "./types.js";
+import { activeZpeerRoomId, zpeerMembershipsForPeer } from "./zpeer.js";
 
 export function buildZobLivePresenceSummary(repoRoot: string, teamName?: string): ZobLivePresenceSummary {
   const policy = readZobComsV2Policy(repoRoot);
@@ -24,6 +25,7 @@ export function buildZobLivePresenceSummary(repoRoot: string, teamName?: string)
 }
 
 export function redactZobLivePeerForMissionControl(peer: ZobLivePeerCard): Record<string, unknown> {
+  const memberships = zpeerMembershipsForPeer(peer);
   return {
     team: peer.team,
     roleId: peer.roleId,
@@ -41,6 +43,10 @@ export function redactZobLivePeerForMissionControl(peer: ZobLivePeerCard): Recor
     status: peer.status,
     zpeerRoomIdHash: peer.zpeerRoomId ? sha256(peer.zpeerRoomId) : undefined,
     zpeerAliasHash: peer.zpeerAlias ? sha256(peer.zpeerAlias) : undefined,
+    zpeerActiveRoomIdHash: sha256(activeZpeerRoomId(peer)),
+    zpeerMembershipCount: memberships.length,
+    zpeerMembershipRoomHashes: memberships.map((membership) => sha256(membership.roomId)),
+    zpeerMembershipAliasHashes: memberships.map((membership) => sha256(membership.alias)),
     zpeerLocalOnly: peer.zpeerLocalOnly === true ? true : undefined,
     staleAfterMs: peer.staleAfterMs,
     offlineAfterMs: peer.offlineAfterMs,

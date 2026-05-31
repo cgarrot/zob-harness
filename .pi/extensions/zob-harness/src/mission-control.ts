@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { buildZobLivePresenceSummary, redactZobLivePeerForMissionControl } from "./coms-v2/presence.js";
 import { readZobComsV2Policy } from "./coms-v2/policy.js";
+import { zpeerMembershipsForPeer } from "./coms-v2/zpeer.js";
 import { readZobLiveRegistrySnapshot } from "./coms-v2/registry.js";
 import { buildQueueDashboardSummary } from "./queue.js";
 import type { TeamDefinition } from "./types.js";
@@ -51,22 +52,26 @@ function isHexSha256(value: unknown): boolean {
 }
 
 function summarizeZpeerRooms(peers: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
-  const rooms = new Map<string, Array<Record<string, unknown>>>();
+  const rooms = new Map<string, Array<{ peer: Record<string, unknown>; alias?: string }>>();
   for (const peer of peers) {
-    const roomId = typeof peer.zpeerRoomId === "string" ? peer.zpeerRoomId : "default";
-    const list = rooms.get(roomId) ?? [];
-    list.push(peer);
-    rooms.set(roomId, list);
+    const memberships = zpeerMembershipsForPeer(peer as unknown as Parameters<typeof zpeerMembershipsForPeer>[0]);
+    for (const membership of memberships) {
+      const list = rooms.get(membership.roomId) ?? [];
+      list.push({ peer, alias: membership.alias });
+      rooms.set(membership.roomId, list);
+    }
   }
   return [...rooms.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([roomId, roomPeers]) => {
-    const aliases = roomPeers.map((peer) => typeof peer.zpeerAlias === "string" ? peer.zpeerAlias : undefined).filter((alias): alias is string => Boolean(alias)).sort();
+    const aliases = roomPeers.map((entry) => entry.alias).filter((alias): alias is string => Boolean(alias)).sort();
+    const sessionHashes = roomPeers.map((entry) => typeof entry.peer.sessionHash === "string" ? entry.peer.sessionHash : undefined).filter((sessionHash): sessionHash is string => Boolean(sessionHash));
     return {
       schema: "zob.zpeer-room-summary.v1",
       roomIdHash: sha256(roomId),
       peerCount: roomPeers.length,
-      online: roomPeers.filter((peer) => peer.status === "online").length,
-      stale: roomPeers.filter((peer) => peer.status === "stale").length,
-      offline: roomPeers.filter((peer) => peer.status === "offline").length,
+      uniquePeerCount: new Set(sessionHashes).size,
+      online: roomPeers.filter((entry) => entry.peer.status === "online").length,
+      stale: roomPeers.filter((entry) => entry.peer.status === "stale").length,
+      offline: roomPeers.filter((entry) => entry.peer.status === "offline").length,
       aliasHashes: aliases.map((alias) => sha256(alias)),
       duplicateAliasHashes: aliases.filter((alias, index) => aliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index).map((alias) => sha256(alias)),
       localOnly: true,

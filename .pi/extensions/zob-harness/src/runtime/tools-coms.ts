@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { readZobLiveRegistrySnapshot } from "../coms-v2/registry.js";
-import { refreshZpeerSelf, safeZpeerAlias, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../coms-v2/zpeer.js";
+import { peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../coms-v2/zpeer.js";
 import { buildZobLiveEnvelope } from "../coms-v2/envelope.js";
 import { sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
 import { appendLiveDeliveredStatus, appendLiveErrorStatus, appendLiveSendRequestedRef } from "../coms-v2/ledger-bridge.js";
@@ -59,6 +59,7 @@ type ZobComsSendToolParams = {
 type ZpeerAskToolParams = {
   targetAlias: string;
   message: string;
+  roomId?: string;
   mode?: ZpeerSendMode;
   reason?: string;
   timeoutMs?: number;
@@ -70,10 +71,12 @@ function boundedZpeerAskTimeoutMs(mode: ZpeerSendMode, raw: number | undefined):
   return Math.max(1_000, Math.min(cap, Math.floor(raw ?? fallback)));
 }
 
-function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolParams, selfAlias?: string): string | undefined {
+function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolParams, selfAlias?: string, currentRoomId = "default"): string | undefined {
   const targetAlias = safeZpeerAlias(params.targetAlias);
   if (!targetAlias) return "invalid target alias";
   if (selfAlias && targetAlias === selfAlias) return "cannot send to self";
+  const roomId = safeZpeerRoomId(params.roomId) ?? currentRoomId;
+  if (params.roomId && !safeZpeerRoomId(params.roomId)) return "invalid room id";
   if (/\b(zpeer_ask|\/zpeer)\b/i.test(params.message)) return "loop guard blocked recursive ZPeer instruction";
   const messageHash = sha256(params.message);
   const now = Date.now();
@@ -81,8 +84,8 @@ function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolPara
   const current = state.zobLive.zpeerAskGuard;
   const guard = current && now - current.windowStartedMs < windowMs ? current : { windowStartedMs: now, count: 0 };
   if (guard.count >= 3) return "rate guard blocked: max 3 agent-initiated ZPeer asks per 60s window";
-  if (guard.lastTargetAlias === targetAlias && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate target/message in ask window";
-  state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, lastTargetAlias: targetAlias, lastMessageHash: messageHash };
+  if (guard.lastRoomId === roomId && guard.lastTargetAlias === targetAlias && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate room/target/message in ask window";
+  state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, lastRoomId: roomId, lastTargetAlias: targetAlias, lastMessageHash: messageHash };
   return undefined;
 }
 
@@ -176,12 +179,16 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       const self = refreshZpeerSelf(ctx.cwd, state.zobLive.peerCard);
       state.zobLive.peerCard = self;
       const targetAlias = safeZpeerAlias(params.targetAlias) ?? params.targetAlias.replace(/^@+/, "");
-      const guardReason = zpeerAskGuardBlock(state, params, self.zpeerAlias);
-      const emitZpeerAskEvent = (event: { kind: NonNullable<HarnessRuntimeState["zobLive"]["lastEvent"]>["kind"]; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string }): void => {
-        state.zobLive.lastEvent = { kind: event.kind, roomId: self.zpeerRoomId ?? "default", fromAlias: self.zpeerAlias, toAlias: targetAlias, status: event.status, reason: event.reason, msgId: event.msgId, taskHash: event.taskHash, outputHash: event.outputHash, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
+      const requestedRoomId = safeZpeerRoomId(params.roomId) ?? self.zpeerRoomId ?? "default";
+      const requestedFromAlias = peerAliasInRoom(self, requestedRoomId) ?? self.zpeerAlias;
+      const guardReason = zpeerAskGuardBlock(state, params, requestedFromAlias, requestedRoomId);
+      const emitZpeerAskEvent = (event: { kind: NonNullable<HarnessRuntimeState["zobLive"]["lastEvent"]>["kind"]; status: string; reason?: string; msgId?: string; roomId?: string; taskHash?: string; outputHash?: string }): void => {
+        const eventRoomId = event.roomId ?? requestedRoomId;
+        const fromAlias = peerAliasInRoom(self, eventRoomId) ?? requestedFromAlias;
+        state.zobLive.lastEvent = { kind: event.kind, roomId: eventRoomId, fromAlias, toAlias: targetAlias, status: event.status, reason: event.reason, msgId: event.msgId, taskHash: event.taskHash, outputHash: event.outputHash, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
         void pi.sendMessage({
           customType: "zob-zpeer-event",
-          content: `ZPeer agent-request @${self.zpeerAlias ?? "?"} → @${targetAlias} ${event.status}`,
+          content: `ZPeer agent-request @${fromAlias ?? "?"} → @${targetAlias} ${event.status}`,
           display: true,
           details: { ...state.zobLive.lastEvent, source: "agent-request", mode, bodyStored: false, localOnly: true, networkEnabled: false },
         }, { triggerTurn: false });
@@ -190,20 +197,21 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       if (guardReason) {
         const result = { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: guardReason, targetAlias, taskHash, bodyStored: false };
         emitZpeerAskEvent({ kind: "blocked", status: "blocked", reason: guardReason, taskHash });
-        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request_blocked", mode, status: "blocked", reasonHash: sha256(guardReason), targetAliasHash: sha256(targetAlias), roomIdHash: sha256(self.zpeerRoomId ?? "default"), taskHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request_blocked", mode, status: "blocked", reasonHash: sha256(guardReason), targetAliasHash: sha256(targetAlias), roomIdHash: sha256(requestedRoomId), taskHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         return { content: [{ type: "text", text: `zpeer_ask blocked: ${guardReason}` }], details: result };
       }
       const timeoutMs = boundedZpeerAskTimeoutMs(mode, params.timeoutMs);
       let feedbackEmittedTerminal = false;
       const result = await sendZpeerPrompt(ctx.cwd, self, targetAlias, params.message, (msgId) => state.zobLive.pendingReplies.wait(msgId, timeoutMs), {
         mode,
+        roomId: params.roomId,
         onFeedback: (feedback) => {
           feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired";
-          emitZpeerAskEvent({ kind: feedback.kind, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash });
+          emitZpeerAskEvent({ kind: feedback.kind, roomId: feedback.result.roomId, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash });
         },
       });
-      if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
-      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(self.zpeerRoomId ?? "default"), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), roomId: result.roomId, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
       return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
     },

@@ -94,11 +94,12 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
     return "\n\nZPEER AWARENESS\n- local peer endpoint: unavailable this turn\n- Use zpeer_ask with mode=\"async\" or /zpeer only when useful or user-requested for peer coordination; avoid spam/loops and do not invent hidden worker-to-worker chat.";
   }
   const summary = buildZpeerRoomSummary(repoRoot, state.zobLive.peerCard);
+  const memberships = state.zobLive.peerCard.zpeerMemberships?.length ?? summary.membershipCount ?? 1;
   const selfAlias = summary.selfAlias ?? "?";
   const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 8).map((alias) => `@${alias}`);
   const unavailable = summary.stale + summary.offline;
   const duplicateLine = summary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${summary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
-  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- memberships: ${memberships}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [
@@ -228,13 +229,13 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }, { triggerTurn: true, deliverAs: "followUp" });
       return buildZobLiveAckEnvelope(envelope);
     });
-    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfile?.roomId, zpeerProfile?.alias);
+    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId, zpeerProfile?.alias, zpeerProfile?.memberships);
     state.zobLive.server = server;
     state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
     state.zobLive.lastHeartbeatMs = Date.now();
     scheduleZpeerHeartbeat(state, repoRoot);
   } else {
-    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfile?.roomId, zpeerProfile?.alias));
+    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId, zpeerProfile?.alias, zpeerProfile?.memberships));
     state.zobLive.lastHeartbeatMs = Date.now();
     scheduleZpeerHeartbeat(state, repoRoot);
   }

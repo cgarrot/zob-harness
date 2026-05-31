@@ -27,8 +27,9 @@ for (const needle of ['parameters: ZpeerAskParams', 'sendZpeerPrompt(ctx.cwd', '
   if (!toolsComs.includes(needle)) failures.push(`zpeer_ask tool missing ${needle}`);
 }
 if (toolsComs.includes('emitZpeerAskEvent({ kind: "attempt", status: "agent-request"')) failures.push('zpeer_ask async must not emit pre-ACK attempt feed noise');
+if (!toolsComs.includes('peerAliasInRoom(self, requestedRoomId)') || !toolsComs.includes('peerAliasInRoom(self, eventRoomId)')) failures.push('zpeer_ask feed events must use room-scoped sender alias for explicit roomId');
 const schemas = contents['.pi/extensions/zob-harness/src/schemas.ts'];
-for (const needle of ['const ZpeerAskParams', 'targetAlias', 'message', 'Default async', '["async", "await", "long"]', 'timeoutMs', 'ZpeerAskParams']) {
+for (const needle of ['const ZpeerAskParams', 'targetAlias', 'message', 'roomId', 'Default async', '["async", "await", "long"]', 'timeoutMs', 'ZpeerAskParams']) {
   if (!schemas.includes(needle)) failures.push(`zpeer_ask schema missing ${needle}`);
 }
 const registry = contents['.pi/capabilities/zob-public-runtime-capabilities.json'];
@@ -50,13 +51,14 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'o
 
 const zpeer = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer.ts'];
 const zpeerProfile = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer-profile.ts'];
-for (const needle of ['networkEnabled: false', 'localOnly: true', 'bodyStored: false', 'sendZobLocalEnvelope', 'taskHash', 'outputHash', 'ZpeerSendMode', 'status: "waiting"', 'status: "reply"']) {
+for (const needle of ['networkEnabled: false', 'localOnly: true', 'bodyStored: false', 'sendZobLocalEnvelope', 'taskHash', 'outputHash', 'ZpeerSendMode', 'status: "waiting"', 'status: "reply"', 'zpeerMembershipsForPeer', 'joinZpeerRoom', 'leaveZpeerRoom', 'useZpeerRoom', 'roomId?: string', 'buildZpeerPeerRoomSummaries', 'active: membership.roomId === activeRoomId']) {
   if (!zpeer.includes(needle)) failures.push(`zpeer missing ${needle}`);
 }
 for (const needle of ['peer-messages.jsonl', 'peer-status.jsonl', 'appendZpeerPeerRecords', 'reasonHash', 'bodyStored: false']) {
   if (!zpeer.includes(needle)) failures.push(`zpeer hash-only peer ledger support missing ${needle}`);
 }
 if (/required_network|pi-vs-claude-code|sse/.test(zpeer)) failures.push('zpeer must not enable network/SSE transport');
+if (!zpeer.includes('normalizeZpeerMemberships(restoredMemberships)') || !zpeer.includes('restoredRoomId(roomId) ?? restoredRoomId(peer.zpeerActiveRoomId) ?? baseMemberships[0]?.roomId') || !zpeer.includes(': safeZpeerRoomId(roomId ?? peer.zpeerActiveRoomId ?? peer.zpeerRoomId)')) failures.push('ensureZpeerFields restored memberships must avoid legacy/default fallback injection');
 for (const needle of ['schema: PROFILE_SCHEMA', 'profileId', 'projectId', 'alias', 'roomId', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false', 'ZOB_ZPEER_PROFILE_ID', 'ZPEER_PROFILE', 'ZOB_COMS_SESSION_ID', 'zpeer-profiles']) {
   if (!zpeerProfile.includes(needle)) failures.push(`zpeer profile missing ${needle}`);
 }
@@ -73,9 +75,10 @@ for (const forbidden of ['prompt:', 'response:', 'body:', 'content:', 'message:'
 const command = contents['.pi/extensions/zob-harness/src/runtime/commands.ts'];
 if (!command.includes('writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer)')) failures.push('zpeer command must save profile after successful name/room changes');
 if (!command.includes('customType: "zob-zpeer-response"') || !command.includes('result.transientResponse')) failures.push('zpeer command missing transient response display support');
-for (const needle of ['customType: "zob-zpeer-event"', 'if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt"', 'feedbackEmittedTerminal', 'send_async', 'replyTimeoutMs', 'safety: local-only/hash-only/bodyStored=false']) {
+for (const needle of ['customType: "zob-zpeer-event"', 'if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt"', 'feedbackEmittedTerminal', 'send_async', 'replyTimeoutMs', 'safety: local-only/hash-only/bodyStored=false', 'verb === "join"', 'verb === "use"', 'verb === "leave"', 'verb === "rooms"', 'verb === "in"']) {
   if (!command.includes(needle)) failures.push(`zpeer command missing UX event/status support ${needle}`);
 }
+if (!command.includes('const eventFromAlias = peerAliasInRoom(state.zobLive.peerCard, eventRoomId)') || !command.includes('peerAliasInRoom(state.zobLive.peerCard, resultRoomId)')) failures.push('/zpeer in <room> events must use room-scoped sender alias');
 for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'output:', 'content:', 'message:', 'text:', 'diff:', 'patch:']) {
   const appendBlocks = [...command.matchAll(/appendEntry\("zob-zpeer",\s*\{[\s\S]*?\}\);/g)].map((m) => m[0]);
   if (appendBlocks.some((block) => block.includes(forbidden))) failures.push(`zpeer appendEntry contains forbidden key ${forbidden}`);
@@ -109,9 +112,13 @@ const captureRefBlock = transcriptCapture.match(/return \{\s*schema: "zob\.coms-
 if (!captureRefBlock || !captureRefBlock.includes('bodyStored: false')) failures.push('redacted capture ref must remain bodyStored=false');
 if (!transcriptCapture.includes('writeFileSync(artifactPath, serialized, "utf8")')) failures.push('redacted capture static smoke could not locate persisted serialized artifact write');
 if (!transcriptCapture.includes('const serialized = `${JSON.stringify(artifact, null, 2)}\\n`;')) failures.push('redacted capture must persist only the artifact object inspected by this smoke');
-if (!contents['.pi/extensions/zob-harness/src/runtime/widget.ts'].includes('ZPeer')) failures.push('HUD missing ZPeer line');
-if (!contents['.pi/extensions/zob-harness/src/runtime/widget.ts'].includes('"Last"')) failures.push('HUD missing ZPeer Last line');
-if (!contents['.pi/extensions/zob-harness/src/runtime/widget.ts'].includes('"Wait"') || !contents['.pi/extensions/zob-harness/src/runtime/widget.ts'].includes('lastHeartbeatMs')) failures.push('HUD missing ZPeer wait/heartbeat freshness line');
+const widget = contents['.pi/extensions/zob-harness/src/runtime/widget.ts'];
+if (!widget.includes('ZPeer')) failures.push('HUD missing ZPeer line');
+if (!widget.includes('"Last"')) failures.push('HUD missing ZPeer Last line');
+if (!widget.includes('"Wait"') || !widget.includes('lastHeartbeatMs')) failures.push('HUD missing ZPeer wait/heartbeat freshness line');
+for (const needle of ['buildZpeerPeerRoomSummaries', 'zpeerRoomCap = 4', 'summary.active ? "*"', 'summary.roomId', 'summary.selfAlias', 'summary.online}/${summary.peerCount}', 'summary.stale > 0', 'summary.offline > 0', '+${zpeerRoomSummaries.length - zpeerRoomCap} rooms', 'truncateToWidth(`${marker}', 'Math.min(52, Math.max(34, Math.floor(availableColumnWidth * 0.36)))', 'truncateToWidth(`${marker} ${summary.roomId} ${selfAlias} ${peerState} ${aliasText}`, 52, "…")']) {
+  if (!widget.includes(needle)) failures.push(`HUD multi-room ZPeer missing ${needle}`);
+}
 if (!contents['.pi/extensions/zob-harness/src/runtime/state.ts']?.includes('ZobLiveLastEvent')) failures.push('runtime state missing in-memory ZPeer last event type');
 if (!contents['.pi/extensions/zob-harness/src/mission-control.ts'].includes('zpeerRooms')) failures.push('Mission Control missing zpeerRooms summary');
 

@@ -7,7 +7,7 @@ import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../goal-todos
 import { isRecord } from "../utils/records.js";
 import type { AssistantLikeMessage, ModeName } from "../types.js";
 import { readHarnessReadinessWidgetData } from "../orchestration/widget-readers.js";
-import { buildZpeerRoomSummary } from "../coms-v2/zpeer.js";
+import { buildZpeerPeerRoomSummaries } from "../coms-v2/zpeer.js";
 import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import { formatZcompactHudLine } from "./auto-compaction.js";
@@ -266,20 +266,27 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
         const assistantsState = assistantsCount > 0
           ? `${assistantsCount} active`
           : "none";
-        const zpeerSummary = state.zobLive.peerCard ? buildZpeerRoomSummary(ctx.cwd, state.zobLive.peerCard) : undefined;
-        const zpeerAliases = zpeerSummary?.aliases.slice(0, 4).map((alias) => `@${alias}`).join(" ") || "none";
+        const zpeerRoomSummaries = state.zobLive.peerCard ? buildZpeerPeerRoomSummaries(ctx.cwd, state.zobLive.peerCard) : [];
         const zpeerLast = state.zobLive.lastEvent
           ? `${state.zobLive.lastEvent.kind} ${state.zobLive.lastEvent.fromAlias ? `@${state.zobLive.lastEvent.fromAlias}` : "?"}→${state.zobLive.lastEvent.toAlias ? `@${state.zobLive.lastEvent.toAlias}` : "?"} ${state.zobLive.lastEvent.status}`
           : "none";
         const zpeerPending = state.zobLive.pendingReplies.snapshot().filter((item) => item.status === "pending").length;
         const zpeerHeartbeatAge = state.zobLive.lastHeartbeatMs ? formatDuration(nowMs - state.zobLive.lastHeartbeatMs) : "—";
-        const zpeerLines = zpeerSummary
+        const zpeerRoomCap = 4;
+        const zpeerRoomLines = zpeerRoomSummaries.slice(0, zpeerRoomCap).map((summary) => {
+          const marker = summary.active ? "*" : " ";
+          const selfAlias = `@${summary.selfAlias ?? "?"}`;
+          const peerState = `${summary.online}/${summary.peerCount}${summary.stale > 0 ? ` s${summary.stale}` : ""}${summary.offline > 0 ? ` off${summary.offline}` : ""}`;
+          const peerAliases = summary.aliases.filter((alias) => alias !== summary.selfAlias).slice(0, 2).map((alias) => `@${alias}`);
+          const aliasOverflow = Math.max(0, summary.aliases.length - (summary.selfAlias && summary.aliases.includes(summary.selfAlias) ? 1 : 0) - peerAliases.length);
+          const aliasText = peerAliases.length > 0 ? `${peerAliases.join(" ")}${aliasOverflow > 0 ? ` +${aliasOverflow}` : ""}` : "no peers";
+          return theme.fg("muted", truncateToWidth(`${marker} ${summary.roomId} ${selfAlias} ${peerState} ${aliasText}`, 52, "…"));
+        });
+        if (zpeerRoomSummaries.length > zpeerRoomCap) zpeerRoomLines.push(theme.fg("dim", `+${zpeerRoomSummaries.length - zpeerRoomCap} rooms`));
+        const zpeerLines = state.zobLive.peerCard
           ? [
-            `${theme.fg("accent", "ZPeer")}`,
-            `${theme.fg("dim", "Room")} ${theme.fg("muted", zpeerSummary.roomId)}`,
-            `${theme.fg("dim", "Self")} ${theme.fg("muted", `@${zpeerSummary.selfAlias ?? "?"}`)}`,
-            `${theme.fg("dim", "Peers")} ${theme.fg("muted", `${zpeerSummary.online}/${zpeerSummary.peerCount}`)}`,
-            `${theme.fg("dim", "Aliases")} ${theme.fg(zpeerAliases === "none" ? "dim" : "muted", zpeerAliases)}`,
+            `${theme.fg("accent", "ZPeer")} ${theme.fg("muted", `${zpeerRoomSummaries.length} room${zpeerRoomSummaries.length === 1 ? "" : "s"}`)}`,
+            ...zpeerRoomLines,
             `${theme.fg("dim", "Last")} ${theme.fg(state.zobLive.lastEvent ? "muted" : "dim", zpeerLast)}`,
             `${theme.fg("dim", "Wait")} ${theme.fg(zpeerPending > 0 ? "warning" : "muted", `${zpeerPending} pending · hb ${zpeerHeartbeatAge}`)}`,
             `${theme.fg("dim", "Status")} ${theme.fg("success", "connected")}`,
@@ -322,8 +329,8 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
         }
 
         const availableColumnWidth = Math.max(1, panelWidth - 10);
-        const zpeerWidth = Math.min(34, Math.max(26, Math.floor(availableColumnWidth * 0.28)));
-        const rightWidth = Math.min(36, Math.max(28, Math.floor(availableColumnWidth * 0.30)));
+        const zpeerWidth = Math.min(52, Math.max(34, Math.floor(availableColumnWidth * 0.36)));
+        const rightWidth = Math.min(32, Math.max(28, Math.floor(availableColumnWidth * 0.26)));
         const leftWidth = Math.max(24, availableColumnWidth - zpeerWidth - rightWidth);
         return [
           border("top", panelWidth, `${theme.fg("accent", "◆ ZOB")} ${theme.fg("muted", "live")}`),

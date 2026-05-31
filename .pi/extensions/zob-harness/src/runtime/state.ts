@@ -54,7 +54,7 @@ export interface ZobLiveRuntimeState {
   peerCard?: ZobLivePeerCard;
   inbound?: { envelope: ZobLiveEnvelope; receivedAt: string; responseSent: boolean; repoRoot: string };
   lastEvent?: ZobLiveLastEvent;
-  zpeerAskGuard?: { windowStartedMs: number; count: number; lastTargetAlias?: string; lastMessageHash?: string };
+  zpeerAskGuard?: { windowStartedMs: number; count: number; lastRoomId?: string; lastTargetAlias?: string; lastMessageHash?: string };
   heartbeatTimer?: ReturnType<typeof setTimeout>;
   lastHeartbeatMs?: number;
 }

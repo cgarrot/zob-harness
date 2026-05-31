@@ -350,6 +350,7 @@ const ZobComsAwaitParams = Type.Object({
 const ZpeerAskParams = Type.Object({
   targetAlias: Type.String({ description: "ZPeer target alias in the current local room. May include or omit the leading @." }),
   message: Type.String({ description: "Transient peer request body. Used only for local live delivery; never persisted in durable ledgers or reports." }),
+  roomId: Type.Optional(Type.String({ description: "Optional ZPeer room id. Defaults to the current active local room." })),
   mode: Type.Optional(StringEnum(["async", "await", "long"] as const, { description: "Send mode. Default async for agent-initiated coordination.", default: "async" })),
   reason: Type.Optional(Type.String({ description: "Optional transient coordination reason. Hashed only in visible metadata; raw value is not persisted." })),
   timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes. Ignored by async mode; capped by runtime." })),

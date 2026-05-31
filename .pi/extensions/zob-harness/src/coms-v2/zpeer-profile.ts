@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { buildZobComsProjectId } from "./identity.js";
-import type { ZobLivePeerCard } from "./types.js";
+import type { ZobLivePeerCard, ZpeerRoomMembership } from "./types.js";
 import { sha256 } from "../utils/hashing.js";
 import { isRecord } from "../utils/records.js";
 import { safeFileStem } from "../utils/paths.js";
@@ -17,6 +17,8 @@ export interface ZpeerLocalProfile {
   projectId: string;
   alias?: string;
   roomId?: string;
+  activeRoomId?: string;
+  memberships?: ZpeerRoomMembership[];
   createdAt: string;
   updatedAt: string;
   localOnly: true;
@@ -86,6 +88,15 @@ function parseZpeerLocalProfile(value: unknown, repoRoot: string): ZpeerLocalPro
   if (typeof value.profileId !== "string" || value.projectId !== buildZobComsProjectId(repoRoot)) return undefined;
   if (value.alias !== undefined && typeof value.alias !== "string") return undefined;
   if (value.roomId !== undefined && typeof value.roomId !== "string") return undefined;
+  if (value.activeRoomId !== undefined && typeof value.activeRoomId !== "string") return undefined;
+  if (value.memberships !== undefined) {
+    if (!Array.isArray(value.memberships)) return undefined;
+    for (const membership of value.memberships) {
+      if (!isRecord(membership)) return undefined;
+      if (typeof membership.roomId !== "string" || typeof membership.alias !== "string" || typeof membership.role !== "string") return undefined;
+      if (typeof membership.joinedAt !== "string" || membership.localOnly !== true || membership.networkEnabled !== false || membership.bodyStored !== false) return undefined;
+    }
+  }
   if (typeof value.createdAt !== "string" || typeof value.updatedAt !== "string") return undefined;
   return value as unknown as ZpeerLocalProfile;
 }
@@ -100,7 +111,7 @@ export function readZpeerLocalProfile(repoRoot: string, profileId = resolveZpeer
   }
 }
 
-export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string; roomId?: string }, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
+export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string; roomId?: string; activeRoomId?: string; memberships?: ZpeerRoomMembership[] }, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
   const { dir, projectId } = zpeerProfileDir(repoRoot);
   const existing = readZpeerLocalProfile(repoRoot, profileId);
   const now = new Date().toISOString();
@@ -110,6 +121,8 @@ export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string
     projectId,
     alias: input.alias ?? existing?.alias,
     roomId: input.roomId ?? existing?.roomId,
+    activeRoomId: input.activeRoomId ?? input.roomId ?? existing?.activeRoomId,
+    memberships: input.memberships ?? existing?.memberships,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     localOnly: true,
@@ -122,6 +135,6 @@ export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string
   return profile;
 }
 
-export function writeZpeerLocalProfileFromPeer(repoRoot: string, peer: Pick<ZobLivePeerCard, "zpeerAlias" | "zpeerRoomId">, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
-  return writeZpeerLocalProfile(repoRoot, { alias: peer.zpeerAlias, roomId: peer.zpeerRoomId }, profileId);
+export function writeZpeerLocalProfileFromPeer(repoRoot: string, peer: Pick<ZobLivePeerCard, "zpeerAlias" | "zpeerRoomId" | "zpeerActiveRoomId" | "zpeerMemberships">, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
+  return writeZpeerLocalProfile(repoRoot, { alias: peer.zpeerAlias, roomId: peer.zpeerRoomId, activeRoomId: peer.zpeerActiveRoomId, memberships: peer.zpeerMemberships }, profileId);
 }

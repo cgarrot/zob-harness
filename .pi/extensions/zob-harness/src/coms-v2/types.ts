@@ -4,6 +4,17 @@ export type ZobComsTranscriptRetentionClass = "ephemeral" | "session" | "short" 
 export type ZobLiveTransportKind = "observe_only" | "local_socket" | "named_pipe" | "sse";
 export type ZobLivePeerStatus = "online" | "stale" | "offline";
 export type ZobLiveRoleType = "orchestrator" | "lead" | "worker";
+export type ZpeerRoomMembershipRole = "member" | "bridge" | "observer";
+
+export interface ZpeerRoomMembership {
+  roomId: string;
+  alias: string;
+  role: ZpeerRoomMembershipRole;
+  joinedAt: string;
+  localOnly: true;
+  networkEnabled: false;
+  bodyStored: false;
+}
 
 export interface ZobComsHeartbeatPolicy {
   enabled: boolean;
@@ -95,6 +106,8 @@ export interface ZobLivePeerCard {
   status: ZobLivePeerStatus;
   zpeerRoomId?: string;
   zpeerAlias?: string;
+  zpeerActiveRoomId?: string;
+  zpeerMemberships?: ZpeerRoomMembership[];
   zpeerLocalOnly?: true;
   staleAfterMs: number;
   offlineAfterMs: number;
