@@ -94,6 +94,29 @@ function zpeerTerminalKind(status: ZpeerSendResult["status"]): "delivered" | "wa
   return status === "reply" || status === "completed" ? "reply" : status === "blocked" ? "blocked" : status === "timeout" ? "timeout" : status === "expired" ? "expired" : status === "error" ? "error" : status === "waiting" ? "waiting" : "delivered";
 }
 
+function updatePassivePeerWaitState(state: HarnessRuntimeState, result: ZpeerSendResult, fallback: { roomId: string; targetAlias: string }): void {
+  if (result.status !== "waiting") {
+    state.zobLive.passivePeerWait = undefined;
+    return;
+  }
+  const startedAt = new Date().toISOString();
+  state.zobLive.passivePeerWait = {
+    schema: "zob.passive-peer-wait.v1",
+    status: "waiting",
+    msgId: result.msgId,
+    roomId: result.roomId ?? fallback.roomId,
+    targetAlias: result.targetAlias ?? fallback.targetAlias,
+    taskHash: result.taskHash,
+    startedAt,
+    startedAtMs: Date.now(),
+    source: "zpeer_ask",
+    suppressGoalContinuation: true,
+    bodyStored: false,
+    localOnly: true,
+    networkEnabled: false,
+  };
+}
+
 function appendBlockedLiveSend(repoRoot: string, definition: TeamDefinition, params: ZobComsSendToolParams, status: string, reason: string): Record<string, unknown> {
   return appendZobComsMessage(repoRoot, definition, {
     runId: params.runId,
@@ -196,6 +219,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       };
       const taskHash = params.message.trim() ? sha256(params.message) : undefined;
       if (guardReason) {
+        state.zobLive.passivePeerWait = undefined;
         const result = { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: guardReason, targetAlias, taskHash, bodyStored: false };
         emitZpeerAskEvent({ kind: "blocked", status: "blocked", reason: guardReason, taskHash });
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request_blocked", mode, status: "blocked", reasonHash: sha256(guardReason), targetAliasHash: sha256(targetAlias), roomIdHash: sha256(requestedRoomId), taskHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
@@ -212,6 +236,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
         },
       });
       if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), roomId: result.roomId, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
+      updatePassivePeerWaitState(state, result, { roomId: requestedRoomId, targetAlias });
       pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
       const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";

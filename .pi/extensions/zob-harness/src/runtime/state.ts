@@ -15,6 +15,7 @@ import { createDelegationMonitorState, trimDelegationRuns, type DelegationMonito
 import { DEFAULT_DAEMON_RUNTIME_POLICY, type DaemonLoopSnapshot, type DaemonRuntimePolicy, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
 import { createInteractiveAutonomyRuntimeState, restoreInteractiveAutonomyState, type InteractiveAutonomyRuntimeState } from "../interactive-autonomy.js";
 import type { ZobModeIntent } from "./mode-intent.js";
+import type { ZAgentRoomBinding } from "../zagents.js";
 import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
 import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../git-ops.js";
 
@@ -49,12 +50,29 @@ export interface ZobLiveLastEvent {
   bodyStored: false;
 }
 
+export interface ZobPassivePeerWaitState {
+  schema: "zob.passive-peer-wait.v1";
+  status: "waiting";
+  msgId?: string;
+  roomId?: string;
+  targetAlias?: string;
+  taskHash?: string;
+  startedAt: string;
+  startedAtMs: number;
+  source: "zpeer_ask";
+  suppressGoalContinuation: true;
+  bodyStored: false;
+  localOnly: true;
+  networkEnabled: false;
+}
+
 export interface ZobLiveRuntimeState {
   pendingReplies: ZobPendingReplies;
   server?: ZobLocalTransportServer;
   peerCard?: ZobLivePeerCard;
   inbound?: { envelope: ZobLiveEnvelope; receivedAt: string; responseSent: boolean; repoRoot: string };
   lastEvent?: ZobLiveLastEvent;
+  passivePeerWait?: ZobPassivePeerWaitState;
   zpeerAskGuard?: { windowStartedMs: number; count: number; lastRoomId?: string; lastTargetAlias?: string; lastMessageHash?: string };
   heartbeatTimer?: ReturnType<typeof setTimeout>;
   lastHeartbeatMs?: number;
@@ -68,6 +86,21 @@ export interface DaemonHarnessRuntimeState {
   loopTimer?: ReturnType<typeof setTimeout>;
   lastQueueTick?: QueueTickResult;
   updatedAt?: string;
+}
+
+export interface ZagentRuntimeState {
+  id?: string;
+  team?: string;
+  role?: string;
+  alias?: string;
+  description?: string;
+  rooms: ZAgentRoomBinding[];
+  activeRoom?: string;
+  prompt?: string;
+  promptRef?: string;
+  path?: string;
+  errors: string[];
+  loadedAt?: string;
 }
 
 export interface BackgroundDelegationRuntimeRun {
@@ -103,6 +136,7 @@ export interface HarnessRuntimeState {
   daemon: DaemonHarnessRuntimeState;
   zcompact: ZcompactRuntimeState;
   zcommit: ZcommitRuntimeState;
+  zagent: ZagentRuntimeState;
   backgroundDelegations: Map<string, BackgroundDelegationRuntimeRun>;
 }
 
@@ -143,6 +177,7 @@ export function createHarnessRuntimeState(): HarnessRuntimeState {
     },
     zcompact: createZcompactRuntimeState(),
     zcommit: createZcommitRuntimeState(),
+    zagent: { rooms: [], errors: [] },
     backgroundDelegations: new Map(),
   };
 }

@@ -560,6 +560,10 @@ export function resumeRuntimeGoal(goal: RuntimeGoal, requestedAdditionalTurns?: 
 export function queueRuntimeGoalContinuation(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, options: { userVisible?: boolean; retryMs?: number } = {}): void {
   const goal = state.runtimeGoal;
   if (!canContinue(goal)) return;
+  if (state.zobLive.passivePeerWait?.suppressGoalContinuation === true) {
+    clearRuntimeGoalContinuationTimer(state);
+    return;
+  }
   const humanDecision = pauseIfHumanDecisionRequired(pi, state, goal);
   if (humanDecision) {
     ctx.ui.notify(`ZOB /goal paused: ${goal.oracle.blockerSummary}`, "warning");

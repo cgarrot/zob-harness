@@ -9,8 +9,9 @@ import { appendLiveCompletedRef } from "../coms-v2/ledger-bridge.js";
 import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../coms-v2/registry.js";
-import { readZpeerLocalProfile, writeZpeerLocalProfileFromPeer, zpeerProfileIdIsSharedFallback } from "../coms-v2/zpeer-profile.js";
+import { clearZpeerNewCarryoverProfile, readZpeerLocalProfile, readZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer, writeZpeerNewCarryoverProfile, zpeerProfileIdIsSharedFallback } from "../coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, ensureZpeerFields, refreshZpeerSelf } from "../coms-v2/zpeer.js";
+import type { ZpeerRoomMembership } from "../coms-v2/types.js";
 import { buildZobLiveResponseEnvelope } from "../coms-v2/response-capture.js";
 import { writeZobComsRedactedCapture } from "../coms-v2/transcript-capture.js";
 import { formatGoalActivationMode, runtimeGoalStatusLine } from "../goal-runtime.js";
@@ -19,6 +20,7 @@ import { formatGoalTodoPromptHint } from "../goal-todos.js";
 import { resolveRuleProfile } from "../rules.js";
 import { loadDamageRules } from "../safety.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { loadZagentManifest, normalizeZagentRoomBindings, readZagentPrompt } from "../zagents.js";
 import type { AssistantLikeMessage } from "../types.js";
 import { blockedFeedback } from "../utils/formatting.js";
 import { sha256 } from "../utils/hashing.js";
@@ -55,11 +57,146 @@ function setZpeerLastEvent(state: HarnessRuntimeState, event: Omit<ZobLiveLastEv
   };
 }
 
+function clearPassivePeerWaitForResponse(state: HarnessRuntimeState, envelope: { msgId?: string; runId?: string; sender?: string; type?: string }): void {
+  const wait = state.zobLive.passivePeerWait;
+  if (!wait || envelope.type !== "response") return;
+  if (wait.msgId && envelope.msgId === wait.msgId) {
+    state.zobLive.passivePeerWait = undefined;
+    return;
+  }
+  const responseRoomId = envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined;
+  if (!wait.msgId && wait.targetAlias && envelope.sender === wait.targetAlias && (!wait.roomId || !responseRoomId || wait.roomId === responseRoomId)) {
+    state.zobLive.passivePeerWait = undefined;
+  }
+}
+
 const ZPEER_HEARTBEAT_MIN_INTERVAL_MS = 5_000;
+
+type ActiveZagentState = HarnessRuntimeState["zagent"] & { communicationPolicy?: Record<string, unknown> };
+
+function loadActiveZagentById(state: HarnessRuntimeState, repoRoot: string, zagentId: string): void {
+  const loaded = loadZagentManifest(repoRoot, zagentId);
+  const manifest = loaded.manifest;
+  const prompt = readZagentPrompt(repoRoot, manifest.promptRef);
+  const rooms = normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom);
+  const activeRoom = manifest.activeRoom ?? rooms.find((room) => room.active)?.id ?? manifest.defaultRoom;
+  const errors = [...loaded.errors, ...prompt.errors];
+  const nextZagent: ActiveZagentState = {
+    id: manifest.id,
+    team: manifest.team,
+    role: manifest.role,
+    alias: manifest.alias,
+    description: manifest.description,
+    rooms,
+    activeRoom,
+    prompt: prompt.body,
+    promptRef: manifest.promptRef,
+    path: loaded.path,
+    errors,
+    loadedAt: new Date().toISOString(),
+    communicationPolicy: manifest.communicationPolicy as Record<string, unknown> | undefined,
+  };
+  state.zagent = nextZagent;
+}
+
+function loadActiveZagentFromEnv(state: HarnessRuntimeState, repoRoot: string): void {
+  const zagentId = process.env.ZOB_ZAGENT_ID?.trim();
+  if (!zagentId) return;
+  loadActiveZagentById(state, repoRoot, zagentId);
+}
+
+function activeZagentState(state: HarnessRuntimeState): ActiveZagentState | undefined {
+  return state.zagent.id ? state.zagent as ActiveZagentState : undefined;
+}
+
+function zagentRoomIds(zagent: ActiveZagentState): string[] {
+  return zagent.rooms.map((room) => room.id).filter((roomId, index, values) => roomId && values.indexOf(roomId) === index);
+}
+
+function zagentRoomMemberships(zagent: ActiveZagentState): ZpeerRoomMembership[] | undefined {
+  const alias = zagent.alias ?? zagent.id;
+  if (!alias) return undefined;
+  const joinedAt = zagent.loadedAt ?? new Date().toISOString();
+  const memberships = zagent.rooms.map((room) => ({
+    roomId: room.id,
+    alias: room.alias ?? alias,
+    role: (room.role === "bridge" || room.role === "observer" ? room.role : "member") as ZpeerRoomMembership["role"],
+    joinedAt,
+    localOnly: true,
+    networkEnabled: false,
+    bodyStored: false,
+  } satisfies ZpeerRoomMembership));
+  return memberships.length > 0 ? memberships : undefined;
+}
+
+function formatZagentPromptHint(state: HarnessRuntimeState): string {
+  const zagent = activeZagentState(state);
+  if (!zagent) return "";
+  const rooms = zagentRoomIds(zagent);
+  const policy = zagent.communicationPolicy ? JSON.stringify(zagent.communicationPolicy) : "not specified";
+  const errors = zagent.errors.length > 0 ? `\n- load warnings: ${zagent.errors.slice(0, 5).join(" | ")}` : "";
+  const promptBody = zagent.prompt?.trim() ? `\n\nZAGENT PROMPT BODY\n${zagent.prompt.trim()}` : "";
+  return `\n\nZAGENT RUNTIME ACTIVATION\n- id: ${zagent.id}\n- team: ${zagent.team ?? "default"}\n- role: ${zagent.role ?? "not specified"}\n- alias: ${zagent.alias ? `@${zagent.alias}` : "not specified"}\n- rooms: ${rooms.join(", ") || "none"}\n- activeRoom: ${zagent.activeRoom ?? "not specified"}\n- communicationPolicy: ${policy}\n- promptRef: ${zagent.promptRef ?? "none"}\n- ZAgents are full Pi sessions tied to ZPeer/live coordination, not delegate subagents.${errors}${promptBody}`;
+}
 
 function zpeerRuntimeProfileId(ctx: ExtensionContext): string {
   const sessionIdentity = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
   return `session-${sha256(sessionIdentity).slice(0, 24)}`;
+}
+
+function parseZpeerNewSlashInput(text: string): { hard: boolean } | undefined {
+  const parts = text.trim().split(/\s+/).filter(Boolean);
+  if (parts[0]?.toLowerCase() !== "/new") return undefined;
+  return { hard: parts[1]?.toLowerCase() === "hard" };
+}
+
+function recordZpeerNewCarryoverPreflight(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string, hard: boolean): void {
+  const peer = state.zobLive.peerCard;
+  try {
+    if (hard) {
+      clearZpeerNewCarryoverProfile(repoRoot);
+    } else {
+      writeZpeerNewCarryoverProfile(repoRoot, {
+        alias: peer?.zpeerAlias,
+        roomId: peer?.zpeerRoomId,
+        activeRoomId: peer?.zpeerActiveRoomId,
+        memberships: peer?.zpeerMemberships,
+        zagentId: state.zagent.id,
+      });
+    }
+    pi.appendEntry("zob-znew", {
+      schema: "zob.znew-command.v1",
+      source: "input_pre_dispatch",
+      action: hard ? "new_hard" : "new_soft",
+      status: "ok",
+      carryoverWritten: !hard,
+      carryoverCleared: hard,
+      aliasHash: !hard && peer?.zpeerAlias ? sha256(peer.zpeerAlias) : undefined,
+      roomIdHash: !hard && peer?.zpeerRoomId ? sha256(peer.zpeerRoomId) : undefined,
+      activeRoomIdHash: !hard && peer?.zpeerActiveRoomId ? sha256(peer.zpeerActiveRoomId) : undefined,
+      membershipCount: !hard ? peer?.zpeerMemberships?.length ?? 0 : 0,
+      zagentIdHash: !hard && state.zagent.id ? sha256(state.zagent.id) : undefined,
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    pi.appendEntry("zob-znew", {
+      schema: "zob.znew-command.v1",
+      source: "input_pre_dispatch",
+      action: hard ? "new_hard" : "new_soft",
+      status: "blocked_or_failed",
+      carryoverWritten: false,
+      carryoverCleared: false,
+      errorHashes: [sha256(errorText)],
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+  }
 }
 
 function clearZpeerHeartbeatTimer(state: HarnessRuntimeState): void {
@@ -183,10 +320,16 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
   if (errors.length > 0 || !team.definition) throw new Error(errors.join("; "));
   const definition = team.definition;
   const zpeerProfile = readZpeerLocalProfile(repoRoot, profileId);
+  const explicitZagentId = process.env.ZOB_ZAGENT_ID?.trim();
+  const carryoverProfile = !explicitZagentId && !zpeerProfile ? readZpeerNewCarryoverProfile(repoRoot) : undefined;
+  if (carryoverProfile?.zagentId && state.zagent.id !== carryoverProfile.zagentId) loadActiveZagentById(state, repoRoot, carryoverProfile.zagentId);
   const sharedZpeerProfile = zpeerProfile ? zpeerProfileIdIsSharedFallback(zpeerProfile.profileId) : false;
-  const zpeerProfileRoomId = zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId;
-  const zpeerProfileAlias = sharedZpeerProfile ? undefined : zpeerProfile?.alias;
-  const zpeerProfileMemberships = sharedZpeerProfile ? undefined : zpeerProfile?.memberships;
+  const zagent = activeZagentState(state);
+  const zagentMemberships = zagent ? zagentRoomMemberships(zagent) : undefined;
+  const zagentActiveRoomId = zagent?.activeRoom ?? zagentMemberships?.find((membership) => membership.roomId)?.roomId;
+  const zpeerProfileRoomId = zagentActiveRoomId ?? zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId ?? carryoverProfile?.activeRoomId ?? carryoverProfile?.roomId;
+  const zpeerProfileAlias = zagent?.alias ?? (sharedZpeerProfile ? undefined : zpeerProfile?.alias) ?? carryoverProfile?.alias;
+  const zpeerProfileMemberships = zagentMemberships ?? (sharedZpeerProfile ? undefined : zpeerProfile?.memberships) ?? carryoverProfile?.memberships;
   if (!state.zobLive.server || !state.zobLive.peerCard) {
     const basePeer = buildCurrentZobLivePeerCard(repoRoot, definition, policy);
     const endpoint = makeZobLocalEndpoint(basePeer.sessionId);
@@ -194,6 +337,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       if (envelope.type === "ping") return buildZobLivePongEnvelope(envelope);
       if (envelope.type === "response") {
         state.zobLive.pendingReplies.complete(envelope.msgId, envelope);
+        clearPassivePeerWaitForResponse(state, envelope);
         setZpeerLastEvent(state, {
           kind: "reply",
           roomId: envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined,
@@ -249,14 +393,30 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }, { triggerTurn: true, deliverAs: "followUp" });
       return buildZobLiveAckEnvelope(envelope);
     });
-    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships);
+    const peerCard = ensureZpeerFields(repoRoot, {
+      ...basePeer,
+      team: zagent?.team ?? basePeer.team,
+      roleId: zagent?.id ?? basePeer.roleId,
+      agent: zagent?.id ?? basePeer.agent,
+      transport: "local_socket" as const,
+      endpoint,
+      endpointHash: sha256(endpoint),
+      status: "online" as const,
+    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships);
     state.zobLive.server = server;
     state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
     try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
     state.zobLive.lastHeartbeatMs = Date.now();
     scheduleZpeerHeartbeat(pi, state, ctx);
   } else {
-    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships));
+    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, {
+      ...state.zobLive.peerCard,
+      team: zagent?.team ?? state.zobLive.peerCard.team,
+      roleId: zagent?.id ?? state.zobLive.peerCard.roleId,
+      agent: zagent?.id ?? state.zobLive.peerCard.agent,
+      heartbeatAt: new Date().toISOString(),
+      status: "online",
+    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships));
     try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
     state.zobLive.lastHeartbeatMs = Date.now();
     scheduleZpeerHeartbeat(pi, state, ctx);
@@ -468,6 +628,11 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       if (delegatesMatch) {
         await showDelegationOverlay(ctx, state, delegatesMatch[1]);
         return { action: "handled" as const };
+      }
+      const znewInput = parseZpeerNewSlashInput(event.text);
+      if (znewInput) {
+        recordZpeerNewCarryoverPreflight(pi, state, ctx.cwd, znewInput.hard);
+        return { action: "continue" as const };
       }
       state.lastUserInputText = event.text;
       if (!event.text.trim().startsWith("/") && state.autonomy.enabled) {
@@ -707,11 +872,12 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       ? `\n\nZOB RULE PROFILE\n- profile: ${rules.profile}\n- rule packs: ${rules.rulePacks.join(", ") || "none"}\n- required validation: ${rules.requiredValidation.join(" | ") || "not specified"}\n- oracle required: ${String(rules.oracleRequired)}\n- no-ship conditions: ${rules.noShipConditions.slice(0, 6).join(" | ") || "none"}`
       : "\n\nZOB RULE PROFILE\n- Not resolved yet. Use /rules_status for diagnostics when scope is unclear.";
     const autonomyHint = `\n\n${formatInteractiveAutonomyPromptHint(state.autonomy)}`;
+    const zagentHint = formatZagentPromptHint(state);
     const zpeerHint = buildZpeerAwarenessPrompt(state, state.zobLive.inbound?.repoRoot ?? process.cwd());
     if (state.activeMode === "vanilla") {
       return { systemPrompt: `${event.systemPrompt}\n\n${MODE_PROMPTS.vanilla}` };
     }
-    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zpeerHint}`;
+    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });
 
@@ -720,6 +886,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     state.currentRules = loadDamageRules(ctx.cwd);
     state.delegations.runs = [];
     restoreHarnessState(state, ctx);
+    loadActiveZagentFromEnv(state, ctx.cwd);
     state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
     await startOrRefreshZobLiveRuntime(pi, state, ctx);
     applyMode(pi, state, ctx, state.activeMode, false);
