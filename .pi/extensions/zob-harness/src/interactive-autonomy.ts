@@ -249,11 +249,32 @@ function patternMatchesAny(text: string, patterns: string[]): boolean {
   });
 }
 
+const SECRET_ACCESS_VERB_PATTERN = /\b(read|cat|open|inspect|print|show|copy|extract|use|lire|ouvrir|affiche|imprime|copie|extrais|utilise)\b/i;
+const SECRET_ACCESS_CONTEXT_PATTERN = /\b(secret|token|api[_ -]?key|private\s+key|ssh\s+key|credential|identifiant)\b.{0,80}\b(read|show|print|copy|use|lire|affiche|copie|utilise)\b/i;
+const NEGATIVE_SAFETY_DIRECTIVE_PATTERN = /\b(do not|don't|dont|never|must not|mustn't|avoid|forbidden|denylist|deny list|blocked|without|no\s+secrets?|ne\s+pas|ne\s+jamais|n'ouvre\s+pas|ne\s+lis\s+pas|interdit|sans)\b/i;
+const CONTRAST_OR_EXCEPTION_PATTERN = /\b(but|however|except|unless|sauf|mais|pourtant)\b/i;
+
+function isNegativeSecretSafetyLine(line: string, policy: InteractiveAutonomyPolicy): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || !patternMatchesAny(trimmed, policy.safety.secretPatterns)) return false;
+  if (CONTRAST_OR_EXCEPTION_PATTERN.test(trimmed)) return false;
+  return NEGATIVE_SAFETY_DIRECTIVE_PATTERN.test(trimmed)
+    || /^\s*(must\s+not|forbidden[_ -]?paths?|forbidden|denylist|deny[_ -]?list|do\s+not)\s*[:\-]/i.test(trimmed);
+}
+
+function secretAccessDetectionText(text: string, policy: InteractiveAutonomyPolicy): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !isNegativeSecretSafetyLine(line, policy))
+    .join("\n");
+}
+
 function secretAccessRequested(text: string, policy: InteractiveAutonomyPolicy): boolean {
-  const secretMention = patternMatchesAny(text, policy.safety.secretPatterns);
+  const detectionText = secretAccessDetectionText(text, policy);
+  const secretMention = patternMatchesAny(detectionText, policy.safety.secretPatterns);
   if (!secretMention) return false;
-  return /\b(read|cat|open|inspect|print|show|copy|extract|use|lire|ouvrir|affiche|imprime|copie|extrais|utilise)\b/i.test(text)
-    || /\b(secret|token|api[_ -]?key|private\s+key|ssh\s+key|credential|identifiant)\b.{0,80}\b(read|show|print|copy|use|lire|affiche|copie|utilise)\b/i.test(text);
+  return SECRET_ACCESS_VERB_PATTERN.test(detectionText)
+    || SECRET_ACCESS_CONTEXT_PATTERN.test(detectionText);
 }
 
 function productionApplyRequested(text: string): boolean {

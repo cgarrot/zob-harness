@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { discoverAgents } from "../agents.js";
 import { DEFAULT_RULES, SUPERVISED_READONLY_CHILD_TOOLS } from "../constants.js";
 import { validateOutputContractId } from "../output-contracts.js";
+import { validateAllowedPathPolicy } from "../safety.js";
 import type {
   AdaptiveDelegationGovernorState,
   AdaptiveDelegationPolicy,
@@ -306,6 +307,7 @@ export function validateDelegationRequestHardGates(input: {
   const knownAgents = new Set(discoverAgents(input.repoRoot, "project").map((agent) => agent.name.toLowerCase()));
   if (request.requestedAgent && !knownAgents.has(request.requestedAgent.toLowerCase())) errors.push(`adaptive_delegation requestedAgent is not a known project agent: ${request.requestedAgent}`);
   errors.push(...validateAdaptiveDelegationEvidenceRefs(input.repoRoot, request.evidenceRefs));
+  errors.push(...validateAllowedPathPolicy(request.targetFileSet, "adaptive_delegation targetFileSet", input.repoRoot));
   for (const [field, value] of [["proposedTaskHash", request.proposedTaskHash], ["proposedContextHash", request.proposedContextHash], ["rationaleHash", request.rationaleHash]] as const) {
     const error = optionalHashError(field, value);
     if (error) errors.push(error);

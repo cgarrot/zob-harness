@@ -135,10 +135,39 @@ function isRepoRelativePattern(path: string): boolean {
   return !normalized.startsWith("/") && !normalized.startsWith("~/") && normalized !== "~";
 }
 
+function isWindowsAbsolutePattern(path: string): boolean {
+  return /^[a-zA-Z]:\//.test(normalizePolicyPattern(path));
+}
+
+function hasTraversalSegment(path: string): boolean {
+  return normalizePolicyPattern(path).split("/").some((segment) => segment === "..");
+}
+
+function allowedPathGuidance(label: string, path: string, reason: string): string {
+  return `${label} path must be repo-relative only (${reason}) and stay inside repo root: ${path}. If the child needs external context, write or cite a repo-local snapshot/context_ref under reports/... and pass that repo-relative ref instead.`;
+}
+
 export function validateAllowedPathPolicy(paths: string[] | undefined, label: string, repoRoot: string): string[] {
   const errors: string[] = [];
   for (const path of paths ?? []) {
-    if (!staysInsideRepo(path, repoRoot)) errors.push(`${label} path must stay inside repo root: ${path}`);
+    const normalized = normalizePolicyPattern(path);
+    if (path.includes("\0")) {
+      errors.push(allowedPathGuidance(label, path, "NUL bytes are not allowed"));
+      continue;
+    }
+    if (normalized === "" || normalized === "." || normalized === "./") {
+      errors.push(allowedPathGuidance(label, path, "broad repo roots are not allowed"));
+      continue;
+    }
+    if (normalized.startsWith("/") || normalized === "~" || normalized.startsWith("~/") || isWindowsAbsolutePattern(normalized)) {
+      errors.push(allowedPathGuidance(label, path, "absolute and home paths are not allowed"));
+      continue;
+    }
+    if (hasTraversalSegment(normalized)) {
+      errors.push(allowedPathGuidance(label, path, "path traversal segments are not allowed anywhere in allowed_paths"));
+      continue;
+    }
+    if (!staysInsideRepo(path, repoRoot)) errors.push(allowedPathGuidance(label, path, "path must not escape the repo"));
   }
   return errors;
 }

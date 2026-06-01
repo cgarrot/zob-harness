@@ -85,8 +85,33 @@ export function looksLikeCompletePlanResponse(text: string): boolean {
   return score >= 3;
 }
 
+const DESTRUCTIVE_COMMAND_PATTERN = /\b(rm\s+-rf|git\s+reset\s+--hard|git\s+clean\b|shutdown\b|reboot\b|mkfs\b)\b/i;
+const SECRET_REF_PATTERN = /(?:\.env\b|~\/\.ssh|~\/\.aws|\bssh\b|\baws\b|\b(?:api[_-]?key|private key|secret key|keys?|credentials?|secrets?)\b)/i;
+const SECRET_TOUCH_ACTION_PATTERN = /\b(read|open|cat|print|show|copy|upload|exfiltrate|inspect|touch|modify|edit|write|access|use|load|source|dump|list)\b/i;
+const NEGATIVE_SAFETY_INSTRUCTION_PATTERN = /\b(?:do not|don't|must not|never|avoid|without|forbidden_paths?|forbidden|deny(?:list)?|no secrets?|ne pas|n['’]?(?:ouvre|ouvre pas|acc[eè]de|acc[eè]de pas|lis|lis pas)|interdit|sans)\b/i;
+const PROMPT_INJECTION_NEGATIVE_PATTERN = /\b(?:do not|don't|must not|never)\s+(?:ignore|obey|follow|respect|comply|listen|refuse|decline)\b/i;
+const NEGATIVE_SECRET_CLAUSE_SPLIT_PATTERN = /\b(?:but|however|except|unless|then|also|or|and)\b|[:,]/i;
+
+function hasSecretTouchAction(part: string): boolean {
+  return SECRET_REF_PATTERN.test(part) && SECRET_TOUCH_ACTION_PATTERN.test(part);
+}
+
+function isBenignNegativeSecretInstruction(part: string): boolean {
+  if (!NEGATIVE_SAFETY_INSTRUCTION_PATTERN.test(part) || !hasSecretTouchAction(part)) return false;
+  if (PROMPT_INJECTION_NEGATIVE_PATTERN.test(part)) return false;
+
+  const [, ...tails] = part.split(NEGATIVE_SECRET_CLAUSE_SPLIT_PATTERN);
+  return !tails.some((tail) => hasSecretTouchAction(tail) && !NEGATIVE_SAFETY_INSTRUCTION_PATTERN.test(tail));
+}
+
+function looksSecretTouching(text: string): boolean {
+  return text
+    .split(/[!?;\n]+|(?<=\S)\.(?=\s|$)/)
+    .some((part) => hasSecretTouchAction(part) && !isBenignNegativeSecretInstruction(part));
+}
+
 function looksDestructive(text: string): boolean {
-  return /\b(rm\s+-rf|git\s+reset\s+--hard|git\s+clean\b|shutdown\b|reboot\b|mkfs\b)\b|\.env\b|~\/\.ssh|~\/\.aws/i.test(text);
+  return DESTRUCTIVE_COMMAND_PATTERN.test(text) || looksSecretTouching(text);
 }
 
 function hasModeEvidence(mode: ModeName, text: string): boolean {

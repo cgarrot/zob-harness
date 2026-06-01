@@ -78,8 +78,12 @@ function userAskedForPlan(text: string | undefined): boolean {
 export function shouldCapturePlanResponse(input: PlanCaptureInput): boolean {
   const text = normalizePlanText(input.assistantText);
   if (text.length < 160) return false;
+
+  // Plan capture must be intentional. Delivery reports in implement/oracle/explore modes can
+  // share plan-like formatting (files, validation, risks), so formatting alone is not enough.
+  if (input.mode !== "plan") return false;
+
   if (looksLikeCompletePlanResponse(text)) return true;
-  if (!userAskedForPlan(input.userText) && input.mode !== "plan") return false;
   const structuralSignals = [
     /^\s*#{1,3}\s+.*\bplan\b/im.test(text),
     /^\s*(?:plan|roadmap|objectif|objectifs|scope|p[eé]rim[eè]tre)\b/im.test(text),
@@ -87,7 +91,7 @@ export function shouldCapturePlanResponse(input: PlanCaptureInput): boolean {
     (text.match(/^\s*\d+[.)]\s+/gm) ?? []).length >= 3,
     /\b(validation|tests?|risques?|risks?|fichiers?|files|succ[eè]s|success)\b/i.test(text),
   ].filter(Boolean).length;
-  return structuralSignals >= 2;
+  return userAskedForPlan(input.userText) ? structuralSignals >= 2 : structuralSignals >= 3;
 }
 
 export function extractPlanTitle(text: string): string {
