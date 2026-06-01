@@ -1,9 +1,8 @@
 {
   "name": "zob-harness",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "A local-first Pi harness for contract-driven agentic engineering, safety gates, specialist delegation, and software-factory workflows.",
+  "description": "A governed, human-controlled Pi harness for contract-driven agentic engineering, safety gates, specialist delegation, and software-factory workflows.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -95,6 +94,14 @@
     "validate:project-dna": "node scripts/project-dna/validate-scaffold.mjs",
     "smoke:project-dna-scan": "node scripts/project-dna/scan.mjs --source-path .pi/factories/project-dna --source-id project-dna-factory --out-dir reports/project-dna-scans/project-dna-factory-smoke",
     "validate:project-dna-scan:smoke": "node scripts/project-dna/validate-scan-artifacts.mjs --scan-dir reports/project-dna-scans/project-dna-factory-smoke",
+    "plan:project-dna-workflow:smoke": "node scripts/project-dna/plan-workflow.mjs --manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke} --out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/agentic-plan.json",
+    "validate:project-dna-workflow:smoke": "node scripts/project-dna/validate-workflow.mjs --plan ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/agentic-plan.json --manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json",
+    "emit:project-dna-ontology:smoke": "node scripts/project-dna/emit-ontology.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
+    "validate:project-dna-ontology:smoke": "node scripts/project-dna/validate-ontology.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
+    "emit:project-dna-golden-cases:smoke": "node scripts/project-dna/emit-golden-cases.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
+    "validate:project-dna-golden-cases:smoke": "node scripts/project-dna/validate-golden-cases.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
+    "steward:project-dna-query:smoke": "node scripts/project-dna/query-steward.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke} --query 'How does ProjectDNA keep bounded cited context?' --golden-case-id agentic-control-plane --out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/query-steward-smoke.json",
+    "validate:project-dna-5of5:smoke": "node scripts/project-dna/validate-5of5.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
     "validate:model-catalog": "node scripts/model-catalog/validate.mjs",
     "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs",
     "smoke:harness-switch": "node scripts/harness-switch/static-smoke.mjs"
