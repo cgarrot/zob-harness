@@ -47,6 +47,8 @@ EvidenceGraph = validation commands, reports, checkpoints, sentinels, hashes
 - Safe auto-open/delegation is allowed for runtime-delegatable TODOs (`planned`, `ready`, `in_progress`, `needs_review`) when no active child/run owns the leaf and scope/ownership are clear; do not auto-open `needs_user`, `needs_oracle`, `blocked`, `claim_returned`, or active delegated/review states.
 - Recover delegated/recovery leaves only when no active child/run owns the TODO and stale metadata can be safely cleared; otherwise block/review and do not redelegate the same leaf.
 - No same-leaf parallel write workers. If multiple agents or parallel work are needed, split into subtodos first and dispatch one owner per writable leaf.
+- Parallel owner pools use read-across/write-by-owner: sibling workers may read cited outputs/context and Goal Room summaries, but only the leaf owner edits its owned paths, and planned write paths must be within owned paths. Read-across never grants write access; overlap with write paths requires a hash-only justification. Workspace claims are metadata-only; an owner's own active listed write claim can cover write intent while other overlaps remain conflicts. Cross-owner changes require a parent-visible owner request and owner/parent decision, with requested paths covered by the named owner assignment when a plan exists; children without harness extensions may emit a hash/body-free `OWNER_CHANGE_REQUEST.v1` final-output block for parent-side extraction only.
+- Goal Room is canonical for pool coordination, owner requests/decisions, blockers, evidence refs, and oracle-visible history. ZPeer is optional transient live clarification and must be summarized to Goal Room when it changes decisions.
 - A subagent returns a claim; the parent accepts or rejects it.
 - Child-spawns-child is forbidden. Child-proposes-child is allowed only through parent-owned adaptive delegation gates.
 - Children may propose XDEF/deeper splits with `TODO_SPLIT_REQUEST.v1`; only the parent applies `split_goal_todo` and dispatches follow-up agents.
@@ -195,6 +197,7 @@ Parent action after a split request:
 
 - validate output contract, depth/fanout caps, scope, no_ship, and relevance;
 - apply `split_goal_todo` only from the parent;
+- assign one writable owner per new leaf and record owned/write paths plus read-across refs;
 - mark the original parent TODO skipped/decomposed only after child TODOs are created;
 - never let the child directly split, dispatch, or complete the parent TODO.
 

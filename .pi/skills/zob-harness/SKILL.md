@@ -29,8 +29,10 @@ For routing behavior, load `zob-tool-router` before non-trivial or tool-ambiguou
    - MUST DO
    - MUST NOT DO
    - CONTEXT
-7. For code changes, verify with the smallest relevant command first.
-8. End with evidence and a compliance line.
+7. For parallel owner micro-worker pools, split broad TODOs into owned leaves before dispatch; use `zob_worker_pool_plan`/`zob_worker_pool_status` only to create/read metadata-only owned/write/read-across coordination records, then dispatch actual children parent-owned through `delegate_task`/`delegate_agent` with explicit TODO linkage and repo-relative owned/write grants. `zob_worker_pool_owner_request`/`zob_worker_pool_owner_decision` record body-free Goal Room owner arbitration only; they never apply changes, mutate TODOs, or dispatch children.
+8. Use Goal Room as the canonical parent-visible coordination record; ZPeer is transient/local and cannot replace typed decisions, evidence, or owner arbitration.
+9. For code changes, verify with the smallest relevant command first.
+10. End with evidence and a compliance line.
 
 ## Planning in auto-mode
 
@@ -57,4 +59,10 @@ When the user asks for a plan:
 - Never read `.env` or secrets. Ask the user instead.
 - Never run destructive git/shell commands without explicit approval.
 - Do not commit unless explicitly requested.
+- Delegation/orchestration `allowed_paths` are repo-relative-only grants; do not use absolute/home/traversal/broad-root paths. Represent external context through repo-local `reports/...` snapshots or `context_ref` artifacts. `forbidden_paths` stay deny-only and may use specific absolute/home patterns when safe.
 - Stop-on-blocker: when a human-decision blocker is already visible on a paused goal (score >=90, no `nextAgent`), report once and wait for `/goal resume` or `resume_goal`; do not repeat the ask, redispatch, auto-resume, or bypass oracle/no_ship/evidence gates.
+- Parallel owner pools are supervised: worker-pool tools are metadata/coordination only; actual worker launch remains parent-owned through delegation tools. No child-spawns-child, no child parent-TODO mutation, no direct main-workspace apply/merge, no stale/offline delivery success, and no completion without validation/oracle evidence when required.
+
+## Bash timeouts
+
+Every `bash` call MUST set a `timeout` scaled to the action (small reads/greps: ~5-30 s; repo-wide greps/finds: ~60 s; npm/build/install: ~300 s). On timeout, first narrow the command (scope, glob, depth); only retry with a larger timeout when the narrow form is correct but genuinely slow, and stay reasonable — never set `timeout: 0`.

@@ -795,6 +795,89 @@
       "noShipNotes": "Lists metadata-only workspace leases; no bodies and no source writes."
     },
     {
+      "name": "zob_worker_pool_plan",
+      "family": "worker-pool",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-sandbox/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PARALLEL_OWNER_POOLS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Creates metadata-only/body-free parent-owned pool assignment records for owned/write/read-across path coordination; never dispatches children, mutates TODOs, applies writes, or stores raw task/prompt/output/diff bodies. Actual child dispatch remains parent-owned through delegate_task/delegate_agent with explicit repo-relative grants and TODO linkage."
+    },
+    {
+      "name": "zob_worker_pool_status",
+      "family": "worker-pool",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PARALLEL_OWNER_POOLS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Lists worker-pool metadata and overlap blockers only; body-free read/status surface, no dispatch, no TODO mutation, no auto-apply, and no delivery/completion success claim."
+    },
+    {
+      "name": "zob_worker_pool_owner_request",
+      "family": "worker-pool",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PARALLEL_OWNER_POOLS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Records a body-free parent-visible OWNER_CHANGE_REQUEST for non-owner path needs; hash/artifact refs only, no hidden worker chat, no worker-to-worker direct decision, no dispatch, no TODO mutation, and no write/apply semantics."
+    },
+    {
+      "name": "zob_worker_pool_owner_decision",
+      "family": "worker-pool",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_PARALLEL_OWNER_POOLS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Records a body-free parent/owner decision for an OWNER_CHANGE_REQUEST; approval means eligible for parent/owner handling only, not merge/apply, child dispatch, direct TODO mutation, or autonomous production write."
+    },
+    {
       "name": "zob_merge_candidate_submit",
       "family": "merge-queue",
       "modes": [
@@ -1278,6 +1361,23 @@
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
       "noShipNotes": "Factory-mode only; requires manifest/checkpoint/sentinel validation."
+    },
+    {
+      "name": "zob_zcommit_run",
+      "family": "git/commit",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-commit/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/git-policy.json",
+        ".pi/extensions/zob-harness/src/git-ops.ts",
+        ".pi/extensions/zob-harness/src/runtime/tools-zcommit.ts"
+      ],
+      "noShipNotes": "Agent-executable governed zcommit tool for plan|commit|push|commit_and_push. Use when the user explicitly asks the agent to commit/push so the agent does not ask the user to paste /zcommit commands. It reuses the /zcommit engine, supports session_modified/pathspecs/all_safe_dirty scopes, stores body-free ledgers, stages only selected paths via git add --, excludes runtime/secrets/vendor/build paths, and never uses direct git commit/push/tag or git add ./-A/--all."
     }
   ],
   "commands": [
@@ -1295,6 +1395,23 @@
         "docs/ZOB_ADAPTIVE_WORKFLOW_RUNTIME_PLAN.md"
       ],
       "noShipNotes": "Switches active harness mode only. orchestrator routes to adaptive-chief-vision plan_only defaults; child dispatch requires parent-owned contract/preflight gates and writes remain blocked without sandbox/oracle/human approval."
+    },
+    {
+      "name": "stop",
+      "family": "runtime-control",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        ".pi/extensions/zob-harness/src/runtime/commands.ts",
+        ".pi/extensions/zob-harness/src/goal-runtime.ts"
+      ],
+      "noShipNotes": "Session-local stop command only: aborts foreground work through ctx.abort when busy, aborts active background delegate_task controllers, stops supervised daemon loop, pauses runtime-goal auto-continuation, and appends body-free/hash-only telemetry. It must not shutdown Pi, kill arbitrary processes, or count append-only refs as delivery success."
     },
     {
       "name": "delegates",
@@ -1354,6 +1471,23 @@
         ".pi/extensions/zob-harness/src/runtime/auto-compaction.ts"
       ],
       "noShipNotes": "Session-local proactive compaction UX. Default policy triggers around 60% context and targets roughly 25% after compaction by summarizing older compactable conversation entries while keeping recent user/assistant messages clear. observe mode is no-mutation; on/trigger call ctx.compact only when idle/no queued messages except explicit trigger; ledgers remain metadata/hash-only and summaries are continuity indexes, not evidence."
+    },
+    {
+      "name": "zcommit",
+      "family": "git/commit",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-commit/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/git-policy.json",
+        ".pi/extensions/zob-harness/src/git-ops.ts",
+        ".pi/extensions/zob-harness/src/runtime/commands.ts"
+      ],
+      "noShipNotes": "Easy governed explicit-only /zcommit status [paths/globs...]|plan [paths/globs...]|adopt <paths...>|commit [paths/globs...]|push|autocommit on|off|autopush on|off. No aliases. Normal mode selects safe dirty workspace files after forbidden-path filtering, or an explicit safe subset by repo-relative file/directory/glob pathspecs. Adopt remains metadata-only for legacy/strict ownership hints and never stages. Commit uses explicit git add -- selected paths only, never git add . or -A; forbidden staged paths block, forbidden unstaged paths are excluded, advisory validation is recorded in the Conventional Commit body, and push is limited to last /zcommit-created HEAD via allowed remote/branch without force/tags/push-all."
     },
     {
       "name": "zpeer",

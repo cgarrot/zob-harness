@@ -16,7 +16,7 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - Validate topology before any live or ledger send.
 - Keep Orchestrator -> Lead, Lead -> Worker, Worker -> Lead as the normal topology for direct role-to-role messages.
 - Allow Shared Goal Room messages only when they are parent-visible, typed, metadata/hash-only, and not hidden worker-to-worker free chat.
-- Treat governed requests (`DELEGATION_REQUEST.v1`, `ORACLE_REQUEST.v1`, `CONTEXT_REQUEST.v1`) as proposals only: parent/governor decides; extraction must not dispatch, mutate TODO state, or store raw bodies.
+- Treat governed requests (`DELEGATION_REQUEST.v1`, `ORACLE_REQUEST.v1`, `CONTEXT_REQUEST.v1`, `OWNER_CHANGE_REQUEST.v1`) as proposals only: parent/governor decides; extraction must not dispatch, mutate TODO state, apply owner changes, or store raw bodies.
 - Treat stale/offline as blockers, not completion evidence.
 - Keep Mission Control commands proposal-only and parent-owned.
 - Run body-free checks before claiming PASS.
@@ -30,6 +30,17 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - No silent fallback from required live delivery to append-only success.
 - No token/secret logging.
 
+## Goal Room and owner-pool safety
+
+For parallel owner micro-worker pools:
+
+- Goal Room is canonical for parent-visible coordination, decisions, owner requests, and evidence refs.
+- ZPeer is transient/live assist only; use it for immediate local questions, then summarize decisions as typed Goal Room metadata when they affect scope, ownership, or merge readiness.
+- Enforce read-across/write-by-owner: workers may read sibling outputs and owner summaries, but only the assigned owner writes its owned paths/leaf. Non-owners send `OWNER_CHANGE_REQUEST.v1`/governed request metadata and wait for owner/parent decision.
+- For `--no-extensions` children, use final-output `OWNER_CHANGE_REQUEST.v1` blocks with `requested_by`, `owner_worker`, `requested_paths`, `body_hash`, `change_hash`, `reason_hash`, optional `validation_plan_hash`, safe refs, and `FINAL_MARKER: OWNER_CHANGE_REQUEST_END`; parent extraction appends Goal Room metadata only.
+- Owner decisions are parent-visible and typed: approve, deny, defer, split, or escalate-to-parent/oracle. Approval is not an apply/merge.
+- Peer writes, hidden free chat, stale/offline success, direct main-workspace writes, missing validation, or missing oracle on risky merge readiness are no-ship blockers.
+
 ## No-ship triggers
 
 No-ship if:
@@ -37,5 +48,7 @@ No-ship if:
 - live send succeeds while receiver is absent/stale/offline;
 - await treats timeout/stale/offline as success;
 - hidden worker-to-worker free chat works outside a typed parent-visible Goal Room;
+- a non-owner writes owned paths instead of sending an owner request;
+- a worker applies or merges directly into the main workspace;
 - network starts without explicit auth/locality policy;
 - `zob_coms_readiness` fails.

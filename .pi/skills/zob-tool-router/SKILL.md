@@ -57,6 +57,7 @@ Do not use this skill for a small factual answer when no tools are needed.
 | factory | Repeated workflow, smoke/pilot/batch gates, manifests, checkpoints, sentinels | `factory_run`, factory quarantine tools, autonomous factory read-only smokes; skill `zob-factory` |
 | coms / goal-room | Parent-visible coordination, live required-local handoff, blockers, TODO claims, status refs | `zob_goal_room_*`, `zob_coms_*`; skills `zob-coms-v2-live`, `zob-coms-safety` |
 | workspace / merge queue | Parallel write intent, sandbox diff review, parent-owned manual apply decisions | `zob_workspace_claim`, `zob_workspace_release`, `zob_merge_candidate_submit`, `zob_merge_queue_decide`; skill `zob-sandbox` |
+| worker-pool | Parent-owned same-type/read-only or write-by-owner pool planning, path ownership/read-across coordination, owner requests/decisions | `zob_worker_pool_plan`, `zob_worker_pool_status`, `zob_worker_pool_owner_request`, `zob_worker_pool_owner_decision`; skills `zob-harness`, `zob-delegation-routing`, `zob-coms-safety` |
 | autonomous runtime | Dry-run, readonly smoke, validation evidence, or any autonomy readiness claim | `zob_autonomous_*`; skill `zob-autonomous-runtime` |
 | Mission Control | Dashboard snapshots, readiness, pause/resume/replan/request-oracle proposals | `zob_mission_control_*`, `zob_coms_readiness`; skill `zob-mission-control-coms` |
 | oracle | Final readiness, no-ship, safety/security, release, sandbox apply, or autonomous enablement | oracle agent/review, `propose_goal_completion`, `record_goal_oracle`; skill `zob-oracle` |
@@ -89,6 +90,7 @@ TOOL ROUTING VERDICT
   - factory: use | delegate | skip — reason
   - coms/goal-room: use | delegate | skip — reason
   - workspace/merge: use | delegate | skip — reason
+  - worker-pool: use | delegate | skip — reason
   - autonomous: use | delegate | skip — reason
   - oracle: use | delegate | skip — reason
 - selected skills:

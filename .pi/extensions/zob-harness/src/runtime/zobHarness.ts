@@ -16,7 +16,9 @@ import { registerGoalRuntimeEvents, registerGoalRuntimeTools } from "../goal-run
 import { registerGoalRoomTools } from "./tools-goal-room.js";
 import { registerGovernedRequestTools } from "./tools-governed-requests.js";
 import { registerWorkspaceClaimTools } from "./tools-workspace-claims.js";
+import { registerWorkerPoolTools } from "./tools-worker-pool.js";
 import { registerMergeQueueTools } from "./tools-merge-queue.js";
+import { registerZcommitTools } from "./tools-zcommit.js";
 import { renderHarnessWidget } from "./widget.js";
 
 export default function zobHarness(pi: ExtensionAPI): void {
@@ -35,7 +37,10 @@ export default function zobHarness(pi: ExtensionAPI): void {
   registerGoalRoomTools(pi);
   registerGovernedRequestTools(pi);
   registerWorkspaceClaimTools(pi);
+  registerWorkerPoolTools(pi);
   registerMergeQueueTools(pi);
+
+  registerZcommitTools(pi, state);
 
   registerMissionControlTools(pi);
 

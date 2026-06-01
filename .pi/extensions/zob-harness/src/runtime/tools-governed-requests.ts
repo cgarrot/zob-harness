@@ -8,7 +8,7 @@ export function registerGovernedRequestTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "zob_governed_request_extract",
     label: "ZOB Governed Request Extract",
-    description: "Extract DELEGATION_REQUEST.v1 / ORACLE_REQUEST.v1 / CONTEXT_REQUEST.v1 from transient text, append parent-visible Goal Room requests, and never dispatch or mutate TODO state.",
+    description: "Extract DELEGATION_REQUEST.v1 / ORACLE_REQUEST.v1 / CONTEXT_REQUEST.v1 / OWNER_CHANGE_REQUEST.v1 from transient text, append parent-visible Goal Room requests, and never dispatch, apply, or mutate TODO state.",
     promptSnippet: "Extract governed requests from transient child output without executing actions.",
     parameters: GovernedRequestExtractParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {

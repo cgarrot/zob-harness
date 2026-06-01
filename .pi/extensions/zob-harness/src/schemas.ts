@@ -360,7 +360,17 @@ const ZobComsReadinessParams = Type.Object({
   team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
 });
 
-const GoalRoomKindEnum = StringEnum(["QUESTION", "ANSWER", "FINDING", "ACTION_TAKEN", "ARTIFACT_READY", "TODO_CLAIM", "BLOCKER", "RISK", "NO_SHIP_ALERT", "CONTEXT_REQUEST", "SPLIT_REQUEST", "DELEGATION_REQUEST", "ORACLE_REQUEST", "HANDOFF", "DECISION", "STATUS_UPDATE"] as const, { description: "Typed goal-room message kind." });
+const ZcommitRunParams = Type.Object({
+  action: Type.Optional(StringEnum(["plan", "commit", "push", "commit_and_push"] as const, { description: "Governed zcommit action. Default plan." })),
+  scope: Type.Optional(StringEnum(["session_modified", "pathspecs", "all_safe_dirty"] as const, { description: "File selection scope. session_modified uses current runtime touched/owned paths; pathspecs uses paths; all_safe_dirty uses the easy filtered workspace." })),
+  paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative files, directories, or globs to include when scope=pathspecs, or to narrow session_modified." })),
+  message: Type.Optional(Type.String({ description: "Optional Conventional Commit subject, e.g. feat(worker-pool): add supervised owner micro-worker pools." })),
+  body: Type.Optional(Type.Array(Type.String(), { description: "Optional commit body lines. Stored only in git commit when commit runs; ledger stores hashes only." })),
+  push: Type.Optional(Type.Boolean({ description: "When true with action=commit, also request push behavior. action=commit_and_push is preferred." })),
+  user_requested: Type.Optional(Type.Boolean({ description: "Set true only when the user explicitly asked the agent to commit/push. Required for commit/push unless autocommit is on." })),
+});
+
+const GoalRoomKindEnum = StringEnum(["QUESTION", "ANSWER", "FINDING", "ACTION_TAKEN", "ARTIFACT_READY", "TODO_CLAIM", "BLOCKER", "RISK", "NO_SHIP_ALERT", "CONTEXT_REQUEST", "SPLIT_REQUEST", "DELEGATION_REQUEST", "ORACLE_REQUEST", "OWNER_CHANGE_REQUEST", "OWNER_CHANGE_DECISION", "HANDOFF", "DECISION", "STATUS_UPDATE"] as const, { description: "Typed goal-room message kind." });
 const GoalRoomAudienceEnum = StringEnum(["all", "parent", "lead", "oracle", "worker"] as const, { description: "Visible goal-room audience bucket. This is not hidden peer chat." });
 const GoalRoomPriorityEnum = StringEnum(["low", "normal", "high", "critical"] as const, { description: "Goal-room message priority." });
 
@@ -393,8 +403,78 @@ const ZobGoalRoomListParams = Type.Object({
 
 const GovernedRequestExtractParams = Type.Object({
   goal_id: Type.String({ description: "Parent goal id / Goal Room id where extracted requests should be made visible. Must be path-safe." }),
-  transient_text: Type.String({ description: "Transient child output/request text to parse. Raw text is never persisted by this tool." }),
+  transient_text: Type.String({ description: "Transient child output/request text to parse. Supports DELEGATION_REQUEST.v1, ORACLE_REQUEST.v1, CONTEXT_REQUEST.v1, and OWNER_CHANGE_REQUEST.v1 blocks. Raw text is never persisted by this tool." }),
   append_to_goal_room: Type.Optional(Type.Boolean({ description: "Append parsed requests to the parent-visible Goal Room. Default true." })),
+  team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
+});
+
+const WorkerPoolCommunicationPolicyParams = Type.Object({
+  mode: Type.Optional(StringEnum(["goal_room_only", "goal_room_with_optional_live"] as const, { description: "Goal Room remains canonical; live/ZPeer is optional transient delivery only." })),
+  parent_visible: Type.Optional(Type.Boolean({ description: "Must not be false; persisted records are parentVisible=true." })),
+  hidden_peer_chat: Type.Optional(Type.Boolean({ description: "Must not be true; hidden worker chat is blocked." })),
+  worker_to_worker_direct: Type.Optional(Type.Boolean({ description: "Must not be true; owner protocol is parent-visible Goal Room metadata." })),
+  required_local_live: Type.Optional(Type.Boolean({ description: "Optional live delivery hint; never canonical for owner requests." })),
+  goal_room_canonical: Type.Optional(Type.Boolean({ description: "Must not be false; Goal Room is canonical." })),
+});
+const WorkerPoolAssignmentParams = Type.Object({
+  worker_id: Type.String({ description: "Known team role id assigned to this pool lane." }),
+  agent_name: Type.String({ description: "Agent profile/name assigned to this worker lane." }),
+  owned_paths: Type.Array(Type.String(), { description: "Repo-relative paths owned by this worker lane." }),
+  write_paths: Type.Array(Type.String(), { description: "Repo-relative writable intent paths for this worker; each path must be within owned_paths. Overlaps are reported as parent-owned conflicts." }),
+  read_across_paths: Type.Optional(Type.Array(Type.String(), { description: "Repo-relative peer paths this worker may inspect read-only; never grants write access." })),
+  read_across_write_overlap_justification_hash: Type.Optional(Type.String({ description: "Required sha256 justification when read_across_paths overlap this worker's write_paths; raw rationale is not accepted." })),
+  forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Deny-only patterns/paths for this worker lane." })),
+  todo_id: Type.Optional(Type.String({ description: "Parent /goal TODO id correlation." })),
+  child_goal_id: Type.Optional(Type.String({ description: "Parent-managed child goal id correlation." })),
+  run_id: Type.Optional(Type.String({ description: "Worker/run id correlation." })),
+  workspace_claim_ids: Type.Optional(Type.Array(Type.String(), { description: "Path-safe workspace claim ids covering this worker's write intent, when already claimed. The worker's own active write claim may satisfy coverage; other overlapping active claims remain conflicts." })),
+  communication_policy: Type.Optional(WorkerPoolCommunicationPolicyParams),
+});
+const WorkerPoolPlanParams = Type.Object({
+  goal_id: Type.String({ description: "Parent goal id for this worker pool." }),
+  pool_id: Type.Optional(Type.String({ description: "Optional deterministic pool id. Must be path-safe." })),
+  run_id: Type.Optional(Type.String({ description: "Optional parent orchestration/delegation run id." })),
+  todo_id: Type.Optional(Type.String({ description: "Optional parent TODO id this pool serves." })),
+  owner: Type.String({ description: "Parent/lead role recording the pool plan." }),
+  assignments: Type.Array(WorkerPoolAssignmentParams, { description: "Worker assignments with owned/write/read-across path metadata." }),
+  forbidden_paths: Type.Optional(Type.Array(Type.String(), { description: "Pool-level deny-only paths/patterns." })),
+  communication_policy: Type.Optional(WorkerPoolCommunicationPolicyParams),
+  team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
+});
+const WorkerPoolStatusParams = Type.Object({
+  goal_id: Type.Optional(Type.String({ description: "Filter by parent goal id." })),
+  pool_id: Type.Optional(Type.String({ description: "Filter by worker pool id." })),
+  run_id: Type.Optional(Type.String({ description: "Filter by parent run id." })),
+  limit: Type.Optional(Type.Number({ description: "Max pool records to return. Capped at 100; default 20." })),
+});
+const WorkerPoolOwnerRequestParams = Type.Object({
+  goal_id: Type.String({ description: "Parent goal / Goal Room id." }),
+  pool_id: Type.String({ description: "Worker pool id." }),
+  request_id: Type.Optional(Type.String({ description: "Optional deterministic owner request id." })),
+  run_id: Type.Optional(Type.String({ description: "Optional run id correlation." })),
+  todo_id: Type.Optional(Type.String({ description: "Optional TODO id correlation." })),
+  requester: Type.String({ description: "Worker role requesting a peer-owned change." }),
+  owner_worker: Type.String({ description: "Worker role that owns the requested paths." }),
+  requested_paths: Type.Array(Type.String(), { description: "Repo-relative owner paths requested for change. When a pool plan exists, these must be covered by owner_worker owned/write paths or the request is blocked." }),
+  change_hash: Type.String({ description: "sha256 hash of the proposed change intent; raw diff/patch is not accepted." }),
+  reason_hash: Type.String({ description: "sha256 hash of the request reason; raw reason text is not accepted." }),
+  evidence_refs: Type.Optional(Type.Array(Type.String(), { description: "Safe repo-relative evidence refs." })),
+  artifact_refs: Type.Optional(Type.Array(Type.String(), { description: "Safe repo-relative artifact refs." })),
+  team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
+});
+const WorkerPoolOwnerDecisionParams = Type.Object({
+  goal_id: Type.String({ description: "Parent goal / Goal Room id." }),
+  pool_id: Type.String({ description: "Worker pool id." }),
+  request_id: Type.String({ description: "Owner request id being decided." }),
+  run_id: Type.Optional(Type.String({ description: "Optional run id correlation." })),
+  todo_id: Type.Optional(Type.String({ description: "Optional TODO id correlation." })),
+  decided_by: Type.String({ description: "Owner/parent role recording the decision." }),
+  owner_worker: Type.String({ description: "Worker role that owns the paths." }),
+  requester: Type.Optional(Type.String({ description: "Original requester role, when known." })),
+  decision: StringEnum(["approved", "rejected", "needs_parent", "owner_will_handle"] as const, { description: "Typed owner decision. No decision applies diffs automatically." }),
+  decision_hash: Type.String({ description: "sha256 hash of the decision basis; raw rationale text is not accepted." }),
+  evidence_refs: Type.Optional(Type.Array(Type.String(), { description: "Safe repo-relative evidence refs." })),
+  artifact_refs: Type.Optional(Type.Array(Type.String(), { description: "Safe repo-relative artifact refs." })),
   team: Type.Optional(Type.String({ description: "Team topology under .pi/teams/<team>.json. Default: zob-core" })),
 });
 
@@ -624,9 +704,14 @@ export {
   ZobComsSendParams,
   ZobComsStatusParams,
   ZpeerAskParams,
+  ZcommitRunParams,
   ZobGoalRoomSendParams,
   ZobGoalRoomListParams,
   GovernedRequestExtractParams,
+  WorkerPoolPlanParams,
+  WorkerPoolStatusParams,
+  WorkerPoolOwnerRequestParams,
+  WorkerPoolOwnerDecisionParams,
   WorkspaceClaimParams,
   WorkspaceReleaseParams,
   WorkspaceClaimsListParams,

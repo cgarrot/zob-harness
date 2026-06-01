@@ -9,7 +9,7 @@ import { pathMatches } from "./utils/paths.js";
 import { newRunId, resolveRepoPath, safeFileStem } from "./utils/paths.js";
 import { isRecord } from "./utils/records.js";
 
-export type GoalRoomMessageKind = "QUESTION" | "ANSWER" | "FINDING" | "ACTION_TAKEN" | "ARTIFACT_READY" | "TODO_CLAIM" | "BLOCKER" | "RISK" | "NO_SHIP_ALERT" | "CONTEXT_REQUEST" | "SPLIT_REQUEST" | "DELEGATION_REQUEST" | "ORACLE_REQUEST" | "HANDOFF" | "DECISION" | "STATUS_UPDATE";
+export type GoalRoomMessageKind = "QUESTION" | "ANSWER" | "FINDING" | "ACTION_TAKEN" | "ARTIFACT_READY" | "TODO_CLAIM" | "BLOCKER" | "RISK" | "NO_SHIP_ALERT" | "CONTEXT_REQUEST" | "SPLIT_REQUEST" | "DELEGATION_REQUEST" | "ORACLE_REQUEST" | "OWNER_CHANGE_REQUEST" | "OWNER_CHANGE_DECISION" | "HANDOFF" | "DECISION" | "STATUS_UPDATE";
 export type GoalRoomAudience = "all" | "parent" | "lead" | "oracle" | "worker";
 export type GoalRoomPriority = "low" | "normal" | "high" | "critical";
 
@@ -40,7 +40,7 @@ export interface GoalRoomListInput {
 }
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
-const MESSAGE_KINDS = new Set<GoalRoomMessageKind>(["QUESTION", "ANSWER", "FINDING", "ACTION_TAKEN", "ARTIFACT_READY", "TODO_CLAIM", "BLOCKER", "RISK", "NO_SHIP_ALERT", "CONTEXT_REQUEST", "SPLIT_REQUEST", "DELEGATION_REQUEST", "ORACLE_REQUEST", "HANDOFF", "DECISION", "STATUS_UPDATE"]);
+const MESSAGE_KINDS = new Set<GoalRoomMessageKind>(["QUESTION", "ANSWER", "FINDING", "ACTION_TAKEN", "ARTIFACT_READY", "TODO_CLAIM", "BLOCKER", "RISK", "NO_SHIP_ALERT", "CONTEXT_REQUEST", "SPLIT_REQUEST", "DELEGATION_REQUEST", "ORACLE_REQUEST", "OWNER_CHANGE_REQUEST", "OWNER_CHANGE_DECISION", "HANDOFF", "DECISION", "STATUS_UPDATE"]);
 const AUDIENCES = new Set<GoalRoomAudience>(["all", "parent", "lead", "oracle", "worker"]);
 const PRIORITIES = new Set<GoalRoomPriority>(["low", "normal", "high", "critical"]);
 const FORBIDDEN_PLAINTEXT_KEYS = new Set(["body", "task", "prompt", "output", "content", "message", "text", "rationale", "diff", "patch"]);

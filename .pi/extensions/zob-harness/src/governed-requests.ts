@@ -6,13 +6,13 @@ import { pathMatches } from "./utils/paths.js";
 import { resolveRepoPath, safeFileStem } from "./utils/paths.js";
 import { isRecord } from "./utils/records.js";
 
-export type GovernedRequestKind = "DELEGATION_REQUEST" | "ORACLE_REQUEST" | "CONTEXT_REQUEST";
+export type GovernedRequestKind = "DELEGATION_REQUEST" | "ORACLE_REQUEST" | "CONTEXT_REQUEST" | "OWNER_CHANGE_REQUEST";
 export type GovernedRequestPriority = "low" | "normal" | "high" | "critical";
 export type GovernedRequestRisk = "low" | "medium" | "high";
 
 export interface GovernedRequestRecord {
   schema: "zob.governed-request.v1";
-  contract: "delegation-request.v1" | "oracle-request.v1" | "context-request.v1";
+  contract: "delegation-request.v1" | "oracle-request.v1" | "context-request.v1" | "owner-change-request.v1";
   kind: GovernedRequestKind;
   requestId: string;
   goalId: string | null;
@@ -30,6 +30,11 @@ export interface GovernedRequestRecord {
   allowedPaths: string[];
   forbiddenPaths: string[];
   contextScopeId: string | null;
+  ownerWorker: string | null;
+  requestedPaths: string[];
+  changeHash: string | null;
+  reasonHash: string | null;
+  validationPlanHash: string | null;
   evidenceRefs: string[];
   artifactRefs: string[];
   noShip: boolean;
@@ -60,7 +65,7 @@ export interface GovernedRequestExtractionResult {
 }
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
-const REQUEST_TYPES = new Set<GovernedRequestKind>(["DELEGATION_REQUEST", "ORACLE_REQUEST", "CONTEXT_REQUEST"]);
+const REQUEST_TYPES = new Set<GovernedRequestKind>(["DELEGATION_REQUEST", "ORACLE_REQUEST", "CONTEXT_REQUEST", "OWNER_CHANGE_REQUEST"]);
 const PRIORITIES = new Set<GovernedRequestPriority>(["low", "normal", "high", "critical"]);
 const RISKS = new Set<GovernedRequestRisk>(["low", "medium", "high"]);
 const FORBIDDEN_PLAINTEXT_LABELS = new Set(["body", "task", "prompt", "output", "content", "message", "text", "rationale", "diff", "patch"]);
@@ -81,6 +86,11 @@ const KNOWN_LABELS = new Set([
   "allowedpaths",
   "forbiddenpaths",
   "contextscopeid",
+  "ownerworker",
+  "requestedpaths",
+  "changehash",
+  "reasonhash",
+  "validationplanhash",
   "evidencerefs",
   "artifactrefs",
   "noship",
@@ -161,6 +171,7 @@ function parseKind(value: string | undefined): GovernedRequestKind | undefined {
 function contractForKind(kind: GovernedRequestKind): GovernedRequestRecord["contract"] {
   if (kind === "ORACLE_REQUEST") return "oracle-request.v1";
   if (kind === "CONTEXT_REQUEST") return "context-request.v1";
+  if (kind === "OWNER_CHANGE_REQUEST") return "owner-change-request.v1";
   return "delegation-request.v1";
 }
 
@@ -239,6 +250,18 @@ function recordFromChunk(text: string, chunk: string): { request?: GovernedReque
   if (!bodyHash || !SHA256_HEX.test(bodyHash)) errors.push("governed request body_hash must be sha256 hex");
   const noShip = parseBoolean(scalar(lines, ["no_ship", "no ship"]));
   if (noShip === undefined) errors.push("governed request no_ship must be true/false");
+  const ownerWorker = scalar(lines, ["owner_worker", "owner worker"]) || null;
+  const requestedPaths = listValue(lines, ["requested_paths", "requested paths"]);
+  const changeHash = scalar(lines, ["change_hash", "change hash"]) || null;
+  const reasonHash = scalar(lines, ["reason_hash", "reason hash"]) || null;
+  const validationPlanHash = scalar(lines, ["validation_plan_hash", "validation plan hash"]) || null;
+  if (kind === "OWNER_CHANGE_REQUEST") {
+    if (!ownerWorker) errors.push("owner change request missing owner_worker");
+    if (requestedPaths.length === 0) errors.push("owner change request missing requested_paths");
+    if (!changeHash || !SHA256_HEX.test(changeHash)) errors.push("owner change request change_hash must be sha256 hex");
+    if (!reasonHash || !SHA256_HEX.test(reasonHash)) errors.push("owner change request reason_hash must be sha256 hex");
+    if (validationPlanHash && !SHA256_HEX.test(validationPlanHash)) errors.push("owner change request validation_plan_hash must be sha256 hex");
+  }
   const finalMarker = scalar(lines, ["FINAL_MARKER", "final marker"]) ?? "";
   if (kind && finalMarker !== finalMarkerForKind(kind)) errors.push(`governed request final marker must be ${finalMarkerForKind(kind)}`);
   if (errors.length > 0 || !kind || !requestId || !requestedBy || !requestedAction || !bodyHash || noShip === undefined) return { errors };
@@ -262,6 +285,11 @@ function recordFromChunk(text: string, chunk: string): { request?: GovernedReque
     allowedPaths: listValue(lines, ["allowed_paths", "allowed paths"]),
     forbiddenPaths: listValue(lines, ["forbidden_paths", "forbidden paths"]),
     contextScopeId: scalar(lines, ["context_scope_id", "context scope id"]) || null,
+    ownerWorker,
+    requestedPaths,
+    changeHash,
+    reasonHash,
+    validationPlanHash,
     evidenceRefs: listValue(lines, ["evidence_refs", "evidence refs"]),
     artifactRefs: listValue(lines, ["artifact_refs", "artifact refs"]),
     noShip,
@@ -321,6 +349,14 @@ export function validateGovernedRequest(repoRoot: string, definition: TeamDefini
   errors.push(...safeOptionalId(request.goalId, "goalId"));
   errors.push(...safeOptionalId(request.todoId, "todoId"));
   if (!knownRoleIds(definition).has(request.requestedBy)) errors.push(`Unknown governed request requester '${request.requestedBy}'`);
+  if (request.kind === "OWNER_CHANGE_REQUEST") {
+    if (!request.ownerWorker || !knownRoleIds(definition).has(request.ownerWorker)) errors.push(`Unknown owner change request ownerWorker '${request.ownerWorker}'`);
+    if (request.requestedPaths.length === 0) errors.push("owner change request requestedPaths are required");
+    if (!request.changeHash || !SHA256_HEX.test(request.changeHash)) errors.push("owner change request changeHash must be sha256 hex");
+    if (!request.reasonHash || !SHA256_HEX.test(request.reasonHash)) errors.push("owner change request reasonHash must be sha256 hex");
+    if (request.validationPlanHash && !SHA256_HEX.test(request.validationPlanHash)) errors.push("owner change request validationPlanHash must be sha256 hex");
+    errors.push(...validatePathList(repoRoot, request.requestedPaths, "requestedPaths"));
+  }
   if (!PRIORITIES.has(request.priority)) errors.push("governed request priority is invalid");
   if (!RISKS.has(request.riskLevel)) errors.push("governed request riskLevel is invalid");
   if (!SHA256_HEX.test(request.bodyHash)) errors.push("governed request bodyHash must be sha256 hex");
@@ -360,6 +396,11 @@ export function appendGovernedRequestsToGoalRoom(repoRoot: string, definition: T
       metadata: {
         governed_request_hash: request.requestHash,
         governed_request_contract: request.contract,
+        owner_worker: request.ownerWorker,
+        requested_path_hashes: request.requestedPaths.map((path) => sha256(path)),
+        change_hash: request.changeHash,
+        reason_hash: request.reasonHash,
+        validation_plan_hash: request.validationPlanHash,
         requested_action_hash: sha256(request.requestedAction),
         risk_level_hash: sha256(request.riskLevel),
         source_output_hash: request.sourceOutputHash,
