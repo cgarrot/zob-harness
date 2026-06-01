@@ -1,4 +1,4 @@
-export type ModeName = "explore" | "plan" | "implement" | "oracle" | "factory" | "orchestrator";
+export type ModeName = "explore" | "plan" | "implement" | "oracle" | "factory" | "orchestrator" | "vanilla";
 export type AgentScope = "project" | "user" | "both";
 export type ChildThinkingLevel = "low" | "medium" | "high" | "xhigh";
 

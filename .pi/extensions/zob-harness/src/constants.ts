@@ -64,6 +64,8 @@ export const MODE_TOOLS: Record<ModeName, string[]> = {
   oracle: ["read", "grep", "find", "ls", "bash", "delegate_agent", "delegate_task", "zob_coms_list", "zob_coms_get", "zob_coms_await", "zpeer_ask", "zob_goal_room_list", "zob_workspace_claims_list", "zob_worker_pool_status", "zob_merge_queue_list", ...ZOB_RUNTIME_GOAL_TOOLS, ...ZOB_DELEGATION_READ_TOOLS, ...ZOB_ZCOMMIT_TOOLS, ...ZOB_AUTONOMOUS_READ_TOOLS, ...ZOB_MISSION_CONTROL_READ_TOOLS, ...ZOB_CONTEXT_READ_TOOLS, ...ZOB_COMPUTE_READ_TOOLS, ...ZOB_PROJECT_DNA_READ_TOOLS],
   orchestrator: ["read", "grep", "find", "ls", "delegate_agent", "delegate_task", "orchestrate_run", "chain_run", ...ZOB_RUNTIME_GOAL_TOOLS, ...ZOB_DELEGATION_READ_TOOLS, ...ZOB_ZCOMMIT_TOOLS, ...ZOB_COMS_TOOLS, ...ZOB_GOAL_ROOM_TOOLS, ...ZOB_GOVERNED_REQUEST_TOOLS, ...ZOB_WORKSPACE_CLAIM_TOOLS, ...ZOB_WORKER_POOL_TOOLS, ...ZOB_MERGE_QUEUE_TOOLS, ...ZOB_MISSION_CONTROL_READ_TOOLS, ...ZOB_MISSION_CONTROL_PROPOSAL_TOOLS, ...ZOB_CONTEXT_READ_TOOLS, ...ZOB_CONTEXT_PROPOSAL_TOOLS, ...ZOB_COMPUTE_READ_TOOLS, ...ZOB_COMPUTE_REPORT_TOOLS],
   factory: ["read", "bash", "edit", "write", "grep", "find", "ls", "delegate_agent", "delegate_task", "orchestrate_run", "factory_run", "factory_quarantine_review", "factory_quarantine_activate", "factory_quarantine_verify_activation", "chain_run", ...ZOB_RUNTIME_GOAL_TOOLS, ...ZOB_DELEGATION_READ_TOOLS, ...ZOB_ZCOMMIT_TOOLS, ...ZOB_AUTONOMOUS_READ_TOOLS, ...ZOB_AUTONOMOUS_FACTORY_TOOLS, ...ZOB_COMS_TOOLS, ...ZOB_GOAL_ROOM_TOOLS, ...ZOB_GOVERNED_REQUEST_TOOLS, ...ZOB_WORKSPACE_CLAIM_TOOLS, ...ZOB_WORKER_POOL_TOOLS, ...ZOB_MERGE_QUEUE_TOOLS, ...ZOB_MISSION_CONTROL_READ_TOOLS, ...ZOB_MISSION_CONTROL_PROPOSAL_TOOLS, ...ZOB_CONTEXT_READ_TOOLS, ...ZOB_CONTEXT_PROPOSAL_TOOLS, ...ZOB_COMPUTE_READ_TOOLS, ...ZOB_COMPUTE_REPORT_TOOLS, ...ZOB_PROJECT_DNA_READ_TOOLS, ...ZOB_PROJECT_DNA_PROPOSAL_TOOLS],
+  // Vanilla is handled specially by applyMode: all currently available Pi tools are enabled.
+  vanilla: [],
 };
 
 export const MODE_PROMPTS: Record<ModeName, string> = {
@@ -105,4 +107,10 @@ export const MODE_PROMPTS: Record<ModeName, string> = {
 - Turn repeated work into reusable prompts, agents, scripts, schemas, or Pi extensions.
 - Prefer deterministic scaffolding for immutable content; let LLMs enrich structured sections only.
 - Require sentinel/completion artifacts and validation before scale-up.`,
+  vanilla: `ZOB MODE: VANILLA (Pi base-style unrestricted agent)
+- Behave like the base Pi coding agent rather than a governed ZOB workflow agent.
+- ZOB-specific Explore/Plan/Implement/Oracle routing, tool-routing, TODO/goal governance, and bash mutation blocks are disabled for this mode.
+- You may use any available Pi tool and launch arbitrary shell commands, including external coding tools such as codex or project scripts that modify files.
+- Do not claim ZOB safety/oracle/governance guarantees while in vanilla; the user is intentionally choosing direct operator-style execution.
+- Keep normal conversational clarity: state what you are about to run when useful, then execute directly and report results.`,
 };

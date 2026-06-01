@@ -547,7 +547,7 @@ function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: strin
 
 export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
   pi.registerCommand("zmode", {
-    description: "Switch ZOB harness mode: explore | plan | implement | oracle | factory | orchestrator. Orchestrator routes to adaptive-chief-vision plan_only defaults.",
+    description: "Switch ZOB harness mode: explore | plan | implement | oracle | factory | orchestrator | vanilla. Orchestrator routes to adaptive-chief-vision plan_only defaults; vanilla restores Pi base-style unrestricted tool access outside ZOB governance.",
     handler: async (args, ctx) => {
       const requestedText = args.trim();
       const adaptiveEntrypoint = resolveAdaptiveZmodeEntrypoint(requestedText);

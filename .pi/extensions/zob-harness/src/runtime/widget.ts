@@ -345,7 +345,8 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
 export function applyMode(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, mode: ModeName, persist = true): void {
   state.activeMode = mode;
   const available = new Set(pi.getAllTools().map((tool) => tool.name));
-  pi.setActiveTools(MODE_TOOLS[mode].filter((tool) => available.has(tool)));
+  const activeTools = mode === "vanilla" ? [...available] : MODE_TOOLS[mode].filter((tool) => available.has(tool));
+  pi.setActiveTools(activeTools);
   if (persist) pi.appendEntry("zob-mode-state", { mode, timestamp: new Date().toISOString() });
   ctx.ui.setStatus("zob-mode", ctx.ui.theme.fg("accent", `zob:${mode}`));
   renderHarnessWidget(pi, state, ctx);

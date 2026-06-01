@@ -389,6 +389,8 @@ export function restoreHarnessState(state: HarnessRuntimeState, ctx: ExtensionCo
 export function inferModeFromUserIntent(text: string): ModeName | undefined {
   const normalized = text.trim().toLowerCase();
   if (!normalized || normalized.startsWith("/")) return undefined;
+  const asksForVanilla = /\b(vanilla|vania|pi\s+base|agent\s+pi\s+de\s+base|base\s+pi|codex|external\s+(?:command|tool|agent)|commande\s+externe|outil\s+externe|unrestricted|arbitrary\s+command|n['’]?importe\s+quelle\s+commande|sans\s+r[eé]glementation|sans\s+garde[- ]?fous|no\s+guardrails?)\b/i.test(normalized);
+  if (asksForVanilla) return "vanilla";
   const asksForOrchestration = /\b(orchestrator|orchestrat(?:e|ion|or)|orchestrer|multi[- ]?agent|lead(?:s)?|worker(?:s)?|chief vision|coordonn(?:e|er|ation)|d[eé]l[eè]gu(?:e|er|ation)|delegat(?:e|ion)|sub[- ]?agents?|subtasks?|work graph|todo graph|graphe de travail|graphe todo)\b/i.test(normalized);
   if (asksForOrchestration) return "orchestrator";
   const asksForMutation = /\b(update|udpate|modify|modifier|modifie|change|changer|corrige|correction|fix|patch|implement|impl[eé]mente|edit|write|[eé]cris|ajoute|add|create|cr[eé]e|supprime|delete|remove|refactor|refactorise|remplace|am[eé]lior(?:e|er)|appliqu(?:e|er)|mets?|mettre|rends?|rendre|fais\s+en\s+sorte|mets? .*jour|mise .*jour|faire .*update|continue .*update)\b/i.test(normalized);

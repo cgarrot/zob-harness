@@ -71,7 +71,8 @@
       "implement": "balanced_worker",
       "oracle": "strong_oracle",
       "factory": "balanced_worker",
-      "orchestrator": "strong_reasoning"
+      "orchestrator": "strong_reasoning",
+      "vanilla": "balanced_worker"
     },
     "highContextThresholdTokens": 120000,
     "highContextModelClass": "high_context"

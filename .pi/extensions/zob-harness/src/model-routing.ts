@@ -64,7 +64,7 @@ function chooseModelClass(input: ModelRoutingDryRunInput): { modelClass: ModelCl
   const risk = normalizeRisk(input.risk);
   const contextTokens = numberOrZero(input.contextTokens);
   const isOracleLike = includesAny(input.taskType, ["oracle", "review", "validate"]) || includesAny(input.outputContract, ["oracle"]);
-  const isImplementationLike = includesAny(input.taskType, ["implement", "factory", "synthesis", "worker"]) || input.mode === "implement" || input.mode === "factory";
+  const isImplementationLike = includesAny(input.taskType, ["implement", "factory", "synthesis", "worker"]) || input.mode === "implement" || input.mode === "factory" || input.mode === "vanilla";
 
   if (contextTokens >= 120_000) {
     reasonCodes.push("context_tokens_high");
@@ -239,7 +239,7 @@ export function validateModelRoutingConfig(repoRoot: string): Record<string, unk
   }
 
   const expectedClasses: ModelClass[] = ["cheap_scout", "balanced_worker", "strong_reasoning", "strong_oracle", "high_context"];
-  const modes: ModeName[] = ["explore", "plan", "implement", "oracle", "factory", "orchestrator"];
+  const modes: ModeName[] = ["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla"];
   const modelClasses = isRecord(parsed?.modelClasses) ? parsed.modelClasses : undefined;
   const defaults = isRecord(parsed?.defaults) ? parsed.defaults : undefined;
   const byMode = isRecord(defaults?.byMode) ? defaults.byMode : undefined;

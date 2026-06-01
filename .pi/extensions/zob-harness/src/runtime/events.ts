@@ -106,13 +106,14 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
 const SAME_AGENT_MODE_INTENT_PROMPT = [
   "ZOB SAME-AGENT AUTO-MODE INTENT",
   "- If the current ZOB mode does not match the next required action, emit at most one standalone intent line:",
-  "  <zob_mode_intent mode=\"explore|plan|implement|oracle|factory|orchestrator\" confidence=\"low|medium|high\" risk=\"low|medium|high\" reason=\"short reason\"/>",
+  "  <zob_mode_intent mode=\"explore|plan|implement|oracle|factory|orchestrator|vanilla\" confidence=\"low|medium|high\" risk=\"low|medium|high\" reason=\"short reason\"/>",
   "- This is only a suggestion; the harness validates and applies mode changes.",
   "- Do not claim the mode switched unless the harness reports it.",
   "- SINGLE-PLAN RULE: if you produce a complete plan in this response, do not also emit a plan-mode intent.",
   "- Emit mode=plan only when deferring the actual detailed plan to a follow-up turn; in that case keep this response to a short handoff.",
   "- Never both: full plan content and mode=plan intent in the same response.",
   "- Prefer orchestrator for multi-agent decomposition, Chief Vision coordination, Lead/Worker orchestration, TODO/workgraph routing, and parent-owned dispatch.",
+  "- Prefer vanilla when the user explicitly asks for Pi base behavior, Vanilla/Vania, Codex, unrestricted/external commands, or arbitrary shell tools outside ZOB governance.",
   "- Prefer implement for code/file edits, oracle for validation/review/no-ship, factory for reusable repeatable workflows/factories.",
   "- Do not emit an intent for ordinary discussion or when the current mode already fits.",
 ].join("\n");
@@ -145,6 +146,7 @@ function handleSameAgentModeIntent(pi: ExtensionAPI, state: HarnessRuntimeState,
   state.lastModeIntent = { ...intent, at: Date.now(), accepted: validation.accepted, validationReason: validation.reason };
   if (validation.accepted) {
     applyMode(pi, state, ctx, intent.mode);
+    state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
     ctx.ui.notify(`ZOB same-agent auto-mode: ${previousMode} → ${intent.mode} (${intent.confidence}; ${intent.reason})`, "info");
   } else {
     renderHarnessWidget(pi, state, ctx);
@@ -458,16 +460,21 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
         else if (readiness.decision === "block") ctx.ui.notify(formatMissionReadinessForUi(readiness), "warning");
       }
     }
-    if (event.source === "extension" || state.activeMode !== "explore") return { action: "continue" as const };
+    if (event.source === "extension") return { action: "continue" as const };
     const nextMode = inferModeFromUserIntent(event.text);
-    if (!nextMode) return { action: "continue" as const };
+    if (!nextMode || nextMode === state.activeMode) return { action: "continue" as const };
+    if (state.activeMode !== "explore" && nextMode !== "vanilla") return { action: "continue" as const };
+    const previousMode = state.activeMode;
     applyMode(pi, state, ctx, nextMode);
-    const reason = nextMode === "orchestrator" ? "orchestration intent detected" : nextMode === "factory" ? "factory workflow intent detected" : "write/update intent detected";
-    ctx.ui.notify(`ZOB auto-mode: explore → ${nextMode} (${reason})`, "info");
+    state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+    const reason = nextMode === "orchestrator" ? "orchestration intent detected" : nextMode === "factory" ? "factory workflow intent detected" : nextMode === "vanilla" ? "vanilla/Pi base or external-command intent detected" : "write/update intent detected";
+    ctx.ui.notify(`ZOB auto-mode: ${previousMode} → ${nextMode} (${reason})`, "info");
     return { action: "continue" as const };
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    if (state.activeMode === "vanilla") return { action: "continue" as const };
+
     let violation: string | undefined;
     let attempted = JSON.stringify(event.input);
 
@@ -680,6 +687,9 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       : "\n\nZOB RULE PROFILE\n- Not resolved yet. Use /rules_status for diagnostics when scope is unclear.";
     const autonomyHint = `\n\n${formatInteractiveAutonomyPromptHint(state.autonomy)}`;
     const zpeerHint = buildZpeerAwarenessPrompt(state, state.zobLive.inbound?.repoRoot ?? process.cwd());
+    if (state.activeMode === "vanilla") {
+      return { systemPrompt: `${event.systemPrompt}\n\n${MODE_PROMPTS.vanilla}` };
+    }
     const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zpeerHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });

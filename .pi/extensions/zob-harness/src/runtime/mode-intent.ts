@@ -15,7 +15,7 @@ export interface ZobModeIntentValidation {
   reason: string;
 }
 
-const VALID_MODES: readonly ModeName[] = ["explore", "plan", "implement", "oracle", "factory", "orchestrator"];
+const VALID_MODES: readonly ModeName[] = ["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla"];
 
 function modeName(value: string | undefined): ModeName | undefined {
   return VALID_MODES.includes(value as ModeName) ? value as ModeName : undefined;
@@ -118,6 +118,7 @@ function hasModeEvidence(mode: ModeName, text: string): boolean {
   if (mode === "orchestrator") return /\b(orchestrator|orchestrat(?:e|ion|or)|orchestrer|multi[- ]?agent|lead(?:s)?|worker(?:s)?|chief vision|coordonn(?:e|er|ation)|d[eé]l[eè]gu(?:e|er|ation)|delegat(?:e|ion)|sub[- ]?agents?|subtasks?|work graph|todo graph|graphe de travail|graphe todo)\b/i.test(text);
   if (mode === "factory") return /\b(factory|factory_run|pilot|batch|sentinel|manifest|quarantine|software factory)\b/i.test(text);
   if (mode === "implement") return /\b(update|modify|modifier|change|changer|fix|patch|implement|impl[eé]mente|edit|write|[eé]cris|ajoute|add|create|cr[eé]e|refactor|refactorise|remplace|am[eé]lior(?:e|er)|appliqu(?:e|er)|mets?|mettre|rends?|rendre|fais\s+en\s+sorte)\b/i.test(text);
+  if (mode === "vanilla") return /\b(vanilla|vania|pi\s+base|agent\s+pi\s+de\s+base|base\s+pi|codex|external\s+(?:command|tool|agent)|commande\s+externe|outil\s+externe|unrestricted|arbitrary\s+command|n['’]?importe\s+quelle\s+commande|sans\s+r[eé]glementation|sans\s+garde[- ]?fous|no\s+guardrails?)\b/i.test(text);
   if (mode === "oracle") return /\b(review|validate|validation|oracle|no[_-]?ship|v[eé]rifie|audit|qa|risks?|blocker)\b/i.test(text);
   if (mode === "plan") return /\b(plan|design|architecture|propose|roadmap|spec|sp[eé]cifie|comment|how would|strat[eé]gie)\b/i.test(text);
   return /\b(read|explore|inspect|analy[sz]e|cherche|comprends?|trouve|diagnostic)\b/i.test(text);
@@ -136,6 +137,9 @@ export function validateModeIntent(intent: ZobModeIntent | undefined, currentMod
   const evidence = hasModeEvidence(intent.mode, `${lastUserText}\n${intent.reason}`);
   if ((intent.mode === "implement" || intent.mode === "factory" || intent.mode === "orchestrator") && intent.confidence !== "high" && !evidence) {
     return { accepted: false, reason: `mode ${intent.mode} requires high confidence or explicit evidence` };
+  }
+  if (intent.mode === "vanilla" && !evidence) {
+    return { accepted: false, reason: "vanilla mode requires explicit user-text evidence for Pi base/unrestricted external-command behavior" };
   }
   if (intent.mode === "oracle" && intent.confidence === "medium" && !evidence) {
     return { accepted: false, reason: "oracle mode requires review/validation evidence" };

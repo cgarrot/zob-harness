@@ -8,7 +8,7 @@ import { isRecord } from "./utils/records.js";
 const RULE_PACK_SCHEMA = "zob.rule-pack.v1";
 const RULE_RESOLUTION_SCHEMA = "zob.rule-resolution.v1";
 const RULE_PACK_ORDER = ["always", "project", "runtime", "factory", "orchestration", "prompts", "docs", "sandbox", "oracle"];
-const MODE_NAMES = new Set<ModeName>(["explore", "plan", "implement", "oracle", "factory", "orchestrator"]);
+const MODE_NAMES = new Set<ModeName>(["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla"]);
 const ENFORCEMENT_LEVELS = new Set<RuleEnforcementLevel>(["advisory", "warn", "preflight_fail", "block", "no_ship", "human_approval"]);
 
 const PROFILE_PATHS: Array<{ profile: string; patterns: string[] }> = [
