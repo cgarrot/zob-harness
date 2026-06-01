@@ -22,6 +22,7 @@ import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js
 import type { AssistantLikeMessage } from "../types.js";
 import { blockedFeedback } from "../utils/formatting.js";
 import { sha256 } from "../utils/hashing.js";
+import { buildZcommitPlan, recordZcommitTouchedFile, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitPlan } from "../git-ops.js";
 import { pathMatches } from "../utils/paths.js";
 import { isRecord, textFromMessage } from "../utils/records.js";
 import { showDelegationOverlay } from "./delegation-overlay.js";
@@ -255,6 +256,82 @@ function notifyWhenUi(ctx: ExtensionContext, message: string, level: "info" | "w
   if (ctx.hasUI) ctx.ui.notify(message, level);
 }
 
+function zcommitOwnedPathLedgerRefs(state: HarnessRuntimeState): Array<Pick<ZcommitOwnedPathRef, "path" | "source" | "pathHash" | "lastOwnedAt">> {
+  return Object.values(state.zcommit.ownedPathRefs ?? {}).map((ref) => ({ path: ref.path, source: ref.source, pathHash: ref.pathHash, lastOwnedAt: ref.lastOwnedAt })).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function zcommitContinuityLedgerEntry(action: string, state: HarnessRuntimeState): Record<string, unknown> {
+  return {
+    schema: "zob.zcommit-continuity.v1",
+    bodyStored: false,
+    action,
+    autocommit: state.zcommit.autocommit,
+    autopush: state.zcommit.autopush,
+    ownedPathRefs: zcommitOwnedPathLedgerRefs(state),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function zcommitAutomationLedgerEntry(action: string, state: HarnessRuntimeState, plan: ZcommitPlan, result?: ZcommitCommandResult): Record<string, unknown> {
+  return {
+    schema: "zob.zcommit-message-end.v1",
+    bodyStored: false,
+    action,
+    status: result ? (result.ok ? "ok" : "blocked_or_failed") : undefined,
+    autocommit: state.zcommit.autocommit,
+    autopush: state.zcommit.autopush,
+    policyLoaded: plan.policyLoaded,
+    selectionMode: plan.selectionMode,
+    validationMode: plan.validationMode,
+    selectionPathspecHashes: plan.selectionPathspecs.map((pathspec) => sha256(pathspec)),
+    dirtyCount: plan.dirtyFiles.length,
+    touchedCount: plan.touchedFiles.length,
+    eligibleCount: plan.eligible.length,
+    excludedCount: plan.excluded.length,
+    forbiddenCount: plan.forbidden.length,
+    unexpectedStagedCount: plan.unexpectedStaged.length,
+    eligiblePathHashes: plan.eligible.map((file) => sha256(file.path)),
+    excludedPathHashes: plan.excluded.map((file) => sha256(file.path)),
+    ownedPathRefs: zcommitOwnedPathLedgerRefs(state),
+    noShip: plan.noShip,
+    commitEnabled: plan.commitEnabled,
+    pushEnabled: plan.pushEnabled,
+    lastCommitHash: state.zcommit.lastCommit?.hash,
+    lastCommitShortHash: state.zcommit.lastCommit?.shortHash,
+    validationOk: result?.validation?.ok,
+    validationCommand: result?.validation?.command,
+    errorHashes: result?.errors.map((error) => sha256(error)),
+    actualGitCommitRun: result?.actualGitCommitRun ?? false,
+    actualGitPushRun: result?.actualGitPushRun ?? false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+async function maybeRunZcommitMessageEndAutomation(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext): Promise<void> {
+  if (state.zcommit.autocommit !== "on") return;
+  try {
+    const plan = buildZcommitPlan(ctx.cwd, state.zcommit);
+    const commitResult = runGovernedZcommitCommit(ctx.cwd, state.zcommit);
+    pi.appendEntry("zob-zcommit", zcommitAutomationLedgerEntry(commitResult.ok ? "autocommit_created" : "autocommit_blocked", state, commitResult.plan ?? plan, commitResult));
+    notifyWhenUi(ctx, `zcommit autocommit: ${commitResult.message}`, commitResult.ok ? "info" : "warning");
+    if (commitResult.ok && state.zcommit.autopush === "on") {
+      const pushResult = runGovernedZcommitPush(ctx.cwd, state.zcommit, { explicitPush: false });
+      pi.appendEntry("zob-zcommit", zcommitAutomationLedgerEntry(pushResult.ok ? "autopush_completed" : "autopush_blocked", state, pushResult.plan, pushResult));
+      notifyWhenUi(ctx, `zcommit autopush: ${pushResult.message}`, pushResult.ok ? "info" : "warning");
+    }
+    renderHarnessWidget(pi, state, ctx);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const plan = buildZcommitPlan(ctx.cwd, state.zcommit);
+    pi.appendEntry("zob-zcommit", {
+      ...zcommitAutomationLedgerEntry("autocommit_error", state, plan),
+      status: "blocked_or_failed",
+      errorHashes: [sha256(message)],
+    });
+    notifyWhenUi(ctx, "zcommit autocommit hook failed; see body-free ledger hashes", "warning");
+  }
+}
+
 async function compactionAuth(ctx: ExtensionContext): Promise<{ apiKey?: string; headers?: Record<string, string> } | undefined> {
   const model = ctx.model;
   if (!model) return undefined;
@@ -446,6 +523,10 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       ctx.ui.notify(`Blocked ${event.toolName}: ${violation}`, "warning");
       return { block: true, reason: blockedFeedback(event.toolName, violation, attempted) };
     }
+
+    if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
+      recordZcommitTouchedFile(state.zcommit, ctx.cwd, event.input.path, event.toolName);
+    }
   });
 
   pi.on("message_end", async (event, ctx) => {
@@ -459,8 +540,9 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       // Plan capture is best-effort and must not break assistant message handling.
     }
     const intent = extractModeIntent(text);
+    if (intent) handleSameAgentModeIntent(pi, state, ctx, intent, text);
+    await maybeRunZcommitMessageEndAutomation(pi, state, ctx);
     if (!intent) return undefined;
-    handleSameAgentModeIntent(pi, state, ctx, intent, text);
     return { message: stripModeIntentFromMessage(event.message) };
   });
 
@@ -531,6 +613,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       fromExtension: event.fromExtension,
     });
     if (zobCompactionBodyFreeViolations(ledger).length === 0) pi.appendEntry(ZOB_COMPACTION_ENTRY_TYPE, ledger);
+    if (Object.keys(state.zcommit.ownedPathRefs ?? {}).length > 0) pi.appendEntry("zob-zcommit", zcommitContinuityLedgerEntry("session_compact", state));
   });
 
   pi.on("session_before_tree", async (event, ctx) => {

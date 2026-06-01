@@ -525,6 +525,22 @@ function maybeCompactBeforeGoalContinuation(pi: ExtensionAPI, state: HarnessRunt
   return true;
 }
 
+export function pauseRuntimeGoalForStop(pi: ExtensionAPI, state: HarnessRuntimeState, blocker = "stopped by /stop; use /goal resume to continue"): RuntimeGoal | undefined {
+  const goal = state.runtimeGoal;
+  if (!goal || goal.status !== "active") {
+    clearRuntimeGoalContinuationState(state);
+    return goal;
+  }
+  accountElapsed(state);
+  goal.status = "paused";
+  goal.loop.enabled = false;
+  goal.oracle.blockerSummary = blocker;
+  goal.updatedAt = unixSeconds();
+  clearRuntimeGoalContinuationStateFor(state, goal.goalId);
+  persistRuntimeGoal(pi, state, "command");
+  return goal;
+}
+
 export function resumeRuntimeGoal(goal: RuntimeGoal, requestedAdditionalTurns?: number): { previousBlocker?: string; additionalTurns?: number } {
   const previousBlocker = goal.oracle.blockerSummary;
   const additionalTurns = Math.max(1, Math.trunc(requestedAdditionalTurns ?? DEFAULT_GOAL_RESUME_TURN_EXTENSION));
@@ -741,7 +757,7 @@ export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeS
     return;
   }
   if (text === "todo" || text.startsWith("todo ")) {
-    const result = handleGoalTodoTextCommand(pi, state, state.runtimeGoal?.goalId, text === "todo" ? "" : text.slice(5).trim());
+    const result = handleGoalTodoTextCommand(pi, state, state.runtimeGoal?.goalId, text === "todo" ? "" : text.slice(5).trim(), ctx.cwd);
     render();
     ctx.ui.notify(result.message, result.ok ? "info" : "warning");
     return;
@@ -1166,9 +1182,9 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     renderResult(result) {
       return new Text(renderGoalTodoResultText(result), 0, 0);
     },
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state, params.goal_id);
-      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: params.action as ResolveGoalTodoAction, evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, reason: params.reason }, "tool");
+      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: params.action as ResolveGoalTodoAction, evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, reason: params.reason, repoRoot: ctx.cwd }, "tool");
       const summary = summarizeGoalTodos(state.goalTodos, goalId);
       const diagnostics = goalTodoCompletionDiagnostics(state.goalTodos, goalId);
       return { content: [{ type: "text", text: `${formatGoalTodoToolResult(goalId, `resolved goal TODO ${node.id} ${node.path}: ${node.status}`, summary, [node])}\ncompletion_ready=${diagnostics.completionReady} hard_no_ship=${diagnostics.hardNoShip} review_no_ship=${diagnostics.reviewNoShip} effective_no_ship=${diagnostics.effectiveNoShip}` }], details: { goalId, node, summary, diagnostics } };
@@ -1187,9 +1203,9 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     renderResult(result) {
       return new Text(renderGoalTodoResultText(result), 0, 0);
     },
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state);
-      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: params.skipped === true ? "skip" : "complete", evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, reason: params.reason }, "tool");
+      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: params.skipped === true ? "skip" : "complete", evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, reason: params.reason, repoRoot: ctx.cwd }, "tool");
       const summary = summarizeGoalTodos(state.goalTodos, goalId);
       return { content: [{ type: "text", text: formatGoalTodoToolResult(goalId, `${params.skipped ? "skipped" : "completed"} goal TODO ${node.id} ${node.path}: ${node.title}`, summary, [node]) }], details: { goalId, node, summary } };
     },
@@ -1207,9 +1223,9 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     renderResult(result) {
       return new Text(renderGoalTodoResultText(result), 0, 0);
     },
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state);
-      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "block", reason: params.reason }, "tool");
+      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "block", reason: params.reason, repoRoot: ctx.cwd }, "tool");
       const summary = summarizeGoalTodos(state.goalTodos, goalId);
       return { content: [{ type: "text", text: formatGoalTodoToolResult(goalId, `updated goal TODO ${node.id} ${node.path}: blocked`, summary, [node]) }], details: { goalId, node, summary } };
     },
@@ -1241,7 +1257,7 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     description: "Record oracle validation for a returned delegated TODO claim; auto-accepts only on strict PASS/no_ship=false when requested.",
     promptSnippet: "Use after oracle claim validation output is available; preserves parent-owned TODO state and blocks unsafe claims.",
     parameters: ValidateGoalTodoClaimParams,
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state);
       const node = recordGoalTodoClaimValidationResult(pi, state, goalId, params.todo_id, {
         result: {
@@ -1260,6 +1276,7 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
         agent: params.agent,
         outputHash: params.output_hash,
         autoAccept: params.auto_accept !== false,
+        repoRoot: ctx.cwd,
       }, "tool");
       return { content: [{ type: "text", text: `validated delegated claim for TODO ${node.path}: ${node.status}` }], details: { goalId, node, summary: summarizeGoalTodos(state.goalTodos, goalId) } };
     },
@@ -1271,9 +1288,9 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     description: "Parent-owned acceptance of a delegated TODO claim after evidence/output gates pass.",
     promptSnippet: "Use when a delegated TODO is claim_returned; accept subagent TODO claims only after evidence and gate checks.",
     parameters: ClaimGoalTodoParams,
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state);
-      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "accept_claim", evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands }, "tool");
+      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "accept_claim", evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, repoRoot: ctx.cwd }, "tool");
       return { content: [{ type: "text", text: `accepted delegated claim for TODO ${node.path}: ${node.title}` }], details: { goalId, node, summary: summarizeGoalTodos(state.goalTodos, goalId) } };
     },
   });
@@ -1284,10 +1301,10 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
     description: "Parent-owned rejection of a delegated TODO claim with a reason.",
     promptSnippet: "Reject delegated claims when evidence is missing or no_ship remains.",
     parameters: ClaimGoalTodoParams,
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const goalId = currentGoalId(state);
       if (!params.reason) throw new Error("reject_goal_todo_claim requires reason.");
-      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "reject_claim", reason: params.reason }, "tool");
+      const node = resolveGoalTodo(pi, state, goalId, params.todo_id, { action: "reject_claim", reason: params.reason, repoRoot: ctx.cwd }, "tool");
       return { content: [{ type: "text", text: `rejected delegated claim for TODO ${node.path}: ${node.title}` }], details: { goalId, node, summary: summarizeGoalTodos(state.goalTodos, goalId) } };
     },
   });

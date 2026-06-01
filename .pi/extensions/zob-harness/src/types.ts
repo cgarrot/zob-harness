@@ -1,5 +1,13 @@
 export type ModeName = "explore" | "plan" | "implement" | "oracle" | "factory" | "orchestrator";
 export type AgentScope = "project" | "user" | "both";
+export type ChildThinkingLevel = "low" | "medium" | "high" | "xhigh";
+
+export interface ChildChangedPathRef {
+  path: string;
+  pathHash: string;
+  status: string;
+  contentHash?: string;
+}
 
 export type TextBlock = { type: "text"; text: string };
 export type AssistantLikeMessage = {
@@ -32,7 +40,7 @@ export interface HarnessAgent {
   description: string;
   tools?: string[];
   model?: string;
-  thinking?: string;
+  thinking?: ChildThinkingLevel | string;
   prompt: string;
   source: "project" | "user";
   filePath: string;
@@ -119,6 +127,7 @@ export interface ChildResult {
   stopReason?: string;
   stopCondition?: ChildStopCondition;
   errorMessage?: string;
+  childChangedPaths?: ChildChangedPathRef[];
   usage: {
     turns: number;
     input: number;

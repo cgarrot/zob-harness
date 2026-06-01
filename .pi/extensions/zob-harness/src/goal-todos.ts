@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import type { HarnessRuntimeState } from "./runtime/state.js";
+import { recordZcommitOwnedPaths, type ZcommitChildChangedPathRef } from "./git-ops.js";
 import { sha256 } from "./utils/hashing.js";
 import { isRecord } from "./utils/records.js";
 
@@ -32,6 +33,7 @@ export interface GoalTodoClaimRef {
   targetReadiness?: GoalTodoClaimTargetReadiness;
   acceptanceBlockers: string[];
   noShip?: boolean;
+  childChangedPaths?: ZcommitChildChangedPathRef[];
   returnedAt: number;
 }
 
@@ -148,7 +150,7 @@ export type GoalTodoEvent =
   | { version: 1; kind: "move"; source: GoalTodoEventSource; goalId: string; todoId: string; parentId?: string; at: number }
   | { version: 1; kind: "split"; source: GoalTodoEventSource; goalId: string; todoId: string; childIds: string[]; at: number }
   | { version: 1; kind: "delegate_link"; source: GoalTodoEventSource; goalId: string; todoId: string; runId: string; delegation: GoalTodoDelegationRef; at: number }
-  | { version: 1; kind: "claim_returned"; source: GoalTodoEventSource; goalId: string; todoId: string; claimHash: string; evidenceRefs: string[]; validationCommands: string[]; noShip?: boolean; runId?: string; outputHash?: string; outputContract?: string; gatePassed?: boolean; childGoalStatus?: GoalTodoChildGoalStatus; statusClaim?: GoalTodoStatusClaim; targetReadiness?: GoalTodoClaimTargetReadiness; acceptanceBlockers?: string[]; at: number }
+  | { version: 1; kind: "claim_returned"; source: GoalTodoEventSource; goalId: string; todoId: string; claimHash: string; evidenceRefs: string[]; validationCommands: string[]; noShip?: boolean; runId?: string; outputHash?: string; outputContract?: string; gatePassed?: boolean; childGoalStatus?: GoalTodoChildGoalStatus; statusClaim?: GoalTodoStatusClaim; targetReadiness?: GoalTodoClaimTargetReadiness; acceptanceBlockers?: string[]; childChangedPaths?: ZcommitChildChangedPathRef[]; at: number }
   | { version: 1; kind: "claim_validation_requested"; source: GoalTodoEventSource; goalId: string; todoId: string; validation: GoalTodoClaimValidationRef; at: number }
   | { version: 1; kind: "claim_validation_returned"; source: GoalTodoEventSource; goalId: string; todoId: string; validation: GoalTodoClaimValidationRef; evidenceRefs: string[]; validationCommands: string[]; noShip?: boolean; at: number }
   | { version: 1; kind: "claim_accepted"; source: GoalTodoEventSource; goalId: string; todoId: string; evidenceRefs: string[]; validationCommands: string[]; at: number }
@@ -292,7 +294,7 @@ function cloneNode(node: GoalTodoNode): GoalTodoNode {
     evidenceRefs: [...node.evidenceRefs],
     validationCommands: [...node.validationCommands],
     delegation: node.delegation ? { ...node.delegation } : undefined,
-    claim: node.claim ? { ...node.claim, acceptanceBlockers: [...node.claim.acceptanceBlockers] } : undefined,
+    claim: node.claim ? { ...node.claim, acceptanceBlockers: [...node.claim.acceptanceBlockers], childChangedPaths: node.claim.childChangedPaths ? node.claim.childChangedPaths.map((ref) => ({ ...ref })) : undefined } : undefined,
     validation: node.validation ? { ...node.validation, evidenceRefs: [...node.validation.evidenceRefs], validationCommands: [...node.validation.validationCommands], blockingIssues: [...node.validation.blockingIssues] } : undefined,
     artifacts: node.artifacts
       ? {
@@ -348,6 +350,14 @@ function normalizeArtifacts(value: unknown): GoalTodoArtifacts | undefined {
   };
 }
 
+function normalizeChildChangedPathRefs(value: unknown): ZcommitChildChangedPathRef[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item) || typeof item.path !== "string" || typeof item.pathHash !== "string" || typeof item.status !== "string") return [];
+    return [{ path: item.path, pathHash: item.pathHash, status: item.status, contentHash: typeof item.contentHash === "string" ? item.contentHash : undefined }];
+  }).slice(0, 100);
+}
+
 function normalizeClaim(value: unknown): GoalTodoClaimRef | undefined {
   if (!isRecord(value) || typeof value.claimHash !== "string") return undefined;
   return {
@@ -361,6 +371,7 @@ function normalizeClaim(value: unknown): GoalTodoClaimRef | undefined {
     targetReadiness: includesString(VALID_TARGET_READINESS, value.targetReadiness) ? value.targetReadiness : undefined,
     acceptanceBlockers: stringArray(value.acceptanceBlockers),
     noShip: typeof value.noShip === "boolean" ? value.noShip : undefined,
+    childChangedPaths: normalizeChildChangedPathRefs(value.childChangedPaths),
     returnedAt: Math.trunc(numberField(value, "returnedAt") ?? unixSeconds()),
   };
 }
@@ -547,6 +558,7 @@ function applyEvent(state: GoalTodoState, event: GoalTodoEvent): void {
         targetReadiness: event.targetReadiness,
         acceptanceBlockers: event.acceptanceBlockers ?? [],
         noShip: event.noShip,
+        childChangedPaths: event.childChangedPaths ?? [],
         returnedAt: event.at,
       };
       replaceNode(state, applyPatchToNode(existing, {
@@ -636,7 +648,7 @@ function normalizeEvent(value: unknown): GoalTodoEvent | undefined {
     const delegation = normalizeDelegation(value.delegation);
     return delegation ? { version: 1, kind: "delegate_link", source, goalId: value.goalId, todoId: value.todoId, runId: value.runId, delegation, at } : undefined;
   }
-  if (value.kind === "claim_returned" && typeof value.todoId === "string" && typeof value.claimHash === "string") return { version: 1, kind: "claim_returned", source, goalId: value.goalId, todoId: value.todoId, claimHash: value.claimHash, evidenceRefs: stringArray(value.evidenceRefs), validationCommands: stringArray(value.validationCommands), noShip: typeof value.noShip === "boolean" ? value.noShip : undefined, runId: typeof value.runId === "string" ? value.runId : undefined, outputHash: typeof value.outputHash === "string" ? value.outputHash : undefined, outputContract: typeof value.outputContract === "string" ? value.outputContract : undefined, gatePassed: typeof value.gatePassed === "boolean" ? value.gatePassed : undefined, childGoalStatus: includesString(VALID_CHILD_GOAL_STATUS, value.childGoalStatus) ? value.childGoalStatus : undefined, statusClaim: includesString(VALID_STATUS_CLAIM, value.statusClaim) ? value.statusClaim : undefined, targetReadiness: includesString(VALID_TARGET_READINESS, value.targetReadiness) ? value.targetReadiness : undefined, acceptanceBlockers: stringArray(value.acceptanceBlockers), at };
+  if (value.kind === "claim_returned" && typeof value.todoId === "string" && typeof value.claimHash === "string") return { version: 1, kind: "claim_returned", source, goalId: value.goalId, todoId: value.todoId, claimHash: value.claimHash, evidenceRefs: stringArray(value.evidenceRefs), validationCommands: stringArray(value.validationCommands), noShip: typeof value.noShip === "boolean" ? value.noShip : undefined, runId: typeof value.runId === "string" ? value.runId : undefined, outputHash: typeof value.outputHash === "string" ? value.outputHash : undefined, outputContract: typeof value.outputContract === "string" ? value.outputContract : undefined, gatePassed: typeof value.gatePassed === "boolean" ? value.gatePassed : undefined, childGoalStatus: includesString(VALID_CHILD_GOAL_STATUS, value.childGoalStatus) ? value.childGoalStatus : undefined, statusClaim: includesString(VALID_STATUS_CLAIM, value.statusClaim) ? value.statusClaim : undefined, targetReadiness: includesString(VALID_TARGET_READINESS, value.targetReadiness) ? value.targetReadiness : undefined, acceptanceBlockers: stringArray(value.acceptanceBlockers), childChangedPaths: normalizeChildChangedPathRefs(value.childChangedPaths), at };
   if (value.kind === "claim_validation_requested" && typeof value.todoId === "string") {
     const validation = normalizeValidation(value.validation);
     return validation ? { version: 1, kind: "claim_validation_requested", source, goalId: value.goalId, todoId: value.todoId, validation, at } : undefined;
@@ -984,7 +996,7 @@ function goalTodoNeedsSkipEvidence(node: GoalTodoNode): boolean {
   return node.priority === "critical" || Boolean(node.delegation) || node.owner === "factory" || node.owner === "orchestration";
 }
 
-export function completeGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { evidenceRefs?: string[]; validationCommands?: string[]; skipped?: boolean; reason?: string } = {}, source: GoalTodoEventSource = "tool"): GoalTodoNode {
+export function completeGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { evidenceRefs?: string[]; validationCommands?: string[]; skipped?: boolean; reason?: string; repoRoot?: string } = {}, source: GoalTodoEventSource = "tool"): GoalTodoNode {
   const existing = state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
   if (!existing) throw new Error(`Goal TODO not found: ${todoId}`);
   const evidenceRefs = [...new Set([...existing.evidenceRefs, ...(input.evidenceRefs ?? [])])];
@@ -997,7 +1009,7 @@ export function completeGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, g
     && (evidenceRefs.length > 0 || validationCommands.length > 0 || Boolean(existing.artifacts?.outputHash));
   if (!input.skipped && existing.delegation && existing.delegation.status !== "accepted" && !delegatedCompletionCoveredByChildren) {
     if (existing.status === "claim_returned" || existing.delegation.status === "claim_returned") {
-      return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands }, source);
+      return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands, repoRoot: input.repoRoot }, source);
     }
     throw new Error(`Delegated TODO ${todoId} cannot be marked done directly while delegation status is ${existing.delegation.status}. Wait for claim_returned, then use resolve_goal_todo(action=complete|auto) or accept_goal_todo_claim; or reject/block if evidence/no_ship blocks.`);
   }
@@ -1049,11 +1061,11 @@ export function linkGoalTodoDelegation(pi: ExtensionAPI, state: HarnessRuntimeSt
   return state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
 }
 
-export function returnGoalTodoClaim(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { claimText?: string; claimHash?: string; evidenceRefs?: string[]; validationCommands?: string[]; noShip?: boolean; runId?: string; outputHash?: string; outputContract?: string; gatePassed?: boolean; childGoalStatus?: GoalTodoChildGoalStatus; statusClaim?: GoalTodoStatusClaim; targetReadiness?: GoalTodoClaimTargetReadiness; acceptanceBlockers?: string[] }, source: GoalTodoEventSource = "delegation"): GoalTodoNode | undefined {
+export function returnGoalTodoClaim(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { claimText?: string; claimHash?: string; evidenceRefs?: string[]; validationCommands?: string[]; noShip?: boolean; runId?: string; outputHash?: string; outputContract?: string; gatePassed?: boolean; childGoalStatus?: GoalTodoChildGoalStatus; statusClaim?: GoalTodoStatusClaim; targetReadiness?: GoalTodoClaimTargetReadiness; acceptanceBlockers?: string[]; childChangedPaths?: ZcommitChildChangedPathRef[] }, source: GoalTodoEventSource = "delegation"): GoalTodoNode | undefined {
   const existing = state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
   if (!existing) return undefined;
   const claimHash = input.claimHash ?? sha256(input.claimText ?? `${goalId}:${todoId}:${Date.now()}`);
-  appendGoalTodoEvent(pi, state, { version: 1, kind: "claim_returned", source, goalId, todoId, claimHash, evidenceRefs: input.evidenceRefs ?? [], validationCommands: input.validationCommands ?? [], noShip: input.noShip, runId: input.runId, outputHash: input.outputHash, outputContract: input.outputContract, gatePassed: input.gatePassed, childGoalStatus: input.childGoalStatus, statusClaim: input.statusClaim, targetReadiness: input.targetReadiness, acceptanceBlockers: input.acceptanceBlockers ?? [], at: unixSeconds() });
+  appendGoalTodoEvent(pi, state, { version: 1, kind: "claim_returned", source, goalId, todoId, claimHash, evidenceRefs: input.evidenceRefs ?? [], validationCommands: input.validationCommands ?? [], noShip: input.noShip, runId: input.runId, outputHash: input.outputHash, outputContract: input.outputContract, gatePassed: input.gatePassed, childGoalStatus: input.childGoalStatus, statusClaim: input.statusClaim, targetReadiness: input.targetReadiness, acceptanceBlockers: input.acceptanceBlockers ?? [], childChangedPaths: input.childChangedPaths ?? [], at: unixSeconds() });
   return state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
 }
 
@@ -1103,7 +1115,7 @@ export function isGoalTodoClaimReadyForAutoAccept(node: GoalTodoNode): boolean {
   return node.evidenceRefs.length > 0 || node.validationCommands.length > 0 || Boolean(node.artifacts?.outputHash);
 }
 
-export function recordGoalTodoClaimValidationResult(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { result: TodoClaimValidationResult; runId?: string; agent?: string; outputHash?: string; autoAccept?: boolean }, source: GoalTodoEventSource = "delegation"): GoalTodoNode {
+export function recordGoalTodoClaimValidationResult(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { result: TodoClaimValidationResult; runId?: string; agent?: string; outputHash?: string; autoAccept?: boolean; repoRoot?: string }, source: GoalTodoEventSource = "delegation"): GoalTodoNode {
   const existing = state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
   if (!existing) throw new Error(`Goal TODO not found: ${todoId}`);
   if (!existing.claim) throw new Error(`TODO ${todoId} has no returned delegated claim to validate.`);
@@ -1128,16 +1140,19 @@ export function recordGoalTodoClaimValidationResult(pi: ExtensionAPI, state: Har
   appendGoalTodoEvent(pi, state, { version: 1, kind: "claim_validation_returned", source, goalId, todoId, validation, evidenceRefs: input.result.evidenceRefs, validationCommands: input.result.validationCommands, noShip: input.result.noShip, at: unixSeconds() });
   const node = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === todoId);
   if (!node) throw new Error(`Goal TODO not found: ${todoId}`);
-  if (input.autoAccept === true && isGoalTodoClaimReadyForAutoAccept(node)) return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.result.evidenceRefs, validationCommands: input.result.validationCommands }, source);
+  if (input.autoAccept === true && isGoalTodoClaimReadyForAutoAccept(node)) return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.result.evidenceRefs, validationCommands: input.result.validationCommands, repoRoot: input.repoRoot }, source);
   return cloneNode(node);
 }
 
-export function acceptGoalTodoClaim(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { evidenceRefs?: string[]; validationCommands?: string[] } = {}, source: GoalTodoEventSource = "tool"): GoalTodoNode {
+export function acceptGoalTodoClaim(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { evidenceRefs?: string[]; validationCommands?: string[]; repoRoot?: string } = {}, source: GoalTodoEventSource = "tool"): GoalTodoNode {
   const existing = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === todoId);
   if (!existing) throw new Error(`Goal TODO not found: ${todoId}`);
   if (existing.validation && existing.validation.status !== "passed") throw new Error(`TODO ${todoId} claim validation is ${existing.validation.status}; wait for oracle PASS/no_ship=false or reject/block.`);
   if (existing.status !== "claim_returned" || existing.delegation?.status !== "claim_returned") throw new Error(`TODO ${todoId} has no returned delegated claim to accept.`);
+  const changedPaths = existing.claim?.childChangedPaths ?? [];
+  if (changedPaths.length > 0 && !input.repoRoot) throw new Error(`repoRoot is required to accept delegated TODO claim ${todoId} with child changed paths.`);
   appendGoalTodoEvent(pi, state, { version: 1, kind: "claim_accepted", source, goalId, todoId, evidenceRefs: input.evidenceRefs ?? [], validationCommands: input.validationCommands ?? [], at: unixSeconds() });
+  if (changedPaths.length > 0) recordZcommitOwnedPaths(state.zcommit, input.repoRoot!, changedPaths, "parent_accepted_child_claim");
   const node = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === todoId);
   if (!node) throw new Error(`Goal TODO not found: ${todoId}`);
   return cloneNode(node);
@@ -1158,15 +1173,15 @@ export function nextValidGoalTodoActions(node: GoalTodoNode): ResolveGoalTodoAct
   return ["complete", "block", "skip"];
 }
 
-export function resolveGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { action: ResolveGoalTodoAction; evidenceRefs?: string[]; validationCommands?: string[]; reason?: string } = { action: "auto" }, source: GoalTodoEventSource = "tool"): GoalTodoNode {
+export function resolveGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { action: ResolveGoalTodoAction; evidenceRefs?: string[]; validationCommands?: string[]; reason?: string; repoRoot?: string } = { action: "auto" }, source: GoalTodoEventSource = "tool"): GoalTodoNode {
   const existing = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === todoId);
   if (!existing) throw new Error(`Goal TODO not found: ${todoId}`);
   const action: ResolveGoalTodoAction = input.action === "auto"
     ? existing.status === "claim_returned" || existing.delegation?.status === "claim_returned" ? "accept_claim" : "complete"
     : input.action;
-  if (action === "complete") return completeGoalTodo(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands }, source);
-  if (action === "skip") return completeGoalTodo(pi, state, goalId, todoId, { skipped: true, reason: input.reason, evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands }, source);
-  if (action === "accept_claim") return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands }, source);
+  if (action === "complete") return completeGoalTodo(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands, repoRoot: input.repoRoot }, source);
+  if (action === "skip") return completeGoalTodo(pi, state, goalId, todoId, { skipped: true, reason: input.reason, evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands, repoRoot: input.repoRoot }, source);
+  if (action === "accept_claim") return acceptGoalTodoClaim(pi, state, goalId, todoId, { evidenceRefs: input.evidenceRefs, validationCommands: input.validationCommands, repoRoot: input.repoRoot }, source);
   if (action === "reject_claim") {
     if (!input.reason?.trim()) throw new Error("reject_claim requires reason.");
     return rejectGoalTodoClaim(pi, state, goalId, todoId, input.reason, source);
@@ -1482,7 +1497,7 @@ function stripKnownOptions(text: string): string {
     .trim();
 }
 
-export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string | undefined, text: string): GoalTodoCommandResult {
+export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string | undefined, text: string, repoRoot?: string): GoalTodoCommandResult {
   if (!goalId) return { ok: false, message: "Goal TODOs require an active runtime goal. Use /goal <objective> first." };
   const trimmed = text.trim();
   if (!trimmed || trimmed === "list" || trimmed === "tree" || trimmed === "status") return { ok: true, message: formatGoalTodoTree(state.goalTodos, goalId) };
@@ -1510,7 +1525,7 @@ export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntim
       const todoId = rest[0];
       if (!todoId) return { ok: false, message: `Usage: /goal todo ${command} <todoId> [evidence/reason]` };
       const evidence = rest.slice(1).join(" ").replace(/^--evidence\s+/, "").trim();
-      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: command === "skip" ? "skip" : "complete", evidenceRefs: evidence ? [evidence] : [], reason: evidence }, "command");
+      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: command === "skip" ? "skip" : "complete", evidenceRefs: evidence ? [evidence] : [], reason: evidence, repoRoot }, "command");
       return { ok: true, message: `${command === "skip" ? "skipped" : "done"} TODO ${node.path}: ${node.title}`, node };
     }
     if (command === "block" || command === "user") {
@@ -1519,7 +1534,7 @@ export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntim
       if (!todoId || !reason) return { ok: false, message: `Usage: /goal todo ${command} <todoId> <reason>` };
       const node = command === "user"
         ? patchGoalTodo(pi, state, goalId, todoId, { status: "needs_user", owner: "user", blocker: reason, reviewNoShip: true }, "command")
-        : resolveGoalTodo(pi, state, goalId, todoId, { action: "block", reason }, "command");
+        : resolveGoalTodo(pi, state, goalId, todoId, { action: "block", reason, repoRoot }, "command");
       return { ok: true, message: `updated TODO ${node.path}: ${node.status}`, node };
     }
     if (command === "start") {
@@ -1544,14 +1559,14 @@ export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntim
       const todoId = rest[0];
       if (!todoId) return { ok: false, message: `Usage: /goal todo ${command} <todoId> [evidence]` };
       const evidence = rest.slice(1).join(" ").trim();
-      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: "accept_claim", evidenceRefs: evidence ? [evidence] : [] }, "command");
+      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: "accept_claim", evidenceRefs: evidence ? [evidence] : [], repoRoot }, "command");
       return { ok: true, message: `accepted claim for TODO ${node.path}: ${node.title}`, node };
     }
     if (command === "reject-claim" || command === "reject") {
       const todoId = rest[0];
       const reason = rest.slice(1).join(" ").trim();
       if (!todoId || !reason) return { ok: false, message: `Usage: /goal todo ${command} <todoId> <reason>` };
-      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: "reject_claim", reason }, "command");
+      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: "reject_claim", reason, repoRoot }, "command");
       return { ok: true, message: `rejected claim for TODO ${node.path}: ${node.title}`, node };
     }
   } catch (error) {

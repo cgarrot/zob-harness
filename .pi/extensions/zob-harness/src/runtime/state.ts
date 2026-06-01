@@ -16,6 +16,7 @@ import { DEFAULT_DAEMON_RUNTIME_POLICY, type DaemonLoopSnapshot, type DaemonRunt
 import { createInteractiveAutonomyRuntimeState, restoreInteractiveAutonomyState, type InteractiveAutonomyRuntimeState } from "../interactive-autonomy.js";
 import type { ZobModeIntent } from "./mode-intent.js";
 import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
+import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../git-ops.js";
 
 export interface DelegationMouseRuntimeState {
   tui?: TUI;
@@ -101,6 +102,7 @@ export interface HarnessRuntimeState {
   autonomy: InteractiveAutonomyRuntimeState;
   daemon: DaemonHarnessRuntimeState;
   zcompact: ZcompactRuntimeState;
+  zcommit: ZcommitRuntimeState;
   backgroundDelegations: Map<string, BackgroundDelegationRuntimeRun>;
 }
 
@@ -140,6 +142,7 @@ export function createHarnessRuntimeState(): HarnessRuntimeState {
       },
     },
     zcompact: createZcompactRuntimeState(),
+    zcommit: createZcommitRuntimeState(),
     backgroundDelegations: new Map(),
   };
 }
@@ -196,6 +199,63 @@ function asDelegationFailureKind(value: string | undefined): DelegationFailureKi
 function stringArrayField(record: Record<string, unknown>, key: string): string[] | undefined {
   const value = record[key];
   return Array.isArray(value) ? value.map(String) : undefined;
+}
+
+function asZcommitToggle(value: unknown): ZcommitToggleState | undefined {
+  return value === "on" || value === "off" ? value : undefined;
+}
+
+function asZcommitOwnershipSource(value: unknown): ZcommitOwnershipSource | undefined {
+  return value === "local_tool_call" || value === "parent_accepted_child_claim" || value === "compaction_continuity" ? value : undefined;
+}
+
+function normalizeZcommitChildChangedPathRefs(value: unknown): DelegationRunView["childChangedPaths"] {
+  if (!Array.isArray(value)) return undefined;
+  return value.flatMap((item) => {
+    if (!isRecord(item) || typeof item.path !== "string" || typeof item.pathHash !== "string" || typeof item.status !== "string") return [];
+    return [{ path: item.path, pathHash: item.pathHash, status: item.status, contentHash: typeof item.contentHash === "string" ? item.contentHash : undefined }];
+  }).slice(0, 100);
+}
+
+function asZcommitLastCommitRecord(value: unknown): ZcommitLastCommitRecord | undefined {
+  if (!isRecord(value) || typeof value.hash !== "string" || typeof value.shortHash !== "string" || typeof value.subject !== "string" || !Array.isArray(value.files) || typeof value.createdAt !== "string") return undefined;
+  return {
+    hash: value.hash,
+    shortHash: value.shortHash,
+    subject: value.subject,
+    files: value.files.map(String),
+    remote: typeof value.remote === "string" ? value.remote : undefined,
+    branch: typeof value.branch === "string" ? value.branch : undefined,
+    createdAt: value.createdAt,
+    pushedAt: typeof value.pushedAt === "string" ? value.pushedAt : undefined,
+  };
+}
+
+function restoreZcommitOwnedPathRefsFromData(state: HarnessRuntimeState, repoRoot: string, data: Record<string, unknown>, fallbackSource: ZcommitOwnershipSource, fallbackAt: string): void {
+  const refs = Array.isArray(data.ownedPathRefs) ? data.ownedPathRefs : [];
+  for (const value of refs) {
+    if (!isRecord(value) || typeof value.path !== "string") continue;
+    recordZcommitOwnedPath(state.zcommit, repoRoot, value.path, asZcommitOwnershipSource(value.source) ?? fallbackSource, typeof value.lastOwnedAt === "string" ? value.lastOwnedAt : fallbackAt);
+  }
+}
+
+function restoreZcommitMetadataFromEntries(state: HarnessRuntimeState, repoRoot: string, entries: unknown[]): void {
+  for (const entry of entries) {
+    if (!isRecord(entry) || entry.customType !== "zob-zcommit" || !isRecord(entry.data)) continue;
+    const data = entry.data as Record<string, unknown>;
+    const entryAt = stringField(data, "generatedAt") ?? stringField(entry, "timestamp") ?? new Date().toISOString();
+    state.zcommit.autocommit = asZcommitToggle(data.autocommit) ?? state.zcommit.autocommit;
+    state.zcommit.autopush = asZcommitToggle(data.autopush) ?? state.zcommit.autopush;
+    const lastCommit = asZcommitLastCommitRecord(data.lastCommit);
+    if (lastCommit) state.zcommit.lastCommit = lastCommit;
+    const lastCommitHash = stringField(data, "lastCommitHash");
+    const lastCommitShortHash = stringField(data, "lastCommitShortHash");
+    if (!lastCommit && lastCommitHash && lastCommitShortHash) {
+      state.zcommit.lastCommit = { hash: lastCommitHash, shortHash: lastCommitShortHash, subject: "restored /zcommit commit", files: [], createdAt: entryAt };
+    }
+    restoreZcommitOwnedPathRefsFromData(state, repoRoot, data, "local_tool_call", entryAt);
+    state.zcommit.updatedAt = entryAt;
+  }
 }
 
 function restoreDaemonMetadataFromEntries(state: HarnessRuntimeState, entries: unknown[]): void {
@@ -292,6 +352,7 @@ function restoreDelegationRunsFromEntries(state: HarnessRuntimeState, entries: u
       stopReason: stringField(data, "stopReason") ?? existing?.stopReason,
       stopCondition: stringField(data, "stopCondition") ?? existing?.stopCondition,
       errorMessage: Array.isArray(data.errors) ? data.errors.map(String).join("; ") : existing?.errorMessage,
+      childChangedPaths: normalizeZcommitChildChangedPathRefs(data.childChangedPathRefs) ?? existing?.childChangedPaths,
       usage: usageField(data) ?? existing?.usage,
     };
     if (event === "start") restoredRun.endedAtMs = existing?.endedAtMs;
@@ -319,6 +380,7 @@ export function restoreHarnessState(state: HarnessRuntimeState, ctx: ExtensionCo
   state.autonomy = restoreInteractiveAutonomyState(ctx.cwd, branch, state.autonomy);
   state.zcompact = restoreZcompactStateFromBranch(branch, state.zcompact);
   restoreDaemonMetadataFromEntries(state, branch);
+  restoreZcommitMetadataFromEntries(state, ctx.cwd, branch);
   state.daemon.lastStatus = undefined;
   state.daemon.lastPlan = undefined;
   restoreDelegationRunsFromEntries(state, branch);

@@ -3,14 +3,15 @@ import { join, relative } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 
-import type { AgentScope, ChildResult, ChildStopCondition, DelegationDetails, DelegationFailureKind } from "../types.js";
+import type { AgentScope, ChildResult, ChildStopCondition, ChildThinkingLevel, DelegationDetails, DelegationFailureKind } from "../types.js";
 import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "../schemas.js";
 import { discoverAgents, formatAgentList } from "../agents.js";
 import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../goal-todos.js";
-import { isFailed, mapWithConcurrency, runChildAgent } from "../child-runner.js";
+import { isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride } from "../child-runner.js";
 import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../chronicle.js";
 import { validateExplicitModelOverride } from "../model-availability.js";
 import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../output-contracts.js";
+import { captureZcommitChildDirtySnapshot, diffZcommitChildDirtySnapshots, type ZcommitChildChangedPathRef } from "../git-ops.js";
 import {
   parseToolList,
   resolveChildCwd,
@@ -31,6 +32,7 @@ import {
   delegationSignalColor,
   extractDelegationSignalBadge,
   finishDelegationRun,
+  formatDelegationModelLabel,
   formatDelegationSignalBadge,
   formatDuration,
   hasActiveDelegations,
@@ -71,6 +73,16 @@ function delegationCallLabel(args: { agent?: string; task?: string; tasks?: Arra
 
 function classifyConfigOrPreflight(errors: string[]): DelegationFailureKind {
   return errors.some((error) => /unknown agent|unknown output contract|available:/i.test(error)) ? "config" : "preflight";
+}
+
+function toolsEnableWrites(tools: string[] | undefined): boolean {
+  return Boolean(tools?.some((tool) => tool === "edit" || tool === "write"));
+}
+
+function captureChildDirtyDelta(repoRoot: string, pathPolicy: { allowedPaths?: string[]; forbiddenPaths?: string[] }, before: ReturnType<typeof captureZcommitChildDirtySnapshot> | undefined): ZcommitChildChangedPathRef[] {
+  if (!before) return [];
+  const after = captureZcommitChildDirtySnapshot(repoRoot, pathPolicy);
+  return diffZcommitChildDirtySnapshots(before, after);
 }
 
 function classifyChildFailure(result: ChildResult): DelegationFailureKind | undefined {
@@ -150,6 +162,7 @@ type DelegateTaskAliasInput = {
   cwd?: string;
   scope?: AgentScope;
   model?: string;
+  thinking?: ChildThinkingLevel;
 };
 
 type DelegateTaskCanonicalInput = Omit<DelegateTaskAliasInput,
@@ -187,7 +200,7 @@ function deepEqual(left: unknown, right: unknown): boolean {
 
 function normalizeDelegateTaskParams(input: DelegateTaskAliasInput): { params: DelegateTaskCanonicalInput; errors: string[] } {
   const errors: string[] = [];
-  const knownKeys = new Set<keyof DelegateTaskAliasInput>(["agent", "task", "expected_outcome", "expectedOutcome", "required_tools", "requiredTools", "must_do", "mustDo", "must_not_do", "mustNotDo", "must_not", "mustNot", "context", "original_user_ask", "originalUserAsk", "allowed_paths", "allowedPaths", "forbidden_paths", "forbiddenPaths", "output_contract", "outputContract", "child_goal", "childGoal", "run_in_background", "runInBackground", "load_skills", "loadSkills", "cwd", "scope", "model"]);
+  const knownKeys = new Set<keyof DelegateTaskAliasInput>(["agent", "task", "expected_outcome", "expectedOutcome", "required_tools", "requiredTools", "must_do", "mustDo", "must_not_do", "mustNotDo", "must_not", "mustNot", "context", "original_user_ask", "originalUserAsk", "allowed_paths", "allowedPaths", "forbidden_paths", "forbiddenPaths", "output_contract", "outputContract", "child_goal", "childGoal", "run_in_background", "runInBackground", "load_skills", "loadSkills", "cwd", "scope", "model", "thinking"]);
   for (const key of Object.keys(input)) {
     if (!knownKeys.has(key as keyof DelegateTaskAliasInput)) errors.push(`Unknown delegate_task field '${key}'; use canonical JSON keys or the documented safe aliases only`);
   }
@@ -225,6 +238,7 @@ function normalizeDelegateTaskParams(input: DelegateTaskAliasInput): { params: D
       cwd: input.cwd,
       scope: input.scope,
       model: input.model,
+      thinking: input.thinking,
     },
     errors,
   };
@@ -334,6 +348,7 @@ function recordTodoClaimFromChildResult(pi: ExtensionAPI, state: HarnessRuntimeS
         outputHash: meta.outputHash,
         outputContract: result.outputContract,
         gatePassed: result.gatePassed,
+        childChangedPaths: result.childChangedPaths ?? [],
       }, "delegation");
       return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim: false, node };
     }
@@ -357,6 +372,7 @@ function recordTodoClaimFromChildResult(pi: ExtensionAPI, state: HarnessRuntimeS
     statusClaim: claim.statusClaim,
     targetReadiness: claim.targetReadiness,
     acceptanceBlockers: claim.acceptanceBlockers,
+    childChangedPaths: result.childChangedPaths ?? [],
   }, "delegation");
   return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim, node };
 }
@@ -483,6 +499,7 @@ async function runAgenticTodoClaimValidation(input: {
       agent: agentName,
       outputHash,
       autoAccept: settings?.auto_accept_on_pass !== false,
+      repoRoot: ctx.cwd,
     }, "delegation");
   } catch (error) {
     appendDelegationLedger({ event: "todo_claim_validation_record_failed", parentRunId, runId: validationRunId, goalId, todoId, errorHash: sha256(error instanceof Error ? error.message : String(error)), at: new Date().toISOString() });
@@ -639,6 +656,7 @@ function hydrateDelegationRunsFromDetails(source: "delegate_agent" | "delegate_t
       mode: details.mode,
       index,
       agent: result.agent,
+      model: result.model,
       status: result.stopReason === "aborted" ? "aborted" : isFailed(result) ? "failed" : "complete",
       endedAtMs: existing?.endedAtMs ?? nowMs,
       outputPreview: result.output,
@@ -763,7 +781,9 @@ function renderDelegationToolResultText(source: "delegate_agent" | "delegate_tas
       const kind = run.failureKind ? ` ${run.failureKind}` : "";
       const badge = delegationSignalBadge(run);
       const badgeText = formatDelegationSignalBadge(badge);
-      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
+      const modelLabel = formatDelegationModelLabel(run);
+      const modelSuffix = modelLabel ? ` ${theme.fg("muted", `(${modelLabel})`)}` : "";
+      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
       if (expanded && (run.errorMessage || run.stopReason || run.gateErrors?.length)) lines.push(`   ${theme.fg("dim", run.errorMessage ?? run.gateErrors?.join("; ") ?? run.stopReason ?? "")}`);
     }
     if (hasMore) lines.push(theme.fg("dim", `└─ … ${monitoredRuns.length - maxRows} more child run(s)`));
@@ -781,7 +801,9 @@ function renderDelegationToolResultText(source: "delegate_agent" | "delegate_tas
     const kind = result.failureKind ? ` ${result.failureKind}` : "";
     const badge = extractDelegationSignalBadge(result.output);
     const badgeText = formatDelegationSignalBadge(badge);
-    lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${failed ? "✗" : "✓"} ${result.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""} ${theme.fg("dim", result.ledgerRunId ?? "")} ${theme.fg("muted", viewHint)}`);
+    const modelLabel = formatDelegationModelLabel(result);
+    const modelSuffix = modelLabel ? ` ${theme.fg("muted", `(${modelLabel})`)}` : "";
+    lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${failed ? "✗" : "✓"} ${result.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", result.ledgerRunId ?? "")} ${theme.fg("muted", viewHint)}`);
     if (expanded && result.output.trim()) lines.push(`   ${theme.fg("muted", result.output.split("\n")[0] ?? "")}`);
   }
   if (hasMore) lines.push(theme.fg("dim", `└─ … ${results.length - maxRows} more result(s)`));
@@ -872,7 +894,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         renderDelegationMonitor();
       };
 
-      const runOne = async (item: { agent: string; task: string; cwd?: string; child_goal?: ChildGoalInput }, monitor: { mode: DelegationRunMode; index?: number }, update?: (result: ChildResult) => void): Promise<ChildResult> => {
+      const runOne = async (item: { agent: string; task: string; cwd?: string; thinking?: ChildThinkingLevel; child_goal?: ChildGoalInput }, monitor: { mode: DelegationRunMode; index?: number }, update?: (result: ChildResult) => void): Promise<ChildResult> => {
         const runId = newRunId("delegate");
         const childGoalResolution = resolveChildGoalTodoRef(state, item.child_goal ?? params.child_goal);
         const effectiveChildGoal = childGoalResolution.childGoal;
@@ -880,6 +902,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const startedAtMs = Date.now();
         const startedAt = new Date(startedAtMs).toISOString();
         const requestedTools = parseToolList(params.tools);
+        const effectiveThinking = item.thinking ?? params.thinking;
         startDelegationRun(state.delegations, {
           id: runId,
           parentToolCallId: toolCallId,
@@ -950,6 +973,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             gateErrors: ["unknown agent"],
             failureKind: result.failureKind,
             errorMessage: "Configuration blocked; no child launched: unknown agent",
+            model: params.model,
           });
           recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
@@ -970,6 +994,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           ...validateForbiddenPathPolicy(params.forbidden_paths, "forbidden_paths", ctx.cwd),
           ...validateDelegationWriteScope("delegate_agent", effectiveTools, params.allowed_paths),
           ...validateExplicitModelOverride(ctx.cwd, params.model).errors,
+          ...validateChildThinkingOverride(effectiveThinking, item.thinking ? "tasks[].thinking" : "thinking"),
         ];
         if (preflightErrors.length > 0) {
           const result: ChildResult = {
@@ -1029,6 +1054,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             gateErrors: preflightErrors,
             failureKind: result.failureKind,
             errorMessage: `${result.failureKind === "config" ? "Configuration blocked" : "Preflight blocked"}; no child launched: ${preflightErrors.join("; ")}`,
+            model: params.model ?? agent.model,
           });
           recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
@@ -1053,10 +1079,14 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           startedAt,
         });
 
+        const effectiveChildTools = requestedTools ?? agent.tools ?? [];
+        const childPathPolicy = { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths };
+        const beforeChildDirty = toolsEnableWrites(effectiveChildTools) ? captureZcommitChildDirtySnapshot(ctx.cwd, childPathPolicy) : undefined;
         const result = await runChildAgent(ctx, agent, taskText, cwdResult.cwd, signal, params.model, requestedTools?.join(","), (partial) => {
           updateDelegationRun(state.delegations, runId, {
             status: partial.stopReason === "aborted" ? "aborted" : "running",
             agent: partial.agent,
+            model: partial.model,
             outputPreview: partial.output,
             stderrPreview: partial.stderr,
             sessionPath: partial.sessionPath,
@@ -1066,7 +1096,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           });
           renderDelegationMonitor();
           update?.(partial);
-        }, { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
+        }, childPathPolicy, effectiveThinking);
+        result.childChangedPaths = captureChildDirtyDelta(ctx.cwd, childPathPolicy, beforeChildDirty);
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
         result.contractErrors = [];
@@ -1111,6 +1142,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: result.gateErrors ?? [],
           failureKind: result.failureKind,
           outputHash,
+          childChangedPathRefs: result.childChangedPaths,
+          childChangedPathHashes: result.childChangedPaths.map((ref) => ref.pathHash),
           chronicle: classifyDelegationChronicleCompletion({
             runId,
             source: "delegate_agent",
@@ -1178,7 +1211,9 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           stopReason: result.stopReason,
           stopCondition: result.stopCondition,
           errorMessage: childFailureMessage(result.failureKind, result.gateErrors, result.errorMessage),
+          childChangedPaths: result.childChangedPaths,
           usage: result.usage,
+          model: result.model,
         });
         if (shouldRunAgenticClaimValidation(effectiveChildGoal, claimRecord)) {
           await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: effectiveChildGoal, claimRecord, parentRunId: runId, appendDelegationLedger, signal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
@@ -1190,7 +1225,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       if (params.agent && params.task) {
         startMonitorTicker();
         try {
-          const result = await runOne({ agent: params.agent, task: params.task, child_goal: params.child_goal }, { mode: "single", index: 0 }, (partial) => {
+          const result = await runOne({ agent: params.agent, task: params.task, thinking: params.thinking, child_goal: params.child_goal }, { mode: "single", index: 0 }, (partial) => {
             onUpdate?.({ content: [{ type: "text", text: partial.output || partial.stderr || "running..." }], details: makeDetails("single", [partial]) });
           });
           return {
@@ -1397,6 +1432,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: ["unknown agent"],
           failureKind: result.failureKind,
           errorMessage: "Configuration blocked; no child launched: unknown agent",
+          model: params.model,
         });
         recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
@@ -1440,6 +1476,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         ...validateForbiddenPathPolicy(params.forbidden_paths, "forbidden_paths", ctx.cwd),
         ...validateDelegateTaskWriteScope(effectiveTools, params.allowed_paths),
         ...validateExplicitModelOverride(ctx.cwd, params.model).errors,
+        ...validateChildThinkingOverride(params.thinking),
       ];
       if ((params.load_skills?.length ?? 0) > 0) preflightErrors.push("load_skills is reserved for a future explicit skill-loading gate; use [] for P0");
 
@@ -1501,6 +1538,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: preflightErrors,
           failureKind: result.failureKind,
           errorMessage: delegateTaskPreflightHelp(preflightErrors).replace(/\n/g, " "),
+          model: params.model ?? agent.model,
         });
         recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
@@ -1526,10 +1564,13 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           startedAt,
         });
 
+        const childPathPolicy = { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths };
+        const beforeChildDirty = toolsEnableWrites(effectiveTools) ? captureZcommitChildDirtySnapshot(ctx.cwd, childPathPolicy) : undefined;
         const result = await runChildAgent(ctx, agent, structuredTask, cwdResult.cwd, childSignal, params.model, effectiveTools.join(","), (partial) => {
           updateDelegationRun(state.delegations, runId, {
             status: partial.stopReason === "aborted" ? "aborted" : "running",
             agent: partial.agent,
+            model: partial.model,
             outputPreview: partial.output,
             stderrPreview: partial.stderr,
             sessionPath: partial.sessionPath,
@@ -1539,7 +1580,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           });
           renderDelegationMonitor();
           if (emitToolUpdates) onUpdate?.({ content: [{ type: "text", text: partial.output || partial.stderr || "running..." }], details: { mode: "single", results: [partial], agents: agents.map((candidate) => candidate.name) } });
-        }, { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
+        }, childPathPolicy, params.thinking);
+        result.childChangedPaths = captureChildDirtyDelta(ctx.cwd, childPathPolicy, beforeChildDirty);
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
         result.contractErrors = [];
@@ -1585,6 +1627,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: result.gateErrors ?? [],
           failureKind: result.failureKind,
           outputHash,
+          childChangedPathRefs: result.childChangedPaths,
+          childChangedPathHashes: result.childChangedPaths.map((ref) => ref.pathHash),
           chronicle: classifyDelegationChronicleCompletion({
             runId,
             source: "delegate_task",
@@ -1652,7 +1696,9 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           stopReason: result.stopReason,
           stopCondition: result.stopCondition,
           errorMessage: childFailureMessage(result.failureKind, result.gateErrors, result.errorMessage),
+          childChangedPaths: result.childChangedPaths,
           usage: result.usage,
+          model: result.model,
         });
         if (shouldRunAgenticClaimValidation(effectiveChildGoal, claimRecord)) {
           await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: effectiveChildGoal, claimRecord, parentRunId: runId, appendDelegationLedger, signal: childSignal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
@@ -1696,7 +1742,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           .catch((error: unknown) => {
             const message = error instanceof Error ? error.message : String(error);
             backgroundRun.error = message;
-            finishDelegationRun(state.delegations, runId, { status: "failed", endedAtMs: Date.now(), errorMessage: message, gatePassed: false, gateErrors: [message], failureKind: "child_runtime" });
+            finishDelegationRun(state.delegations, runId, { status: "failed", endedAtMs: Date.now(), errorMessage: message, gatePassed: false, gateErrors: [message], failureKind: "child_runtime", model: params.model ?? agent.model });
             const settledEntry = {
               event: "background_settled",
               runId,

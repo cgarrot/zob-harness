@@ -12,13 +12,15 @@ import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDna
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../utils/hashing.js";
+import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../git-ops.js";
 import { writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../coms-v2/zpeer.js";
 import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
-import { handleGoalCommand, handleGoalGateCommand } from "../goal-runtime.js";
+import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "../goal-runtime.js";
 import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
 import { formatContractTemplate } from "../safety.js";
 import { showDelegationOverlay } from "./delegation-overlay.js";
+import { finishDelegationRun } from "./delegation-monitor.js";
 import { showGoalTodoOverlay } from "./goal-todo-overlay.js";
 import type { HarnessRuntimeState } from "./state.js";
 import {
@@ -34,6 +36,72 @@ import { applyMode, renderHarnessWidget } from "./widget.js";
 
 const COMPUTE_PROFILES = ["auto", "low", "medium", "high", "xhigh", "max"] as const;
 const COMPUTE_DOMAINS = ["generic", "project-dna", "factory", "orchestration"] as const;
+
+function zcommitArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const items: AutocompleteItem[] = [
+    { value: "status", label: "status [paths/globs...]", description: "show governed commit state without staging" },
+    { value: "plan", label: "plan [paths/globs...]", description: "plan safe workspace dirty files or explicit pathspecs" },
+    { value: "adopt ", label: "adopt <paths...>", description: "advanced: explicitly mark exact dirty paths as owned without staging" },
+    { value: "autocommit on", label: "autocommit on", description: "enable easy autocommit at assistant message end" },
+    { value: "autocommit off", label: "autocommit off", description: "turn off session autocommit metadata" },
+    { value: "autopush on", label: "autopush on", description: "enable gated autopush metadata only when autocommit is on" },
+    { value: "autopush off", label: "autopush off", description: "turn off session autopush metadata" },
+    { value: "commit", label: "commit [paths/globs...]", description: "commit safe workspace changes or explicit pathspecs with a Conventional Commit" },
+    { value: "push", label: "push", description: "push last /zcommit commit to allowed remote/branch only" },
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function zcommitOwnedPathLedgerRefs(state: HarnessRuntimeState): Array<Pick<ZcommitOwnedPathRef, "path" | "source" | "pathHash" | "lastOwnedAt">> {
+  return Object.values(state.zcommit.ownedPathRefs ?? {}).map((ref) => ({ path: ref.path, source: ref.source, pathHash: ref.pathHash, lastOwnedAt: ref.lastOwnedAt })).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function zcommitLedgerEntry(action: string, state: HarnessRuntimeState, plan: ReturnType<typeof buildZcommitPlan>, result?: ZcommitCommandResult | ZcommitAdoptResult): Record<string, unknown> {
+  return {
+    schema: "zob.zcommit-command.v1",
+    action,
+    status: result ? (result.ok ? "ok" : "blocked_or_failed") : undefined,
+    autocommit: state.zcommit.autocommit,
+    autopush: state.zcommit.autopush,
+    policyLoaded: plan.policyLoaded,
+    selectionMode: plan.selectionMode,
+    validationMode: plan.validationMode,
+    selectionPathspecHashes: plan.selectionPathspecs.map((pathspec) => sha256(pathspec)),
+    dirtyCount: plan.dirtyFiles.length,
+    touchedCount: plan.touchedFiles.length,
+    eligibleCount: plan.eligible.length,
+    excludedCount: plan.excluded.length,
+    forbiddenCount: plan.forbidden.length,
+    unexpectedStagedCount: plan.unexpectedStaged.length,
+    eligiblePathHashes: plan.eligible.map((file) => sha256(file.path)),
+    excludedPathHashes: plan.excluded.map((file) => sha256(file.path)),
+    ownedPathRefs: zcommitOwnedPathLedgerRefs(state),
+    noShip: plan.noShip,
+    commitEnabled: plan.commitEnabled,
+    pushEnabled: plan.pushEnabled,
+    lastCommitHash: state.zcommit.lastCommit?.hash,
+    lastCommitShortHash: state.zcommit.lastCommit?.shortHash,
+    validationOk: result && result.action !== "adopt" ? result.validation?.ok : undefined,
+    validationCommand: result && result.action !== "adopt" ? result.validation?.command : undefined,
+    adoptedPathHashes: result?.action === "adopt" ? result.adopted.map((path) => sha256(path)) : undefined,
+    adoptExcludedPathHashes: result?.action === "adopt" ? result.excluded.map((entry) => sha256(entry.path)) : undefined,
+    adoptExcludedReasons: result?.action === "adopt" ? result.excluded.map((entry) => entry.reason) : undefined,
+    errorHashes: result?.errors.map((error) => sha256(error)),
+    actualGitCommitRun: result?.actualGitCommitRun ?? false,
+    actualGitPushRun: result?.actualGitPushRun ?? false,
+    bodyStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function setZcommitToggle(state: HarnessRuntimeState, key: "autocommit" | "autopush", value: ZcommitToggleState): void {
+  state.zcommit[key] = value;
+  state.zcommit.updatedAt = new Date().toISOString();
+}
 
 function computeArgumentCompletions(prefix: string): AutocompleteItem[] | null {
   const query = prefix.trim().toLowerCase();
@@ -405,6 +473,60 @@ function scheduleDaemonLoop(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: H
   state.daemon.loopTimer = timer;
 }
 
+function abortForegroundWork(ctx: HarnessCommandContext): boolean {
+  const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+  if (idle) return false;
+  if (typeof ctx.abort !== "function") return false;
+  ctx.abort();
+  return true;
+}
+
+function abortBackgroundDelegations(state: HarnessRuntimeState): { abortedCount: number; runIds: string[] } {
+  const runIds: string[] = [];
+  for (const [runId, run] of state.backgroundDelegations.entries()) {
+    if (run.result || run.error || run.abortController.signal.aborted) continue;
+    run.abortController.abort();
+    runIds.push(runId);
+    finishDelegationRun(state.delegations, runId, {
+      status: "aborted",
+      endedAtMs: Date.now(),
+      gatePassed: false,
+      failureKind: "aborted",
+      stopReason: "aborted",
+      stopCondition: "slash_stop",
+      errorMessage: "aborted by /stop",
+    });
+  }
+  return { abortedCount: runIds.length, runIds };
+}
+
+function stopCommandLedgerEntry(input: {
+  foregroundAbortRequested: boolean;
+  idleBeforeStop: boolean;
+  pendingMessagesBeforeStop: boolean;
+  backgroundAbortedCount: number;
+  backgroundRunIds: string[];
+  daemonWasRunning: boolean;
+  runtimeGoalPaused: boolean;
+  runtimeGoalId?: string;
+}): Record<string, unknown> {
+  return {
+    schema: "zob.stop-command.v1",
+    foregroundAbortRequested: input.foregroundAbortRequested,
+    idleBeforeStop: input.idleBeforeStop,
+    pendingMessagesBeforeStop: input.pendingMessagesBeforeStop,
+    backgroundAbortedCount: input.backgroundAbortedCount,
+    backgroundRunIds: input.backgroundRunIds,
+    daemonWasRunning: input.daemonWasRunning,
+    runtimeGoalPaused: input.runtimeGoalPaused,
+    runtimeGoalId: input.runtimeGoalId,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: string): AutocompleteItem[] | null {
   const query = prefix.trim().toLowerCase();
   const items: AutocompleteItem[] = [];
@@ -454,6 +576,35 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
       }
       applyMode(pi, state, ctx, requested);
       state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+    },
+  });
+
+  pi.registerCommand("stop", {
+    description: "Stop current foreground work, background delegate_task runs, daemon loop, and runtime-goal auto-continuation without shutting down Pi.",
+    handler: async (_args, ctx) => {
+      const idleBeforeStop = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+      const pendingMessagesBeforeStop = typeof ctx.hasPendingMessages === "function" ? ctx.hasPendingMessages() : false;
+      const daemonWasRunning = state.daemon.loop.status === "running";
+      const runtimeGoalId = state.runtimeGoal?.goalId;
+      const foregroundAbortRequested = abortForegroundWork(ctx);
+      const background = abortBackgroundDelegations(state);
+      stopDaemonLoop(state, "slash_stop");
+      const pausedGoal = pauseRuntimeGoalForStop(pi, state, "stopped by /stop; use /goal resume to continue");
+      const daemonState = buildDaemonRuntimeState(daemonInputFromState(state));
+      state.daemon.lastStatus = daemonState;
+      pi.appendEntry("zob-daemon-runtime", daemonRuntimeLedgerEntry(daemonState));
+      pi.appendEntry("zob-stop", stopCommandLedgerEntry({
+        foregroundAbortRequested,
+        idleBeforeStop,
+        pendingMessagesBeforeStop,
+        backgroundAbortedCount: background.abortedCount,
+        backgroundRunIds: background.runIds,
+        daemonWasRunning,
+        runtimeGoalPaused: Boolean(pausedGoal && pausedGoal.goalId === runtimeGoalId && pausedGoal.status === "paused"),
+        runtimeGoalId,
+      }));
+      renderHarnessWidget(pi, state, ctx);
+      ctx.ui.notify(`ZOB stop: foreground=${foregroundAbortRequested ? "aborted" : "idle"} background_aborted=${background.abortedCount} daemon=${daemonWasRunning ? "stopped" : "already_stopped"} goal=${pausedGoal?.status ?? "none"}`, "warning");
     },
   });
 
@@ -715,6 +866,77 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
     },
     handler: async (args, ctx) => {
       await handleZcompactCommand(pi, state, args, ctx, () => renderHarnessWidget(pi, state, ctx));
+    },
+  });
+
+  pi.registerCommand("zcommit", {
+    description: "Easy governed ZOB commit workflow: /zcommit status [paths/globs...]|plan [paths/globs...]|adopt <paths...>|commit [paths/globs...]|push|autocommit on|off|autopush on|off (no aliases)",
+    getArgumentCompletions: zcommitArgumentCompletions,
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const requested = (parts[0] ?? "status").toLowerCase();
+      const pathspecArgs = parts.slice(1).filter((part) => part !== "--");
+
+      if (requested === "status") {
+        const plan = buildZcommitPlan(ctx.cwd, state.zcommit, { pathspecs: pathspecArgs });
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry("status", state, plan));
+        ctx.ui.notify(formatZcommitStatus(plan), plan.noShip ? "warning" : "info");
+        return;
+      }
+      if (requested === "plan") {
+        const plan = buildZcommitPlan(ctx.cwd, state.zcommit, { pathspecs: pathspecArgs });
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry("plan", state, plan));
+        ctx.ui.notify(formatZcommitPlan(plan), plan.noShip ? "warning" : "info");
+        return;
+      }
+      if (requested === "adopt") {
+        const result = runGovernedZcommitAdopt(ctx.cwd, state.zcommit, parts.slice(1));
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(result.ok ? "adopt_completed" : "adopt_blocked", state, result.plan, result));
+        renderHarnessWidget(pi, state, ctx);
+        const adopted = result.adopted.join(", ") || "none";
+        const excluded = result.excluded.map((entry) => `${entry.path}(${entry.reason})`).join(", ") || "none";
+        const errors = result.errors.join(" | ") || "none";
+        ctx.ui.notify(`${result.message}; adopted=[${adopted}] excluded=[${excluded}] errors=[${errors}]; ${formatZcommitPlan(result.plan)}`, result.ok ? "info" : "warning");
+        return;
+      }
+      if (requested === "autocommit" || requested === "autopush") {
+        const value = parts[1]?.toLowerCase();
+        if (value !== "on" && value !== "off") {
+          ctx.ui.notify(`Usage: /zcommit ${requested} on|off`, "warning");
+          return;
+        }
+        const policy = readZcommitPolicy(ctx.cwd);
+        if (value === "on" && !policy.loaded) {
+          ctx.ui.notify(`/zcommit ${requested} on blocked: .pi/git-policy.json must load first`, "warning");
+          return;
+        }
+        if (requested === "autopush" && value === "on" && state.zcommit.autocommit !== "on") {
+          ctx.ui.notify("/zcommit autopush on blocked: enable /zcommit autocommit on first; fail-closed", "warning");
+          return;
+        }
+        setZcommitToggle(state, requested, value);
+        if (requested === "autocommit" && value === "off") setZcommitToggle(state, "autopush", "off");
+        const nextPlan = buildZcommitPlan(ctx.cwd, state.zcommit);
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(`${requested}_${value}`, state, nextPlan));
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(`zcommit ${requested}=${value} (easy mode=${nextPlan.selectionMode}; commit=${nextPlan.commitEnabled ? "easy-ready" : "blocked"} push=${nextPlan.pushEnabled ? "gated" : "blocked"})`, value === "on" ? "warning" : "info");
+        return;
+      }
+      if (requested === "commit") {
+        const result = runGovernedZcommitCommit(ctx.cwd, state.zcommit, { pathspecs: pathspecArgs });
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(result.ok ? "commit_created" : "commit_blocked", state, result.plan, result));
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(result.message, result.ok ? "info" : "warning");
+        return;
+      }
+      if (requested === "push") {
+        const result = runGovernedZcommitPush(ctx.cwd, state.zcommit, { explicitPush: true });
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(result.ok ? "push_completed" : "push_blocked", state, result.plan, result));
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(result.message, result.ok ? "info" : "warning");
+        return;
+      }
+      ctx.ui.notify("Unknown /zcommit command. Use status [paths/globs...]|plan [paths/globs...]|adopt <paths...>|autocommit on|off|autopush on|off|commit [paths/globs...]|push. No aliases are registered.", "warning");
     },
   });
 

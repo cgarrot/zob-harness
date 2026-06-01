@@ -11,7 +11,7 @@ import { validateExplicitModelOverride } from "./model-availability.js";
 import { applyChildGates } from "./output-contracts.js";
 import { buildChildEnv } from "./safety.js";
 import { updateUsage, usageEmpty } from "./telemetry.js";
-import type { ChildResult, HarnessAgent, SupervisedReadonlyDispatchContract, SupervisedReadonlyDispatcher } from "./types.js";
+import type { ChildResult, ChildThinkingLevel, HarnessAgent, SupervisedReadonlyDispatchContract, SupervisedReadonlyDispatcher } from "./types.js";
 import { sha256 } from "./utils/hashing.js";
 import { safeFileStem } from "./utils/paths.js";
 import { parseJsonLine, textFromMessage } from "./utils/records.js";
@@ -22,6 +22,17 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
     return { command: process.execPath, args: [currentScript, ...args] };
   }
   return { command: "pi", args };
+}
+
+const CHILD_THINKING_LEVELS = new Set<string>(["low", "medium", "high", "xhigh"]);
+
+function validateChildThinkingOverride(thinking: string | undefined, fieldName = "thinking"): string[] {
+  if (thinking === undefined) return [];
+  return CHILD_THINKING_LEVELS.has(thinking) ? [] : [`${fieldName} must be one of low, medium, high, xhigh`];
+}
+
+function resolveChildThinking(agent: HarnessAgent, thinkingOverride: ChildThinkingLevel | undefined): string | undefined {
+  return thinkingOverride ?? agent.thinking;
 }
 
 function formatSupervisedReadonlyTask(contract: SupervisedReadonlyDispatchContract): string {
@@ -77,6 +88,7 @@ async function runChildAgent(
   toolsOverride: string | undefined,
   emitUpdate: ((result: ChildResult) => void) | undefined,
   pathPolicy?: { allowedPaths?: string[]; forbiddenPaths?: string[]; sandboxRoot?: string },
+  thinkingOverride?: ChildThinkingLevel,
 ): Promise<ChildResult> {
   const result: ChildResult = {
     agent: agent.name,
@@ -116,7 +128,8 @@ async function runChildAgent(
     args.push("--session", sessionPath);
     const model = modelOverride ?? agent.model;
     if (model) args.push("--model", model);
-    if (agent.thinking) args.push("--thinking", agent.thinking);
+    const thinking = resolveChildThinking(agent, thinkingOverride);
+    if (thinking) args.push("--thinking", thinking);
     const tools = toolsOverride ?? agent.tools?.join(",");
     if (tools) args.push("--tools", tools);
     args.push("--append-system-prompt", agent.prompt);
@@ -233,4 +246,4 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T,
   return results;
 }
 
-export { createSupervisedReadonlyDispatcher, isFailed, mapWithConcurrency, runChildAgent };
+export { createSupervisedReadonlyDispatcher, isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride };

@@ -1,0 +1,120 @@
+{
+  "schema": "zob.git-policy.v1",
+  "defaults": {
+    "autocommit": "off",
+    "autopush": "off"
+  },
+  "commandSurface": {
+    "explicitOnly": true,
+    "allowedCommands": [
+      "/zcommit status [paths/globs...]",
+      "/zcommit plan [paths/globs...]",
+      "/zcommit adopt <paths...>",
+      "/zcommit commit [paths/globs...]",
+      "/zcommit push",
+      "/zcommit autocommit on",
+      "/zcommit autocommit off",
+      "/zcommit autopush on",
+      "/zcommit autopush off"
+    ],
+    "aliasesAllowed": false,
+    "directGitCommitPushTagAllowed": false,
+    "agentExecutableTools": ["zob_zcommit_run"]
+  },
+  "authorization": {
+    "baseline": "no commit, tag, or push unless explicitly requested by the user or enabled through /zcommit autocommit/autopush for the current repo/session scope",
+    "autocommitRequires": [
+      "autocommit is on for the current repo/session scope",
+      "policy loads successfully",
+      "safe workspace dirty files exist after forbidden-path filtering",
+      "no forbidden paths are already staged",
+      "Conventional Commit message generation succeeds",
+      "no explicit no-ship blocker is present"
+    ],
+    "autopushRequires": [
+      "autopush is on for the current repo/session scope or /zcommit push is explicitly requested",
+      "commit was created through /zcommit commit",
+      "target remote and branch are allowed",
+      "last /zcommit commit is still HEAD",
+      "no no-ship blocker is present"
+    ]
+  },
+  "commitMessage": {
+    "format": "conventional-commits",
+    "required": true,
+    "allowedTypes": [
+      "feat",
+      "fix",
+      "docs",
+      "test",
+      "refactor",
+      "chore",
+      "ci",
+      "build",
+      "perf",
+      "revert"
+    ],
+    "requireImperativeSummary": true,
+    "includeValidationEvidenceWhenUseful": true
+  },
+  "validation": {
+    "mode": "advisory",
+    "runBeforeCommit": true,
+    "requiredBeforeCommit": false,
+    "requiredBeforePush": false,
+    "recordCommandsAndResults": true,
+    "allowExplicitException": true
+  },
+  "fileSelection": {
+    "strategy": "workspace_filtered",
+    "onlyAgentOwnedFiles": false,
+    "excludeUnrelatedDirtyFiles": false,
+    "bulkStageAllAllowed": true,
+    "forbiddenPaths": [
+      ".env",
+      ".env.*",
+      "~/.ssh",
+      "~/.aws",
+      "~/.gnupg",
+      "*.pem",
+      "*.key",
+      "node_modules/",
+      "dist/",
+      "build/",
+      "reports/",
+      ".pi/sessions/",
+      ".pi/agent-sessions/",
+      ".pi/tmp/",
+      ".pi/logs/",
+      ".pi/coms/",
+      ".pi/context/",
+      ".pi/goal-rooms/",
+      ".pi/workspace-claims/",
+      ".pi/worker-pools/",
+      ".pi/merge-queue/"
+    ]
+  },
+  "remotes": {
+    "allowed": ["origin"],
+    "default": "origin"
+  },
+  "branches": {
+    "allowedPatterns": [
+      "main",
+      "master",
+      "develop",
+      "feature/*",
+      "fix/*",
+      "docs/*",
+      "chore/*",
+      "zob/*"
+    ],
+    "protectedDirectPushRequiresExplicitUserApproval": ["main", "master"]
+  },
+  "push": {
+    "forcePushAllowed": false,
+    "tagsAllowed": false,
+    "pushAllAllowed": false,
+    "setUpstreamAllowedOnlyWhenExplicit": true
+  }
+}

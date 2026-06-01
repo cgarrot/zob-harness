@@ -37,7 +37,9 @@ export interface DelegationRunView {
   stopReason?: string;
   stopCondition?: string;
   errorMessage?: string;
+  childChangedPaths?: ChildResult["childChangedPaths"];
   usage?: ChildResult["usage"];
+  model?: string;
 }
 
 export interface DelegationMonitorState {
@@ -241,6 +243,13 @@ export function formatDelegationContextLabel(run: DelegationRunView | undefined)
   if (run?.usage) return `ctx ${formatTokenCount(run.usage.contextTokens)} tok`;
   if (run?.status === "queued" || run?.status === "running") return "ctx pending";
   return "ctx unavailable";
+}
+
+export function formatDelegationModelLabel(run: DelegationRunView | { model?: string } | undefined, limit = 48): string {
+  if (!run?.model) return "";
+  const value = run.model.replace(/^\//, "").trim();
+  if (!value) return "";
+  return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
 }
 
 function stripSignalControlSequences(text: string): string {
@@ -456,6 +465,7 @@ export function updateDelegationRun(state: DelegationMonitorState, id: string, p
   if (patch.stopCondition !== undefined) run.stopCondition = patch.stopCondition;
   if (patch.errorMessage !== undefined) run.errorMessage = patch.errorMessage;
   if (patch.usage !== undefined) run.usage = patch.usage;
+  if (patch.model !== undefined) run.model = patch.model;
   return run;
 }
 
@@ -520,6 +530,7 @@ export function buildDelegationLogLines(run: DelegationRunView | undefined, repo
   const lines = [
     `[delegation ${run.id}]`,
     `agent: ${run.agent}`,
+    run.model ? `model: ${run.model}` : undefined,
     `status: ${run.status}`,
     `duration: ${formatDuration(delegationDurationMs(run))}`,
     run.sessionPath ? `session: ${run.sessionPath}` : "session: not captured yet",

@@ -3,7 +3,7 @@ import { resolve, sep } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Markdown, truncateToWidth, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 
-import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationSignalBadge, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
+import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
 import { sanitizeDelegationText } from "./delegation-markdown.js";
 import { isRecord } from "../utils/records.js";
 
@@ -107,6 +107,7 @@ export function delegationFeedFingerprint(run: DelegationRunView | undefined, re
     run.usage?.output ?? "",
     run.usage?.contextTokens ?? "",
     (run.gateErrors ?? []).join(";"),
+    run.model ?? "",
   ].join("|");
 }
 
@@ -367,7 +368,8 @@ export function renderDelegationFeedLines(run: DelegationRunView | undefined, re
   const lines: string[] = [];
   const signalBadge = delegationSignalBadge(run);
   const signalText = formatDelegationSignalBadge(signalBadge);
-  lines.push(theme.fg("dim", `${statusIcon(run.status)} ${run.agent}${signalText ? ` · ${theme.fg(delegationSignalColor(signalBadge), signalText)}` : ""} · ${run.status}${run.failureKind ? ` · ${run.failureKind}` : ""} · ${formatDuration(delegationDurationMs(run))} · ${formatDelegationCostLabel(run)} · ${formatDelegationContextLabel(run)}`));
+  const modelLabel = formatDelegationModelLabel(run);
+  lines.push(theme.fg("dim", `${statusIcon(run.status)} ${run.agent}${signalText ? ` · ${theme.fg(delegationSignalColor(signalBadge), signalText)}` : ""}${modelLabel ? ` · ${theme.fg("muted", `(${modelLabel})`)}` : ""} · ${run.status}${run.failureKind ? ` · ${run.failureKind}` : ""} · ${formatDuration(delegationDurationMs(run))} · ${formatDelegationCostLabel(run)} · ${formatDelegationContextLabel(run)}`));
   if (run.usage) lines.push(theme.fg("muted", `usage · in ${run.usage.input} · out ${run.usage.output} · cache ${run.usage.cacheRead}/${run.usage.cacheWrite} · context ${run.usage.contextTokens}`));
   if (run.taskPreview) lines.push(theme.fg("muted", `task · ${sanitizeDelegationText(run.taskPreview)}`));
   let renderedFailureSummary = false;

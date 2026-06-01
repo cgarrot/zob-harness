@@ -2,7 +2,7 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 
 import type { DelegationMonitorState, DelegationRunView, DelegationSortMode } from "./delegation-monitor.js";
-import { buildDelegationGroups, delegationCost, delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCost, formatDelegationCostLabel, formatDelegationSignalBadge, formatDuration, statusIcon } from "./delegation-monitor.js";
+import { buildDelegationGroups, delegationCost, delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCost, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon } from "./delegation-monitor.js";
 import { delegationFeedFingerprint, renderDelegationFeedLines } from "./delegation-feed.js";
 import { delegateCloseButton, delegateSelectMarker } from "./delegation-click-markers.js";
 import { disableDelegationMouseMode, enableDelegationMouseMode, handleDelegationMouseInput } from "./delegation-mouse.js";
@@ -231,7 +231,7 @@ export class DelegationOverlayComponent implements Component {
     const selectedBadge = delegationSignalBadge(selected);
     const selectedBadgeText = formatDelegationSignalBadge(selectedBadge);
     const headerRight = selected
-      ? `${th.fg(statusColor(selected.status), `${statusIcon(selected.status)} ${selected.agent}`)}${selectedBadgeText ? ` ${th.fg(delegationSignalColor(selectedBadge), selectedBadgeText)}` : ""} ${th.fg("dim", formatDuration(delegationDurationMs(selected)))} ${th.fg("accent", formatDelegationCostLabel(selected))} ${th.fg("muted", formatDelegationContextLabel(selected))}`
+      ? `${th.fg(statusColor(selected.status), `${statusIcon(selected.status)} ${selected.agent}`)}${selectedBadgeText ? ` ${th.fg(delegationSignalColor(selectedBadge), selectedBadgeText)}` : ""}${formatDelegationModelLabel(selected) ? ` ${th.fg("muted", `(${formatDelegationModelLabel(selected)})`)}` : ""} ${th.fg("dim", formatDuration(delegationDurationMs(selected)))} ${th.fg("accent", formatDelegationCostLabel(selected))} ${th.fg("muted", formatDelegationContextLabel(selected))}`
       : th.fg("warning", "No delegation selected");
     lines.push(this.row(padToWidth(headerLeft, listWidth) + th.fg("dim", "│") + padToWidth(headerRight, logWidth), inner));
     lines.push(th.fg("border", `├${"─".repeat(listWidth)}┼${"─".repeat(logWidth)}┤`));
@@ -412,7 +412,9 @@ export class DelegationOverlayComponent implements Component {
     const cost = formatDelegationCostLabel(run);
     const context = formatDelegationContextLabel(run);
     const badge = formatDelegationSignalBadge(delegationSignalBadge(run));
-    const base = `${row.label}${badge ? ` ${badge}` : ""} ${duration} ${cost} ${context} [view]`;
+    const modelLabel = formatDelegationModelLabel(run);
+    const modelSuffix = modelLabel ? ` (${modelLabel})` : "";
+    const base = `${row.label}${badge ? ` ${badge}` : ""}${modelSuffix} ${duration} ${cost} ${context} [view]`;
     const labeled = `${truncateToWidth(base, width - (selected ? 2 : 0), "…")}${delegateSelectMarker(run.id)}`;
     const colored = th.fg(statusColor(run.status), labeled);
     return selected ? th.bg("selectedBg", padToWidth(colored, width)) : colored;
