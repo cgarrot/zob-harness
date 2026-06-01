@@ -1,8 +1,15 @@
 {
   "sessionDir": ".pi/sessions",
-  "extensions": ["extensions/zob-harness/index.ts"],
-  "prompts": ["prompts"],
-  "skills": ["skills"],
+  "extensions": [
+    "extensions/zob-switch/index.ts",
+    "extensions/zob-harness/index.ts"
+  ],
+  "prompts": [
+    "prompts"
+  ],
+  "skills": [
+    "skills"
+  ],
   "compaction": {
     "enabled": true,
     "reserveTokens": 32768,

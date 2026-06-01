@@ -59,6 +59,7 @@
     ".pi/teams",
     "scripts/compute-profile",
     "scripts/git-ops",
+    "scripts/harness-switch",
     "scripts/project-dna",
     "scripts/worker-pool",
     "scripts/start-pi.sh",
@@ -94,10 +95,12 @@
     "validate:coding-agent-benchmark:dokploy-v3bis": "node scripts/coding-agent-benchmark/dokploy-v3bis-validate.mjs",
     "smoke:coding-agent-benchmark:dokploy-v3bis:no-live": "npm run plan:coding-agent-benchmark:dokploy-v3bis && npm run validate:coding-agent-benchmark:dokploy-v3bis && node scripts/coding-agent-benchmark/dokploy-v3bis-no-live-smoke.mjs && npm run validate:coding-agent-benchmark:dokploy-v3bis",
     "validate:model-catalog": "node scripts/model-catalog/validate.mjs",
-    "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs"
+    "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs",
+    "smoke:harness-switch": "node scripts/harness-switch/static-smoke.mjs"
   },
   "pi": {
     "extensions": [
+      ".pi/extensions/zob-switch/index.ts",
       ".pi/extensions/zob-harness/index.ts"
     ],
     "prompts": [

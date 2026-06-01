@@ -1382,6 +1382,21 @@
   ],
   "commands": [
     {
+      "name": "zob",
+      "family": "harness-switch",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/HARNESS_CAPABILITY_MATRIX.md",
+        ".pi/extensions/zob-switch/index.ts"
+      ],
+      "noShipNotes": "Single slash command only: /zob on|off|status. No aliases. off snapshots project .pi/settings.json, removes only the ZOB harness extension plus project ZOB prompts/skills entries while keeping zob-switch configured, writes settings, then treats ctx.reload() as terminal. on restores the saved snapshot when present and ensures switch+harness entries exist; without a snapshot it restores safe ZOB prompts/skills defaults."
+    },
+    {
       "name": "zmode",
       "family": "mode",
       "modes": [
