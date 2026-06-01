@@ -62,6 +62,7 @@ export class DelegationOverlayComponent implements Component {
   private listScroll = 0;
   private logScroll = 0;
   private sortIndex = 0;
+  private activePane: "list" | "feed" = "list";
   private cachedTranscriptKey?: string;
   private cachedTranscriptLines: string[] = [];
   private followTail = true;
@@ -151,12 +152,24 @@ export class DelegationOverlayComponent implements Component {
       this.helpVisible = !this.helpVisible;
       return;
     }
+    if (matchesKey(data, "left")) {
+      this.activePane = "list";
+      return;
+    }
+    if (matchesKey(data, "right")) {
+      this.activePane = "feed";
+      return;
+    }
 
     const rows = this.rows();
     const selectable = rows.filter((row) => row.kind === "run" && row.run);
     const currentIndex = Math.max(0, selectable.findIndex((row) => row.id === this.selectedRunId));
 
     if (matchesKey(data, "up")) {
+      if (this.activePane === "feed") {
+        this.scrollTranscript("up");
+        return;
+      }
       if (selectable.length === 0) return;
       const next = selectable[Math.max(0, currentIndex - 1)];
       this.selectedRunId = next?.id;
@@ -165,6 +178,10 @@ export class DelegationOverlayComponent implements Component {
       this.ensureSelectionOnNextRender = true;
       this.ensureSelectedVisible(rows);
     } else if (matchesKey(data, "down")) {
+      if (this.activePane === "feed") {
+        this.scrollTranscript("down");
+        return;
+      }
       if (selectable.length === 0) return;
       const next = selectable[Math.min(selectable.length - 1, currentIndex + 1)];
       this.selectedRunId = next?.id;
@@ -227,12 +244,13 @@ export class DelegationOverlayComponent implements Component {
     const rightRule = "─".repeat(Math.max(0, inner - titleWidth - leftRule.length));
     const lines: string[] = [th.fg("border", `╭${leftRule}`) + th.fg("accent", title) + th.fg("border", `${rightRule}╮`)];
 
-    const headerLeft = `${th.fg("accent", "Agents")} ${th.fg("muted", delegateCloseButton())}`;
+    const headerLeft = `${th.fg(this.activePane === "list" ? "accent" : "muted", this.activePane === "list" ? "▶ Agents" : "  Agents")} ${th.fg("muted", delegateCloseButton())}`;
     const selectedBadge = delegationSignalBadge(selected);
     const selectedBadgeText = formatDelegationSignalBadge(selectedBadge);
-    const headerRight = selected
+    const selectedTitle = selected
       ? `${th.fg(statusColor(selected.status), `${statusIcon(selected.status)} ${selected.agent}`)}${selectedBadgeText ? ` ${th.fg(delegationSignalColor(selectedBadge), selectedBadgeText)}` : ""}${formatDelegationModelLabel(selected) ? ` ${th.fg("muted", `(${formatDelegationModelLabel(selected)})`)}` : ""} ${th.fg("dim", formatDuration(delegationDurationMs(selected)))} ${th.fg("accent", formatDelegationCostLabel(selected))} ${th.fg("muted", formatDelegationContextLabel(selected))}`
       : th.fg("warning", "No delegation selected");
+    const headerRight = `${th.fg(this.activePane === "feed" ? "accent" : "muted", this.activePane === "feed" ? "▶ Feed" : "  Feed")} ${selectedTitle}`;
     lines.push(this.row(padToWidth(headerLeft, listWidth) + th.fg("dim", "│") + padToWidth(headerRight, logWidth), inner));
     lines.push(th.fg("border", `├${"─".repeat(listWidth)}┼${"─".repeat(logWidth)}┤`));
 
@@ -249,10 +267,10 @@ export class DelegationOverlayComponent implements Component {
 
     const filterInfo = this.filter || this.filterEditing ? ` · filter=${this.filterEditing ? ">" : ""}${this.filter || "<type>"}` : "";
     const helpInfo = this.helpVisible
-      ? " · help: / filter · ? hide help · Esc clears filter/closes · ↑↓ select · [] list · PgUp/PgDn feed · s sort · r refresh"
+      ? " · help: / filter · ? hide help · Esc clears filter/closes · ←→ focus list/feed · ↑↓ select/scroll · [] list · PgUp/PgDn feed · s sort · r refresh"
       : " · / filter · ? help";
     const noMatchInfo = noMatch ? ` · ${noMatch}` : "";
-    const scrollInfo = `${rows.length} rows${filterInfo}${noMatchInfo} · list ${Math.min(this.listScroll + 1, rows.length || 1)}/${Math.max(1, rows.length)} · feed ${Math.min(this.logScroll + 1, transcript.length || 1)}/${Math.max(1, transcript.length)} · wheel over list/feed · click agent · [close]/Esc · ↑↓ select · [] list · PgUp/PgDn feed · End live-tail · s sort · r refresh${helpInfo}`;
+    const scrollInfo = `${rows.length} rows${filterInfo}${noMatchInfo} · focus ${this.activePane} · list ${Math.min(this.listScroll + 1, rows.length || 1)}/${Math.max(1, rows.length)} · feed ${Math.min(this.logScroll + 1, transcript.length || 1)}/${Math.max(1, transcript.length)} · wheel over list/feed · click agent · [close]/Esc · ←→ focus · ↑↓ select/scroll · [] list · PgUp/PgDn feed · End live-tail · s sort · r refresh${helpInfo}`;
     lines.push(th.fg("border", `├${"─".repeat(inner)}┤`));
     lines.push(this.row(th.fg("dim", truncateToWidth(scrollInfo, inner, "…")), inner));
     lines.push(th.fg("border", `╰${"─".repeat(inner)}╯`));
