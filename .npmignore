@@ -22,3 +22,11 @@ node_modules/
 # Private/local benchmark scaffold is intentionally excluded from the public package.
 .pi/factories/coding-agent-benchmark/
 scripts/coding-agent-benchmark/
+
+# Deferred Dokploy-specific templates are local-only and excluded exactly.
+.pi/orchestrations/dokploy-v3bis-auto-orchestrated.json
+.pi/prompts/dokploy-v3bis-auto-orchestrated.md
+.pi/teams/dokploy-v3bis-auto-orchestrated.json
+/.pi/orchestrations/dokploy-v3bis-auto-orchestrated.json
+/.pi/prompts/dokploy-v3bis-auto-orchestrated.md
+/.pi/teams/dokploy-v3bis-auto-orchestrated.json

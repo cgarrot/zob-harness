@@ -45,7 +45,8 @@ This open-source surface contains the harness code and reusable operating assets
 - `.pi/factories/` — safe factory scaffolds, excluding private local benchmarks.
 - `.pi/output-contracts/` — output contract manifests.
 - `.pi/capabilities/` — public runtime capability registry.
-- `scripts/` — local smoke, validation, audit, and proof helpers.
+- `scripts/` — local smoke, validation, audit, and proof helpers. See `scripts/README.md` for the script surface map.
+- `SOURCE_INDEX.md` — concise map of tracked source folders and local/generated areas.
 
 The repository intentionally excludes local/private runtime material:
 

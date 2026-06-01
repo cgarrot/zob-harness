@@ -32,8 +32,11 @@ reports/
 .pi/model-catalog.json
 .pi/model-economy.json
 
+
 # Keep internal one-off proof/smoke scripts local. Public script folders are allowlisted below.
 scripts/*.mjs
+!scripts/zpeer-static-smoke.mjs
+!scripts/zpeer-local-e2e-smoke.mjs
 !scripts/compute-profile/
 !scripts/compute-profile/**
 !scripts/project-dna/
@@ -42,3 +45,8 @@ scripts/*.mjs
 # Private benchmark scaffold/artifacts are intentionally excluded from the OSS repo.
 .pi/factories/coding-agent-benchmark/
 scripts/coding-agent-benchmark/
+
+# Deferred Dokploy-specific templates are local-only and excluded exactly.
+.pi/orchestrations/dokploy-v3bis-auto-orchestrated.json
+.pi/prompts/dokploy-v3bis-auto-orchestrated.md
+.pi/teams/dokploy-v3bis-auto-orchestrated.json

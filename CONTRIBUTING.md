@@ -11,6 +11,9 @@ npm install
 npm run check -- --pretty false
 ```
 
+
+For a quick map of the tracked source surface, read `SOURCE_INDEX.md`. For validation/script ownership, read `scripts/README.md`.
+
 Start the harness locally:
 
 ```bash
