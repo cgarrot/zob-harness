@@ -116,20 +116,62 @@ ProjectDNA scaffolding helps turn approved local code scan artifacts into bounde
 
 - Node.js **22+**; Node 24 is recommended.
 - npm.
-- A terminal environment that can run Pi after dependencies are installed.
+- Pi installed and available on `PATH`.
 
-### Install and check
+### Install from npm for normal Pi use
+
+After the package is published to npm, install the pinned Pi package:
+
+```bash
+pi install npm:zob-harness@0.1.0
+```
+
+Then verify that Pi can load the package extension set and return a deterministic response:
+
+```bash
+pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+```
+
+Expected result:
+
+```text
+zob-harness-ok
+```
+
+If `pi install` cannot find the package, confirm the npm release is visible first:
+
+```bash
+npm view zob-harness@0.1.0 version
+```
+
+Expected result:
+
+```text
+0.1.0
+```
+
+Pi package discovery on `pi.dev/packages` is based on the npm `pi-package` keyword and may lag behind npm publication.
+
+### Try from a local checkout before publication
+
+Use this path when developing or validating a release candidate before npm publication:
 
 ```bash
 git clone https://github.com/cgarrot/zob-harness.git
 cd zob-harness
 npm install
 npm run check -- --pretty false
+npm run pi:check
+npm run pack:dry-run
 ```
 
-Expected result: TypeScript completes with exit code 0 and no diagnostics.
+Expected results:
 
-### Start Pi with the harness
+- TypeScript completes with exit code 0 and no diagnostics.
+- Pi loads the local configured ZOB extension offline and replies with `zob-harness-ok`.
+- `npm pack --dry-run --json` lists the Pi manifest, extensions, prompts, skills, agents, and validation scripts in the tarball.
+
+### Start Pi with the local harness checkout
 
 ```bash
 npm run pi
@@ -145,23 +187,16 @@ Inside Pi, try:
 
 You should see ZOB modes, specialist agents, and the six-part delegation contract helper.
 
-### Offline extension check
-
-```bash
-npm run pi:check
-```
-
-Expected result: Pi loads the configured ZOB extension offline and replies with the harness check response.
-
 ### Public smoke baseline
 
 ```bash
 npm run validate:script-surface
 npm run smoke:harness
 npm run check -- --pretty false
+npm run pack:dry-run
 ```
 
-These commands verify the public script surface, core path/child-goal smokes, and TypeScript baseline.
+These commands verify the public script surface, core path/child-goal smokes, TypeScript baseline, and npm package surface.
 
 ## Common workflows
 
@@ -211,7 +246,7 @@ Inside Pi:
 - `/zcommit` — governed commit workflow; no direct git commit/push/tag shortcuts.
 - `/zpeer` — local peer/coms workflow commands where enabled.
 
-From npm:
+From npm/local checkout:
 
 ```bash
 npm run pi                         # start Pi with configured harness wiring
@@ -225,6 +260,14 @@ npm run smoke:worker-pool          # worker-pool static smoke
 npm run smoke:zpeer                # static + local ZPeer smoke
 npm run validate:project-dna       # ProjectDNA scaffold validation
 npm run pack:dry-run               # npm package dry-run surface check
+```
+
+Published package install/check:
+
+```bash
+pi install npm:zob-harness@0.1.0
+pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.1.0 version
 ```
 
 See [scripts/README.md](scripts/README.md) for the script family map.
@@ -282,6 +325,20 @@ npm run smoke:worker-pool
 npm run validate:project-dna
 npm run pack:dry-run
 ```
+
+For a public npm release, maintainers should additionally run:
+
+```bash
+npm whoami
+npm view zob-harness@0.1.0 version || true
+npm publish --dry-run
+npm publish
+npm view zob-harness@0.1.0 version
+pi install npm:zob-harness@0.1.0
+pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+```
+
+`npm publish` may require npm two-factor authentication in the browser or a one-time password. Do not paste OTPs, tokens, or secrets into issue reports or agent transcripts.
 
 Report exact command outcomes before claiming readiness.
 
