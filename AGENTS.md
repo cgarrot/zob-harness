@@ -29,7 +29,8 @@ Use this six-part contract for specialist agents:
 
 - Never read or write secrets (`.env`, keys, `~/.ssh`, `~/.aws`). Ask the user if a value is required.
 - Never run destructive commands (`rm -rf`, `git reset --hard`, `git clean`, broad process kills) without explicit user approval.
-- Never commit unless explicitly asked.
+- Never commit unless explicitly asked or governed autocommit is explicitly policy-authorized for the current task.
+- Commit/push/tag operations must go through governed `/zcommit` or the agent-executable `zob_zcommit_run` tool when the user explicitly asks the agent to commit/push; direct `git commit`, `git push`, `git tag`, force push, `git add .`, and `git add -A` are blocked.
 - Avoid touching generated/vendor folders: `node_modules`, `dist`, `build`.
 
 ## Pi harness specifics
@@ -58,6 +59,7 @@ Use the registry plus the domain skill instead of copying tool docs into prompts
 Useful commands inside Pi:
 
 - `/zmode` — switch mode (`explore`, `plan`, `implement`, `oracle`, `factory`)
+- `/zcommit` / `zob_zcommit_run` — governed commit workflow (`status`/`plan`, `commit`, `push`, `commit_and_push`, `autocommit on|off`, `autopush on|off`); no aliases, defaults off, load `.pi/skills/zob-commit/SKILL.md` and `.pi/git-policy.json`; use `zob_zcommit_run` when the user explicitly asks the agent to commit/push
 - `/contract` — insert the six-part delegation template
 - `/agents` — list specialist agents
 - `/goal_gate` — set active goal/scope anchor

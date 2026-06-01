@@ -92,6 +92,7 @@ npm run check:ci
 Once Pi starts with this harness, the common workflow commands are:
 
 - `/zmode` — switch between `explore`, `plan`, `implement`, `oracle`, `factory`, and `orchestrator`.
+- `/stop` — abort current foreground work, session-local background delegations, daemon loop, and runtime-goal auto-continuation without shutting down Pi.
 - `/contract` — insert a six-part delegation contract.
 - `/agents` — list available specialist agents.
 - `/goal` — create or manage a runtime goal with evidence-gated completion.
@@ -99,6 +100,7 @@ Once Pi starts with this harness, the common workflow commands are:
 - `/goal_gate` — set a scope anchor for dispatch.
 - `/compute` or `/effort` — preview and resolve compute profiles.
 - `/zcompact` — configure proactive context compaction (`observe`, `on`, `off`, `status`, `threshold`, `target`, `fraction`, `trigger`).
+- `/zcommit` — governed commit workflow (`status`, `plan`, `commit`, `push`, `autocommit on|off`, `autopush on|off`) with no aliases; autocommit/autopush default to off in `.pi/git-policy.json`.
 
 ## The six-part task contract
 
@@ -152,7 +154,8 @@ ZOB Harness is designed to fail closed around sensitive actions:
 
 - No `.env`, private key, SSH, AWS, or credential reads.
 - No destructive commands such as recursive deletion, hard reset, git clean, broad process kills, or privileged operations without explicit approval.
-- No commits unless the user explicitly asks.
+- No commits unless the user explicitly asks or governed autocommit is explicitly policy-authorized for the current task.
+- Commit/push/tag actions are governed by `.pi/skills/zob-commit/SKILL.md` and `.pi/git-policy.json`; agents must use `/zcommit` only, preserve unrelated dirty files, require Conventional Commits and validation evidence, and keep autocommit/autopush off by default.
 - No raw prompt/output bodies in coms or telemetry ledgers by default.
 - Generated runtime artifacts stay local and are ignored.
 

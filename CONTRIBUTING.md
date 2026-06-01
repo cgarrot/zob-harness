@@ -22,6 +22,7 @@ npm run pi
 - Keep changes small and reversible.
 - Do not read or commit secrets, `.env` files, private keys, SSH/AWS material, or local credentials.
 - Do not commit generated runtime artifacts from `reports/`, `.pi/sessions/`, `.pi/tmp/`, `.pi/logs/`, or local ledgers.
+- Do not use direct `git commit`, `git push`, `git tag`, force push, `git add .`, or `git add -A` from agent workflows; use governed `/zcommit` only when explicitly requested or policy-authorized.
 - Preserve public tool names, command names, output contract ids, sentinel names, artifact paths, and safety defaults unless the change explicitly targets those surfaces.
 - For refactors, prefer split-only moves and prove no behavior drift.
 - Include validation commands and results in the pull request.
@@ -32,7 +33,8 @@ npm run pi
 2. Plan the smallest safe change.
 3. Implement only the bounded slice.
 4. Run validation.
-5. Document evidence and remaining risks.
+5. If a commit is authorized, load `.pi/skills/zob-commit/SKILL.md` and `.pi/git-policy.json`, run `/zcommit status` then `/zcommit plan`, and commit only owned files with a Conventional Commit message.
+6. Document evidence and remaining risks.
 
 Minimum validation before opening a PR:
 

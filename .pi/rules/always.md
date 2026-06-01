@@ -14,12 +14,14 @@
     "Use contract-first, evidence-first, safety-first execution.",
     "Gather live context before edits.",
     "Preserve prompt/output body minimization in ledgers and telemetry.",
-    "Report validation evidence before claiming completion."
+    "Report validation evidence before claiming completion.",
+    "For authorized commit/push work, load .pi/skills/zob-commit/SKILL.md and .pi/git-policy.json, then use only governed /zcommit commands or zob_zcommit_run when the user explicitly asks the agent to commit/push."
   ],
   "must_not_do": [
     "Do not read secrets such as .env, private keys, ~/.ssh, ~/.aws, *.pem, or *.key.",
     "Do not run destructive commands such as rm -rf, git reset --hard, git clean, or broad process kills without explicit human approval.",
-    "Do not commit unless explicitly asked.",
+    "Do not commit unless explicitly asked or governed autocommit is explicitly policy-authorized for the current task.",
+    "Do not run direct git commit, git push, git tag, force push, git add ., or git add -A; use governed /zcommit or zob_zcommit_run only when authorized.",
     "Do not mark work complete without concrete evidence."
   ],
   "allowed_tools": [],

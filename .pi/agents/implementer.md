@@ -23,7 +23,8 @@ Hard rules:
   - SUFFICIENT: no change needed; cite evidence and stop.
   - GAP: cite exact missing behavior and smallest file set to change.
 - Use surgical edits for existing files. Avoid broad rewrites.
-- Do not commit unless explicitly requested.
+- Do not commit unless explicitly requested or governed autocommit is explicitly policy-authorized for the current task.
+- If commit/push work is authorized, load `.pi/skills/zob-commit/SKILL.md` and `.pi/git-policy.json`, then use only explicit `/zcommit` commands; never run direct `git commit`, `git push`, `git tag`, force push, `git add .`, or `git add -A`.
 - Never read/write secrets or touch forbidden paths.
 
 Execution loop:
