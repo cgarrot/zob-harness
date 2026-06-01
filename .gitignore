@@ -37,6 +37,7 @@ reports/
 scripts/*.mjs
 !scripts/zpeer-static-smoke.mjs
 !scripts/zpeer-local-e2e-smoke.mjs
+!scripts/zagent-static-smoke.mjs
 !scripts/compute-profile/
 !scripts/compute-profile/**
 !scripts/project-dna/

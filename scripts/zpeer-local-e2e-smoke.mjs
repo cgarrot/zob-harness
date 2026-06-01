@@ -11,6 +11,7 @@ const rawResponse = 'hash-only local zpeer smoke response';
 const root = mkdtempSync(join(tmpdir(), 'zpeer-local-e2e-'));
 const outDir = join(root, 'compiled');
 const repoRoot = join(root, 'repo');
+const peerRepoRoot = join(root, 'repo-peer-b');
 const registryRoot = join(root, 'registry');
 const previousRegistryRoot = process.env.ZOB_COMS_REGISTRY_ROOT;
 const previousZpeerProfileId = process.env.ZOB_ZPEER_PROFILE_ID;
@@ -43,12 +44,12 @@ function containsRawBody(value) {
   return JSON.stringify(value).includes(rawPrompt) || JSON.stringify(value).includes(rawResponse);
 }
 
-function makePeer({ alias, roomId, endpoint, endpointHash, sha256, roleId = 'zob-orchestrator', roleType = 'orchestrator', heartbeatAt }) {
+function makePeer({ alias, roomId, endpoint, endpointHash, sha256, roleId = 'zob-orchestrator', roleType = 'orchestrator', team = 'zob-core', heartbeatAt }) {
   const now = new Date().toISOString();
   return {
     schema: 'zob.live-peer-card.v1',
     projectId: 'temporary-project-id-overwritten-by-ensureZpeerFields',
-    team: 'zob-core',
+    team,
     roleId,
     roleType,
     agent: 'zpeer-local-e2e-smoke',
@@ -75,6 +76,7 @@ function makePeer({ alias, roomId, endpoint, endpointHash, sha256, roleId = 'zob
 
 async function main() {
   mkdirSync(repoRoot, { recursive: true });
+  mkdirSync(peerRepoRoot, { recursive: true });
   mkdirSync(registryRoot, { recursive: true });
   process.env.ZOB_COMS_REGISTRY_ROOT = registryRoot;
 
@@ -123,6 +125,17 @@ async function main() {
   assert(profileJson.projectId === alphaProfile.projectId && profileJson.profileId === alphaProfile.profileId, 'zpeer profile must include project/profile ids');
   assert(!hasForbiddenKey(profileJson), 'zpeer profile must not contain forbidden raw body-like keys');
   assert(!alphaProfilePath.includes(join(repoRoot, '.pi', 'coms')), 'zpeer profile path must not be under .pi/coms');
+
+  const carryoverMemberships = [{ roomId: 'carry-room', alias: 'carryalias', role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false }];
+  const carryoverWritten = zpeerProfile.writeZpeerNewCarryoverProfile(repoRoot, { alias: 'carryalias', roomId: 'carry-room', activeRoomId: 'carry-room', memberships: carryoverMemberships, zagentId: 'zagent-carry', ttlMs: 60_000 });
+  assert(carryoverWritten.schema === 'zob.zpeer-new-carryover.v1', '/new carryover profile schema must be explicit');
+  assert(carryoverWritten.alias === 'carryalias' && carryoverWritten.roomId === 'carry-room' && carryoverWritten.zagentId === 'zagent-carry', '/new carryover write must preserve alias/room/zagent metadata');
+  assert(carryoverWritten.localOnly === true && carryoverWritten.networkEnabled === false && carryoverWritten.bodyStored === false, '/new carryover profile must persist metadata-only safety flags');
+  const carryoverRestored = zpeerProfile.readZpeerNewCarryoverProfile(repoRoot);
+  assert(carryoverRestored?.alias === 'carryalias' && carryoverRestored?.memberships?.[0]?.roomId === 'carry-room', '/new carryover read must restore room memberships from temp registry root');
+  assert(!hasForbiddenKey(carryoverRestored), '/new carryover profile must not contain forbidden raw body-like keys');
+  zpeerProfile.clearZpeerNewCarryoverProfile(repoRoot);
+  assert(zpeerProfile.readZpeerNewCarryoverProfile(repoRoot) === undefined, '/new hard carryover clear must remove soft carryover profile');
 
   process.env.ZOB_ZPEER_PROFILE_ID = 'profile-preserve-alias';
   zpeerProfile.writeZpeerLocalProfile(repoRoot, { alias: 'humanalias', roomId: 'human-room' });
@@ -226,11 +239,14 @@ async function main() {
 
   servers.push(await localTransport.bindZobLocalEndpoint(gammaEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
   servers.push(await localTransport.bindZobLocalEndpoint(workerOneEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
-  servers.push(await localTransport.bindZobLocalEndpoint(workerTwoEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
+  servers.push(await localTransport.bindZobLocalEndpoint(workerTwoEndpoint, async (incoming) => {
+    receivedPrompts.push(incoming);
+    return envelope.buildZobLiveAckEnvelope(incoming);
+  }));
 
   const oldHeartbeatAt = new Date(Date.now() - 180_000).toISOString();
   let alpha = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'alpha', roomId: 'room-one', endpoint: alphaEndpoint, endpointHash: hashing.sha256(alphaEndpoint), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'alpha');
-  let beta = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'beta', roomId: 'room-one', endpoint: betaEndpoint, endpointHash: hashing.sha256(betaEndpoint), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'beta');
+  let beta = zpeer.ensureZpeerFields(peerRepoRoot, makePeer({ alias: 'beta', roomId: 'room-one', endpoint: betaEndpoint, endpointHash: hashing.sha256(betaEndpoint), sha256: hashing.sha256, team: 'zob-side', heartbeatAt: oldHeartbeatAt }), 'room-one', 'beta');
   zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'gamma', roomId: 'room-two', endpoint: gammaEndpoint, endpointHash: hashing.sha256(gammaEndpoint), sha256: hashing.sha256 }), 'room-two', 'gamma');
   const workerOne = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workerone', roomId: 'worker-room', endpoint: workerOneEndpoint, endpointHash: hashing.sha256(workerOneEndpoint), sha256: hashing.sha256, roleId: 'explore-worker', roleType: 'worker' }), 'worker-room', 'workerone');
   zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workertwo', roomId: 'worker-room', endpoint: workerTwoEndpoint, endpointHash: hashing.sha256(workerTwoEndpoint), sha256: hashing.sha256, roleId: 'research-worker', roleType: 'worker' }), 'worker-room', 'workertwo');
@@ -243,7 +259,7 @@ async function main() {
   assert(staleSummary.aliases.includes('alpha') && staleSummary.aliases.includes('beta') && !staleSummary.aliases.includes('gamma'), 'stale room-one aliases must include alpha/beta only');
 
   alpha = zpeer.refreshZpeerSelf(repoRoot, alpha);
-  beta = zpeer.refreshZpeerSelf(repoRoot, beta);
+  beta = zpeer.refreshZpeerSelf(peerRepoRoot, beta);
   const initialSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
   assert(initialSummary.peerCount === 2, `room-one summary expected 2 peers, got ${initialSummary.peerCount}`);
   assert(initialSummary.online === 2, `room-one summary expected 2 online peers after refresh, got ${initialSummary.online}`);
@@ -263,7 +279,7 @@ async function main() {
   const joinedAlpha = await zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
   assert(joinedAlpha.ok === true, `alpha multi-room join expected ok, got ${joinedAlpha.reason ?? 'not ok'}`);
   alpha = joinedAlpha.peer;
-  const joinedBeta = await zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedbeta');
+  const joinedBeta = await zpeer.joinZpeerRoom(peerRepoRoot, beta, 'shared-room', 'sharedbeta');
   assert(joinedBeta.ok === true, `beta multi-room join expected ok, got ${joinedBeta.reason ?? 'not ok'}`);
   beta = joinedBeta.peer;
   assert(zpeer.zpeerMembershipsForPeer(alpha).length === 2, 'alpha must be in two zpeer rooms after join');
@@ -277,7 +293,7 @@ async function main() {
   assert(explicitRoomEnvelope.sender === 'sharedalpha' && explicitRoomEnvelope.receiver === 'sharedbeta' && explicitRoomEnvelope.runId === 'zpeer:shared-room', 'explicit room envelope must use room-scoped sender/receiver aliases and runId');
   const implicitBlocked = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'sharedbeta', rawPrompt, waitForReply);
   assert(implicitBlocked.status === 'blocked' && String(implicitBlocked.reason).includes("not found in room 'room-one'"), 'implicit active-room send must not cross into shared-room');
-  const duplicateJoin = await zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedalpha');
+  const duplicateJoin = await zpeer.joinZpeerRoom(peerRepoRoot, beta, 'shared-room', 'sharedalpha');
   assert(duplicateJoin.ok === false && String(duplicateJoin.reason).includes('live peer'), 'duplicate alias on a live peer in the same room must be blocked');
   const releasedGhost = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'released', roomId: 'released-room', endpoint: join(root, 'released-ghost-missing.sock'), endpointHash: hashing.sha256(join(root, 'released-ghost-missing.sock')), sha256: hashing.sha256, heartbeatAt: new Date(Date.now() - 180_000).toISOString() }), 'released-room', 'released');
   assert(releasedGhost.status !== 'online' || !existsSync(releasedGhost.endpoint), 'released ghost peer must not be reachable online');
@@ -316,8 +332,10 @@ async function main() {
 
   const directPromptCountBefore = receivedPrompts.length;
   const directResponseCountBefore = receivedResponses.length;
+  assert(alpha.team !== beta.team, 'same-room non-worker allowance fixture must cover cross-team peers');
+  assert(alpha.projectId !== beta.projectId, 'same-room room-first discovery fixture must cover different projectIds/repoRoots');
   const result = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply);
-  assert(result.status === 'reply', `sendZpeerPrompt expected reply, got ${result.status}${result.reason ? `: ${result.reason}` : ''}`);
+  assert(result.status === 'reply', `cross-team same-room non-worker send expected reply, got ${result.status}${result.reason ? `: ${result.reason}` : ''}`);
   assert(typeof result.transientResponse === 'string' && result.transientResponse === rawResponse, 'reply result must include transientResponse from peer');
   assert(result.taskHash === hashing.sha256(rawPrompt), 'reply result must include prompt taskHash');
   assert(result.outputHash === hashing.sha256(rawResponse), 'reply result must include response outputHash');
@@ -376,19 +394,20 @@ async function main() {
   const workerToolState = { zobLive: { peerCard: workerOne, pendingReplies: { wait: waitForReply } } };
   const workerRegisteredTools = new Map();
   toolsComs.registerComsTools({ ...mockPi, registerTool: (tool) => workerRegisteredTools.set(tool.name, tool) }, workerToolState);
-  const workerToolBlocked = await workerRegisteredTools.get('zpeer_ask').execute('tool-call-zpeer-ask-worker', { targetAlias: 'workertwo', message: 'worker topology smoke prompt' }, undefined, undefined, { cwd: repoRoot });
-  assert(workerToolBlocked?.details?.status === 'blocked' && String(workerToolBlocked?.details?.reason).includes('topology'), 'zpeer_ask must reuse topology guard for worker-to-worker blocks');
-  assert(receivedPrompts.length === promptCountBeforeWorkerTool, 'zpeer_ask topology block must happen before transport prompt delivery');
+  const workerToolResult = await workerRegisteredTools.get('zpeer_ask').execute('tool-call-zpeer-ask-worker', { targetAlias: 'workertwo', message: 'worker topology smoke prompt' }, undefined, undefined, { cwd: repoRoot });
+  assert(workerToolResult?.details?.status === 'blocked', `zpeer_ask same-room worker send expected blocked, got ${workerToolResult?.details?.status}`);
+  assert(String(workerToolResult?.details?.reason).includes('zpeer topology blocked'), 'zpeer_ask same-room worker send must fall through to legacy topology block');
+  assert(receivedPrompts.length === promptCountBeforeWorkerTool, 'zpeer_ask same-room worker send must not deliver a prompt to workertwo');
 
   const isolated = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'gamma', rawPrompt, waitForReply);
   assert(isolated.status === 'blocked', `cross-room send expected blocked, got ${isolated.status}`);
   assert(typeof isolated.reason === 'string' && isolated.reason.includes("not found in room 'room-one'"), 'cross-room send must report target not found in sender room');
 
   const promptCountBeforeWorkerDirect = receivedPrompts.length;
-  const workerBlocked = await zpeer.sendZpeerPrompt(repoRoot, workerOne, 'workertwo', rawPrompt, waitForReply);
-  assert(workerBlocked.status === 'blocked', `worker-to-worker send expected blocked, got ${workerBlocked.status}`);
-  assert(typeof workerBlocked.reason === 'string' && workerBlocked.reason.includes('Worker-to-worker coms are blocked by topology guard'), 'worker-to-worker send must be blocked by topology guard');
-  assert(receivedPrompts.length === promptCountBeforeWorkerDirect, 'worker-to-worker topology block must happen before transport prompt delivery');
+  const workerDirectResult = await zpeer.sendZpeerPrompt(repoRoot, workerOne, 'workertwo', rawPrompt, waitForReply, { mode: 'async' });
+  assert(workerDirectResult.status === 'blocked', `same-room worker-to-worker send expected blocked, got ${workerDirectResult.status}`);
+  assert(String(workerDirectResult.reason).includes('zpeer topology blocked'), 'same-room worker-to-worker send must fall through to legacy topology block');
+  assert(receivedPrompts.length === promptCountBeforeWorkerDirect, 'same-room worker-to-worker send must not deliver a prompt to workertwo');
 
   const messagesPath = join(repoRoot, '.pi', 'coms', 'peer-messages.jsonl');
   const statusesPath = join(repoRoot, '.pi', 'coms', 'peer-status.jsonl');
@@ -410,7 +429,7 @@ async function main() {
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'reply' && record.outputHash === hashing.sha256(rawResponse)), 'peer ledger must include reply outputHash record');
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'waiting' && record.taskHash === hashing.sha256(rawPrompt)), 'peer ledger must include async waiting hash record');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.reasonHash), 'peer ledger must include hash-only blocked room-isolation record');
-  assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.targetAliasHash === hashing.sha256('workertwo') && record.reasonHash && record.taskHash === hashing.sha256(rawPrompt)), 'peer ledger must include hash-only worker-to-worker topology block record');
+  assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.targetAliasHash === hashing.sha256('workertwo') && record.reasonHash), 'peer ledger must include hash-only blocked record for same-room worker-to-worker send');
 
   const realRepoComs = join(process.cwd(), '.pi', 'coms');
   assert(messagesPath !== join(realRepoComs, 'peer-messages.jsonl'), 'smoke must not target real .pi/coms peer-messages ledger');

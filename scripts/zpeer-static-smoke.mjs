@@ -89,10 +89,12 @@ for (const forbidden of ['prompt:', 'response:', 'body:', 'content:', 'message:'
 
 const command = contents['.pi/extensions/zob-harness/src/runtime/commands.ts'];
 const newCommandBlock = command.match(/pi\.registerCommand\("new", \{[\s\S]*?\n  \}\);/)?.[0] ?? '';
-if (!newCommandBlock) failures.push('/new command must be registered');
-for (const needle of ['ctx.newSession()', 'writeZpeerNewCarryoverProfile(ctx.cwd', 'clearZpeerNewCarryoverProfile(ctx.cwd)', 'hard', 'zagentId: state.zagent.id', 'pi.appendEntry("zob-znew"', 'schema: "zob.znew-command.v1"', 'carryoverWritten: !hard', 'carryoverCleared: hard', 'aliasHash:', 'roomIdHash:', 'activeRoomIdHash:', 'membershipCount:', 'zagentIdHash:', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false']) {
-  if (newCommandBlock && !newCommandBlock.includes(needle)) failures.push(`/new command missing soft/hard carryover metadata ${needle}`);
+if (!newCommandBlock) failures.push('/new hard helper command must remain registered unless another hard reset path exists');
+for (const needle of ['ctx.newSession()', 'clearZpeerNewCarryoverProfile(ctx.cwd)', 'markZpeerNewHardResetPending(ctx.cwd)', 'hard', 'pi.appendEntry("zob-znew"', 'schema: "zob.znew-command.v1"', 'source: "registered_command"', 'action: hard ? "new_hard" : "new_soft_deferred_to_session_shutdown"', 'carryoverWritten: false', 'carryoverCleared: hard', 'carryoverDeferredToShutdown: !hard', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false']) {
+  if (newCommandBlock && !newCommandBlock.includes(needle)) failures.push(`/new command helper missing hard/deferred metadata ${needle}`);
 }
+if (!command.includes('Exact `/new` is handled by Pi before extension input/command hooks') || !command.includes('Soft carryover') || !command.includes('session_shutdown')) failures.push('/new command helper must document that soft /new is handled by session_shutdown, not the registered command');
+if (newCommandBlock.includes('writeZpeerNewCarryoverProfile(ctx.cwd')) failures.push('/new registered command must not be the soft carryover source; session_shutdown reason=new owns soft carryover');
 for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'response:', 'body:', 'content:', 'message:', 'text:', 'task:', 'output:', 'diff:', 'patch:']) {
   if (newCommandBlock.includes(forbidden)) failures.push(`/new command append/write path contains forbidden raw/body-like key ${forbidden}`);
 }
@@ -109,16 +111,24 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'o
 
 if (!contents['.pi/extensions/zob-harness/src/runtime/events.ts'].includes('ensureZpeerFields')) failures.push('runtime does not auto-ensure zpeer fields');
 const events = contents['.pi/extensions/zob-harness/src/runtime/events.ts'];
-for (const needle of ['parseZpeerNewSlashInput(event.text)', 'recordZpeerNewCarryoverPreflight(pi, state, ctx.cwd, znewInput.hard)', 'source: "input_pre_dispatch"', 'writeZpeerNewCarryoverProfile(repoRoot', 'clearZpeerNewCarryoverProfile(repoRoot)', 'return { action: "continue" as const };']) {
-  if (!events.includes(needle)) failures.push(`runtime must pre-dispatch /new carryover before builtin command dispatch: missing ${needle}`);
+for (const needle of ['parseZpeerNewSlashInput(event.text)', 'recordZpeerNewCarryoverPreflight(pi, state, ctx.cwd, znewInput.hard)', 'source: "input_pre_dispatch"', 'writeZpeerNewCarryoverProfile(repoRoot', 'clearZpeerNewCarryoverProfile(repoRoot)', 'markZpeerNewHardResetPending(repoRoot)', 'return { action: "continue" as const };']) {
+  if (!events.includes(needle)) failures.push(`runtime must pre-dispatch /new carryover before builtin command dispatch where visible: missing ${needle}`);
 }
-const znewPreDispatchBlock = events.match(/function recordZpeerNewCarryoverPreflight[\s\S]*?function clearZpeerHeartbeatTimer/)?.[0] ?? '';
+const znewPreDispatchBlock = events.match(/function recordZpeerNewCarryoverPreflight[\s\S]*?function recordZpeerNewCarryoverOnShutdown/)?.[0] ?? '';
 if (!znewPreDispatchBlock) failures.push('runtime missing /new pre-dispatch carryover helper');
 for (const needle of ['schema: "zob.znew-command.v1"', 'action: hard ? "new_hard" : "new_soft"', 'carryoverWritten: !hard', 'carryoverCleared: hard', 'aliasHash:', 'roomIdHash:', 'activeRoomIdHash:', 'membershipCount:', 'zagentIdHash:', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false']) {
   if (znewPreDispatchBlock && !znewPreDispatchBlock.includes(needle)) failures.push(`/new pre-dispatch hook missing metadata-only field ${needle}`);
 }
+const znewShutdownBlock = events.match(/function recordZpeerNewCarryoverOnShutdown[\s\S]*?function clearZpeerHeartbeatTimer/)?.[0] ?? '';
+if (!znewShutdownBlock) failures.push('runtime missing session_shutdown /new carryover helper');
+for (const needle of ['if (reason !== "new") return;', 'zpeerNewHardResetPendingRepos.delete(repoRoot)', 'source: "session_shutdown"', 'action: "new_soft"', 'status: "ok"', 'writeZpeerNewCarryoverProfile(repoRoot', 'zagentId: state.zagent.id', 'carryoverWritten: true', 'carryoverCleared: false', 'shutdownReason: "new"', 'aliasHash:', 'roomIdHash:', 'activeRoomIdHash:', 'membershipCount:', 'zagentIdHash:', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false']) {
+  if (znewShutdownBlock && !znewShutdownBlock.includes(needle)) failures.push(`session_shutdown /new carryover missing metadata-only field ${needle}`);
+}
+if (!events.includes('recordZpeerNewCarryoverOnShutdown(pi, state, ctx.cwd, event.reason)') || !events.includes('await stopZobLiveRuntime(state, ctx)')) failures.push('session_shutdown must write /new carryover before stopZobLiveRuntime clears state');
+if (events.indexOf('recordZpeerNewCarryoverOnShutdown(pi, state, ctx.cwd, event.reason)') > events.indexOf('await stopZobLiveRuntime(state, ctx)')) failures.push('session_shutdown /new carryover must happen before stopZobLiveRuntime');
 for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'response:', 'body:', 'content:', 'message:', 'text:', 'task:', 'output:', 'diff:', 'patch:']) {
   if (znewPreDispatchBlock.includes(forbidden)) failures.push(`/new pre-dispatch hook contains forbidden raw/body-like key ${forbidden}`);
+  if (znewShutdownBlock.includes(forbidden)) failures.push(`/new session_shutdown hook contains forbidden raw/body-like key ${forbidden}`);
 }
 if (!events.includes('readZpeerLocalProfile(repoRoot, profileId)')) failures.push('runtime must load session-scoped zpeer profile before ensuring/registering fields');
 if (!events.includes('sharedZpeerProfile ? undefined : zpeerProfile?.alias') || !events.includes('sharedZpeerProfile ? undefined : zpeerProfile?.memberships')) failures.push('runtime must not restore alias/memberships from shared role fallback zpeer profiles');

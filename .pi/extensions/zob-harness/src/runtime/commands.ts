@@ -9,12 +9,14 @@ import { buildComputeWorkflowShape } from "../compute-workflow-shape.js";
 import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
 import { runQueueDaemonTick } from "../queue.js";
 import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
+import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../zagents.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../utils/hashing.js";
 import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../git-ops.js";
-import { writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
+import { clearZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../coms-v2/zpeer.js";
+import { markZpeerNewHardResetPending } from "./events.js";
 import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
 import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "../goal-runtime.js";
 import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
@@ -532,6 +534,156 @@ function stopCommandLedgerEntry(input: {
   };
 }
 
+function zagentArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const ids = listZagentManifests(process.cwd()).map((agent) => agent.manifest.id).filter(Boolean);
+  const items: AutocompleteItem[] = [
+    { value: "list", label: "list", description: "list project-local ZAgents" },
+    ...ids.flatMap((id) => [
+      { value: `show ${id}`, label: `show ${id}`, description: "show manifest metadata" },
+      { value: `use ${id}`, label: `use ${id}`, description: "load ZAgent and apply ZPeer profile" },
+    ]),
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function zteamArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+  const query = prefix.trim().toLowerCase();
+  const ids = listZteamManifests(process.cwd()).map((team) => team.manifest.id).filter(Boolean);
+  const items: AutocompleteItem[] = [
+    { value: "list", label: "list", description: "list project-local ZTeams" },
+    ...ids.flatMap((id) => [
+      { value: `show ${id}`, label: `show ${id}`, description: "show team manifest metadata" },
+      { value: `launch-plan ${id}`, label: `launch-plan ${id}`, description: "print full-session launch commands" },
+    ]),
+  ];
+  const filtered = query
+    ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query))
+    : items;
+  return filtered.length > 0 ? filtered.slice(0, 20) : null;
+}
+
+function zagentLedgerEntry(action: string, input: { id?: string; teamId?: string; status: "ok" | "blocked"; roomIds?: string[]; alias?: string; path?: string; promptRef?: string; promptBody?: string; errors?: string[] }): Record<string, unknown> {
+  return {
+    schema: "zob.zagent-command.v1",
+    action,
+    status: input.status,
+    idHash: input.id ? sha256(input.id) : undefined,
+    teamIdHash: input.teamId ? sha256(input.teamId) : undefined,
+    aliasHash: input.alias ? sha256(input.alias) : undefined,
+    roomIdHashes: (input.roomIds ?? []).map((roomId) => sha256(roomId)),
+    pathHash: input.path ? sha256(input.path) : undefined,
+    promptRefHash: input.promptRef ? sha256(input.promptRef) : undefined,
+    promptHash: input.promptBody ? sha256(input.promptBody) : undefined,
+    errorHashes: (input.errors ?? []).map((error) => sha256(error)),
+    localOnly: true,
+    networkEnabled: false,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function formatZagentShow(loaded: ReturnType<typeof loadZagentManifest>): string {
+  const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+  return [
+    `ZAgent ${loaded.manifest.id}`,
+    `path: ${loaded.path}`,
+    `status: ${loaded.errors.length === 0 ? "ok" : `blocked (${loaded.errors.length} error${loaded.errors.length === 1 ? "" : "s"})`}`,
+    loaded.manifest.description ? `description: ${loaded.manifest.description}` : undefined,
+    loaded.manifest.team ? `team: ${loaded.manifest.team}` : undefined,
+    loaded.manifest.role ? `role: ${loaded.manifest.role}` : undefined,
+    loaded.manifest.alias ? `alias: @${loaded.manifest.alias}` : undefined,
+    rooms.length ? `rooms: ${rooms.map((room) => `${room.id}${room.alias ? `@${room.alias}` : ""}${room.active ? "*" : ""}`).join(", ")}` : "rooms: none",
+    loaded.manifest.promptRef ? `promptRef: ${loaded.manifest.promptRef}` : "promptRef: none",
+    loaded.promptPath ? `promptPath: ${loaded.promptPath}` : undefined,
+    loaded.errors.length ? `errors:\n- ${loaded.errors.join("\n- ")}` : undefined,
+    "safety: project-local, localOnly=true, networkEnabled=false, bodyStored=false",
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function formatZteamShow(loaded: ReturnType<typeof loadZteamManifest>): string {
+  const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+  const members = zteamMembers(loaded.manifest);
+  return [
+    `ZTeam ${loaded.manifest.id}`,
+    `path: ${loaded.path}`,
+    `status: ${loaded.errors.length === 0 ? "ok" : `blocked (${loaded.errors.length} error${loaded.errors.length === 1 ? "" : "s"})`}`,
+    loaded.manifest.description ? `description: ${loaded.manifest.description}` : undefined,
+    rooms.length ? `rooms: ${rooms.map((room) => `${room.id}${room.active ? "*" : ""}`).join(", ")}` : "rooms: none",
+    `agents: ${members.map((member) => member.id).join(", ") || "none"}`,
+    loaded.errors.length ? `errors:\n- ${loaded.errors.join("\n- ")}` : undefined,
+    "safety: launch-plan only; commands are printed, not spawned",
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function normalizeZpeerRole(role: string | undefined): "member" | "bridge" | "observer" {
+  return role === "bridge" || role === "observer" ? role : "member";
+}
+
+async function applyZagentToZpeer(repoRoot: string, peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]>, manifest: ZAgentManifest): Promise<{ ok: true; peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]> } | { ok: false; reason: string; peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]> }> {
+  let current = refreshZpeerSelf(repoRoot, peer);
+  const rooms = normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom);
+  if (rooms.length === 0 && manifest.alias) {
+    const changed = await changeZpeerAlias(repoRoot, current, manifest.alias);
+    if (!changed.ok) return { ok: false, reason: changed.reason, peer: current };
+    current = changed.peer;
+  }
+  for (const room of rooms) {
+    const joined = await joinZpeerRoom(repoRoot, current, room.id, room.alias ?? manifest.alias, normalizeZpeerRole(room.role));
+    if (!joined.ok) return { ok: false, reason: joined.reason, peer: current };
+    current = joined.peer;
+  }
+  const activeRoom = rooms.find((room) => room.active)?.id ?? manifest.activeRoom ?? manifest.defaultRoom;
+  if (activeRoom) {
+    const used = useZpeerRoom(repoRoot, current, activeRoom);
+    if (!used.ok) return { ok: false, reason: used.reason, peer: current };
+    current = used.peer;
+  }
+  return { ok: true, peer: current };
+}
+
+function zteamMemberId(member: ZTeamMemberManifest | ZTeamAgentManifest): string {
+  return "zagentId" in member ? member.zagentId : member.id;
+}
+
+function zteamMembers(team: ZTeamManifest): Array<{ id: string; alias?: string; room?: string; rooms?: ZAgentRoomBinding[]; role?: string; active?: boolean }> {
+  const rawMembers = [...(team.members ?? []), ...(team.agents ?? [])];
+  return rawMembers.map((member) => ({
+    id: zteamMemberId(member),
+    alias: member.alias,
+    room: member.room,
+    rooms: normalizeZagentRoomBindings(member.rooms ?? (member.room ? [member.room] : undefined), team.defaultRoom, member.active ? (member.room ?? team.activeRoom) : undefined),
+    role: member.role,
+    active: member.active,
+  }));
+}
+
+function zteamLaunchPlanText(team: ZTeamManifest): { text: string; roomIds: string[]; agentIds: string[] } {
+  const teamRooms = normalizeZagentRoomBindings(team.rooms, team.defaultRoom, team.activeRoom).map((room) => room.id);
+  const members = zteamMembers(team);
+  const roomIds = [...new Set([...teamRooms, ...members.flatMap((member) => (member.rooms ?? []).map((room) => room.id))])];
+  const agentIds = members.map((member) => member.id);
+  const lines = [
+    `# ZTeam launch-plan: ${team.id}`,
+    "No processes spawned. Copy/paste each command in a separate terminal when approved.",
+    "",
+    ...members.map((member) => {
+      const rooms = (member.rooms ?? []).map((room) => `${room.id}${room.active ? "*" : ""}`).join(", ") || teamRooms.join(", ") || "default";
+      const alias = member.alias ? ` alias=@${member.alias}` : "";
+      return `ZOB_ZAGENT_ID=${member.id} pi    # expected_rooms=${rooms}${alias}`;
+    }),
+    "",
+    `Expected rooms: ${roomIds.join(", ") || "default"}`,
+    "After each session starts, run /zagent use <id> to bind its ZPeer alias/rooms.",
+  ];
+  return { text: lines.join("\n"), roomIds, agentIds };
+}
+
 function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: string): AutocompleteItem[] | null {
   const query = prefix.trim().toLowerCase();
   const items: AutocompleteItem[] = [];
@@ -551,6 +703,41 @@ function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: strin
 }
 
 export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
+  // Exact `/new` is handled by Pi before extension input/command hooks. Soft carryover
+  // is therefore written from the `session_shutdown` reason="new" hook in events.ts.
+  // Keep this registration only for `/new hard`, where users need an explicit clean reset.
+  pi.registerCommand("new", {
+    description: "Hard reset helper for ZPeer/ZAgent continuity. Exact /new soft carryover is handled on session_shutdown reason=new.",
+    getArgumentCompletions: (prefix) => {
+      const query = prefix.trim().toLowerCase();
+      const items: AutocompleteItem[] = [
+        { value: "hard", label: "hard", description: "clear ZPeer/ZAgent carryover before starting a clean new session" },
+      ];
+      const filtered = query ? items.filter((item) => item.value.startsWith(query) || item.label.includes(query)) : items;
+      return filtered.length > 0 ? filtered : null;
+    },
+    handler: async (args, ctx) => {
+      const hard = args.trim().split(/\s+/).filter(Boolean)[0]?.toLowerCase() === "hard";
+      if (hard) {
+        markZpeerNewHardResetPending(ctx.cwd);
+        clearZpeerNewCarryoverProfile(ctx.cwd);
+      }
+      pi.appendEntry("zob-znew", {
+        schema: "zob.znew-command.v1",
+        source: "registered_command",
+        action: hard ? "new_hard" : "new_soft_deferred_to_session_shutdown",
+        carryoverWritten: false,
+        carryoverCleared: hard,
+        carryoverDeferredToShutdown: !hard,
+        localOnly: true,
+        networkEnabled: false,
+        bodyStored: false,
+        generatedAt: new Date().toISOString(),
+      });
+      await ctx.newSession();
+    },
+  });
+
   pi.registerCommand("zmode", {
     description: "Switch ZOB harness mode: explore | plan | implement | oracle | factory | orchestrator | vanilla. Orchestrator routes to adaptive-chief-vision plan_only defaults; vanilla restores Pi base-style unrestricted tool access outside ZOB governance.",
     handler: async (args, ctx) => {
@@ -649,6 +836,147 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
       details: { ...state.zobLive.lastEvent },
     }, { triggerTurn: false });
   };
+
+  pi.registerCommand("zagent", {
+    description: "Project-local full-session ZAgents: /zagent list | show <id> | use <id>",
+    getArgumentCompletions: zagentArgumentCompletions,
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = (parts[0] ?? "list").toLowerCase();
+      if (action === "list") {
+        const agents = listZagentManifests(ctx.cwd);
+        const roomIds = agents.flatMap((agent) => normalizeZagentRoomBindings(agent.manifest.rooms, agent.manifest.defaultRoom, agent.manifest.activeRoom).map((room) => room.id));
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("list", { status: "ok", roomIds }));
+        renderHarnessWidget(pi, state, ctx);
+        void pi.sendMessage({ customType: "zob-zagent-list", content: formatZagentList(agents), display: true, details: { bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zagent list: ${agents.length} project-local manifest${agents.length === 1 ? "" : "s"}`, "info");
+        return;
+      }
+      if (action === "show") {
+        const id = parts[1];
+        if (!id) {
+          ctx.ui.notify("Usage: /zagent show <id>", "warning");
+          return;
+        }
+        const loaded = loadZagentManifest(ctx.cwd, id);
+        const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("show", { id: loaded.manifest.id, status: loaded.errors.length === 0 ? "ok" : "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, errors: loaded.errors }));
+        renderHarnessWidget(pi, state, ctx);
+        void pi.sendMessage({ customType: "zob-zagent-show", content: formatZagentShow(loaded), display: true, details: { id: loaded.manifest.id, bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zagent ${loaded.manifest.id}: ${loaded.errors.length === 0 ? "ok" : `blocked (${loaded.errors.length})`}`, loaded.errors.length === 0 ? "info" : "warning");
+        return;
+      }
+      if (action === "use") {
+        const id = parts[1];
+        if (!id) {
+          ctx.ui.notify("Usage: /zagent use <id>", "warning");
+          return;
+        }
+        const loaded = loadZagentManifest(ctx.cwd, id);
+        const prompt = readZagentPrompt(ctx.cwd, loaded.manifest.promptRef);
+        const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+        const errors = [...loaded.errors, ...prompt.errors];
+        state.zagent = {
+          id: loaded.manifest.id,
+          team: loaded.manifest.team,
+          role: loaded.manifest.role,
+          alias: loaded.manifest.alias,
+          description: loaded.manifest.description,
+          rooms,
+          activeRoom: rooms.find((room) => room.active)?.id ?? loaded.manifest.activeRoom ?? loaded.manifest.defaultRoom,
+          prompt: prompt.body,
+          promptRef: loaded.manifest.promptRef,
+          path: loaded.path,
+          errors,
+          loadedAt: new Date().toISOString(),
+        };
+        if (errors.length > 0) {
+          pi.appendEntry("zob-zagent", zagentLedgerEntry("use_blocked", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body, errors }));
+          renderHarnessWidget(pi, state, ctx);
+          ctx.ui.notify(`/zagent use ${id} blocked: ${errors[0]}`, "warning");
+          return;
+        }
+        if (!state.zobLive.peerCard) {
+          const peerErrors = ["current session has not registered a local ZPeer endpoint yet"];
+          state.zagent.errors = peerErrors;
+          pi.appendEntry("zob-zagent", zagentLedgerEntry("use_blocked", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body, errors: peerErrors }));
+          renderHarnessWidget(pi, state, ctx);
+          ctx.ui.notify(`/zagent use ${id} loaded manifest/prompt but ZPeer is unavailable: ${peerErrors[0]}`, "warning");
+          return;
+        }
+        const applied = await applyZagentToZpeer(ctx.cwd, state.zobLive.peerCard, loaded.manifest);
+        state.zobLive.peerCard = applied.peer;
+        if (!applied.ok) {
+          state.zagent.errors = [applied.reason];
+          pi.appendEntry("zob-zagent", zagentLedgerEntry("use_blocked", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body, errors: [applied.reason] }));
+          renderHarnessWidget(pi, state, ctx);
+          ctx.ui.notify(`/zagent use ${id} ZPeer apply blocked: ${applied.reason}`, "warning");
+          return;
+        }
+        state.zobLive.peerCard = refreshZpeerSelf(ctx.cwd, applied.peer);
+        state.zobLive.peerCard = {
+          ...state.zobLive.peerCard,
+          team: loaded.manifest.team ?? state.zobLive.peerCard.team,
+          roleId: loaded.manifest.id,
+          agent: loaded.manifest.id,
+        };
+        writeZpeerLocalProfileFromPeer(ctx.cwd, state.zobLive.peerCard, zpeerCommandProfileId(ctx));
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("use", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "ok", roomIds: zpeerMembershipsForPeer(state.zobLive.peerCard).map((membership) => membership.roomId), alias: state.zobLive.peerCard.zpeerAlias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body }));
+        renderHarnessWidget(pi, state, ctx);
+        const active = state.zobLive.peerCard.zpeerRoomId ?? state.zobLive.peerCard.zpeerActiveRoomId ?? "default";
+        ctx.ui.notify(`zagent ${loaded.manifest.id} loaded; ZPeer @${state.zobLive.peerCard.zpeerAlias ?? "?"} active=${active} rooms=${zpeerMembershipsForPeer(state.zobLive.peerCard).length}; promptHash=${prompt.body ? sha256(prompt.body).slice(0, 12) : "none"}`, "info");
+        return;
+      }
+      ctx.ui.notify("Usage: /zagent list | /zagent show <id> | /zagent use <id>", "warning");
+    },
+  });
+
+  pi.registerCommand("zteam", {
+    description: "Project-local ZTeams: /zteam list | show <id> | launch-plan <id>",
+    getArgumentCompletions: zteamArgumentCompletions,
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = (parts[0] ?? "list").toLowerCase();
+      if (action === "list") {
+        const teams = listZteamManifests(ctx.cwd);
+        const roomIds = teams.flatMap((team) => normalizeZagentRoomBindings(team.manifest.rooms, team.manifest.defaultRoom, team.manifest.activeRoom).map((room) => room.id));
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("zteam_list", { status: "ok", roomIds }));
+        renderHarnessWidget(pi, state, ctx);
+        void pi.sendMessage({ customType: "zob-zteam-list", content: formatZteamList(teams), display: true, details: { bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zteam list: ${teams.length} project-local manifest${teams.length === 1 ? "" : "s"}`, "info");
+        return;
+      }
+      if (action === "show") {
+        const id = parts[1];
+        if (!id) {
+          ctx.ui.notify("Usage: /zteam show <id>", "warning");
+          return;
+        }
+        const loaded = loadZteamManifest(ctx.cwd, id);
+        const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("zteam_show", { teamId: loaded.manifest.id, status: loaded.errors.length === 0 ? "ok" : "blocked", roomIds: rooms.map((room) => room.id), path: loaded.path, errors: loaded.errors }));
+        renderHarnessWidget(pi, state, ctx);
+        void pi.sendMessage({ customType: "zob-zteam-show", content: formatZteamShow(loaded), display: true, details: { id: loaded.manifest.id, bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zteam ${loaded.manifest.id}: ${loaded.errors.length === 0 ? "ok" : `blocked (${loaded.errors.length})`}`, loaded.errors.length === 0 ? "info" : "warning");
+        return;
+      }
+      if (action === "launch-plan") {
+        const id = parts[1];
+        if (!id) {
+          ctx.ui.notify("Usage: /zteam launch-plan <id>", "warning");
+          return;
+        }
+        const loaded = loadZteamManifest(ctx.cwd, id);
+        const plan = zteamLaunchPlanText(loaded.manifest);
+        pi.appendEntry("zob-zagent", zagentLedgerEntry("zteam_launch_plan", { teamId: loaded.manifest.id, status: loaded.errors.length === 0 ? "ok" : "blocked", roomIds: plan.roomIds, path: loaded.path, errors: loaded.errors }));
+        renderHarnessWidget(pi, state, ctx);
+        void pi.sendMessage({ customType: "zob-zteam-launch-plan", content: loaded.errors.length ? `${plan.text}\n\nBlocked manifest errors:\n- ${loaded.errors.join("\n- ")}` : plan.text, display: true, details: { id: loaded.manifest.id, agentIdHashes: plan.agentIds.map((agentId) => sha256(agentId)), roomIdHashes: plan.roomIds.map((roomId) => sha256(roomId)), bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zteam ${loaded.manifest.id} launch-plan printed; spawn count=0; expectedRooms=${plan.roomIds.join(",") || "default"}`, loaded.errors.length === 0 ? "info" : "warning");
+        return;
+      }
+      ctx.ui.notify("Usage: /zteam list | /zteam show <id> | /zteam launch-plan <id>", "warning");
+    },
+  });
 
   pi.registerCommand("zpeer", {
     description: "Room-scoped local peer sessions: /zpeer, /zpeer name <alias>, /zpeer room <roomId>, /zpeer @alias <prompt>",

@@ -1521,6 +1521,40 @@
       "noShipNotes": "Local-only multi-room-scoped peer UX with active-room compatibility; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
     },
     {
+      "name": "zagent",
+      "family": "zagent",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-zagent-creator/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        ".pi/skills/zob-zagent-creator/SKILL.md"
+      ],
+      "noShipNotes": "Project-local ZAgent definition UX for .pi/zagents/ only. ZAgents are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan is plan/metadata only and must not spawn processes. Persisted command metadata must remain hash/body-free."
+    },
+    {
+      "name": "zteam",
+      "family": "zagent",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-zagent-creator/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md",
+        ".pi/skills/zob-zagent-creator/SKILL.md"
+      ],
+      "noShipNotes": "Project-local ZTeam bundle UX for .pi/zteams/ only. ZTeam members are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan is plan/metadata only and must not spawn processes. Persisted command metadata must remain hash/body-free."
+    },
+    {
       "name": "rules_status",
       "family": "safety",
       "modes": [

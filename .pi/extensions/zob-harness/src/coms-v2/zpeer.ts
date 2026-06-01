@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { buildZobComsProjectId } from "./identity.js";
 import { buildZobLiveEnvelope } from "./envelope.js";
 import { sendZobLocalEnvelope } from "./local-transport.js";
-import { readZobLiveRegistrySnapshot, writeZobLivePeerCard } from "./registry.js";
+import { readZobLiveRegistryAllProjectsSnapshot, writeZobLivePeerCard, writeZobLivePeerCardToProjectId } from "./registry.js";
 import type { ZobLivePeerCard, ZobLivePeerStatus, ZpeerRoomMembership, ZpeerRoomMembershipRole } from "./types.js";
 import { validateZobComsEdge } from "../topology/coms.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { loadZteamManifest, zteamAllowsZpeerContact } from "../zagents.js";
 import { sha256 } from "../utils/hashing.js";
 
 const DEFAULT_ROOM_ID = "default";
@@ -232,18 +233,17 @@ export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId
   return writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
 }
 
-type ZobLiveRegistrySnapshotValue = ReturnType<typeof readZobLiveRegistrySnapshot>;
+type ZobLiveRegistrySnapshotValue = ReturnType<typeof readZobLiveRegistryAllProjectsSnapshot>;
 
 function peersInRoomFromSnapshot(snapshot: ZobLiveRegistrySnapshotValue, roomId: string): ZpeerRoomPeer[] {
   return snapshot.peers
-    .filter((peer) => peer.projectId === snapshot.projectId)
     .flatMap((peer) => zpeerMembershipsForPeer(peer)
       .filter((membership) => membership.roomId === roomId)
       .map((membership) => ({ peer, membership })));
 }
 
 function peersInRoom(repoRoot: string, roomId: string): ZpeerRoomPeer[] {
-  return peersInRoomFromSnapshot(readZobLiveRegistrySnapshot(repoRoot), roomId);
+  return peersInRoomFromSnapshot(readZobLiveRegistryAllProjectsSnapshot(repoRoot), roomId);
 }
 
 function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard | undefined, roomId: string, peers: ZpeerRoomPeer[]): ZpeerRoomSummary {
@@ -270,13 +270,13 @@ function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard
 }
 
 export function buildZpeerRoomSummary(repoRoot: string, self?: ZobLivePeerCard, requestedRoomId?: string): ZpeerRoomSummary {
-  const snapshot = readZobLiveRegistrySnapshot(repoRoot);
+  const snapshot = readZobLiveRegistryAllProjectsSnapshot(repoRoot);
   const roomId = safeZpeerRoomId(requestedRoomId) ?? (self ? activeZpeerRoomId(self) : DEFAULT_ROOM_ID);
   return buildZpeerRoomSummaryFromPeers(snapshot.projectId, self, roomId, peersInRoomFromSnapshot(snapshot, roomId));
 }
 
 export function buildZpeerPeerRoomSummaries(repoRoot: string, self: ZobLivePeerCard): ZpeerPeerRoomSummary[] {
-  const snapshot = readZobLiveRegistrySnapshot(repoRoot);
+  const snapshot = readZobLiveRegistryAllProjectsSnapshot(repoRoot);
   const activeRoomId = activeZpeerRoomId(self);
   return zpeerMembershipsForPeer(self).map((membership) => ({
     ...buildZpeerRoomSummaryFromPeers(snapshot.projectId, self, membership.roomId, peersInRoomFromSnapshot(snapshot, membership.roomId)),
@@ -341,7 +341,7 @@ export function clearZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requeste
     const fallbackAlias = safeZpeerAlias(entry.peer.zpeerAlias) ?? generatedZpeerAlias(entry.peer);
     const nextMemberships = remaining.length > 0 ? remaining : [buildMembership({ roomId: fallbackRoomId, alias: fallbackAlias, role: "observer", joinedAt: new Date().toISOString() })];
     const active = nextMemberships[0];
-    writeZobLivePeerCard(repoRoot, {
+    writeZobLivePeerCardToProjectId({
       ...entry.peer,
       heartbeatAt: new Date().toISOString(),
       status: "offline",
@@ -408,8 +408,12 @@ function appendZpeerPeerRecords(repoRoot: string, record: {
   appendHashOnlyZpeerJsonl(repoRoot, "peer-status.jsonl", { ...base, schema: "zob.zpeer-peer-status.v1" });
 }
 
-function validateZpeerTopology(repoRoot: string, self: ZobLivePeerCard, target: ZobLivePeerCard): string | undefined {
+function validateZpeerTopology(repoRoot: string, self: ZobLivePeerCard, target: ZobLivePeerCard, roomId: string, selfAlias?: string, targetAlias?: string): string | undefined {
   if (self.roleId === target.roleId && self.roleType === "orchestrator" && target.roleType === "orchestrator") return undefined;
+  const selfInRequestedRoom = isPeerInZpeerRoom(self, roomId);
+  const targetInRequestedRoom = isPeerInZpeerRoom(target, roomId);
+  const bothPeersAreWorkers = self.roleType === "worker" && target.roleType === "worker";
+  if (selfInRequestedRoom && targetInRequestedRoom && !bothPeersAreWorkers) return undefined;
   const teamName = self.team || target.team || "zob-core";
   if (target.team !== teamName) return "zpeer topology blocked: peers are in different teams";
   let topologyRoot = repoRoot;
@@ -418,11 +422,19 @@ function validateZpeerTopology(repoRoot: string, self: ZobLivePeerCard, target: 
     topologyRoot = process.cwd();
     loaded = loadTeamDefinition(topologyRoot, teamName);
   }
-  if (!loaded.definition) return `zpeer topology blocked: ${loaded.errors.join("; ")}`;
-  const definitionErrors = validateTeamDefinition(topologyRoot, loaded.definition);
-  if (definitionErrors.length > 0) return `zpeer topology blocked: ${definitionErrors.join("; ")}`;
-  const edgeErrors = validateZobComsEdge(loaded.definition, self.roleId, target.roleId);
-  if (edgeErrors.length > 0) return `zpeer topology blocked: ${edgeErrors.join("; ")}`;
+  if (loaded.definition) {
+    const definitionErrors = validateTeamDefinition(topologyRoot, loaded.definition);
+    if (definitionErrors.length > 0) return `zpeer topology blocked: ${definitionErrors.join("; ")}`;
+    const edgeErrors = validateZobComsEdge(loaded.definition, self.roleId, target.roleId);
+    if (edgeErrors.length === 0) return undefined;
+    if (!edgeErrors.some((error) => error.startsWith("Unknown coms sender") || error.startsWith("Unknown coms receiver"))) return `zpeer topology blocked: ${edgeErrors.join("; ")}`;
+  }
+
+  if (!self.team || self.team !== target.team) return "zpeer topology blocked: peers are not in the same zteam";
+  const zteam = loadZteamManifest(repoRoot, self.team);
+  if (zteam.errors.length > 0) return `zpeer topology blocked: ${loaded.errors.join("; ") || "legacy topology rejected ZAgent role ids"}; zteam fallback blocked: ${zteam.errors.join("; ")}`;
+  if (!zteamAllowsZpeerContact(zteam.manifest, self.roleId, roomId, selfAlias)) return `zpeer topology blocked: zteam '${self.team}' does not allow ${self.roleId} in room '${roomId}'`;
+  if (!zteamAllowsZpeerContact(zteam.manifest, target.roleId, roomId, targetAlias)) return `zpeer topology blocked: zteam '${target.team}' does not allow ${target.roleId} in room '${roomId}'`;
   return undefined;
 }
 
@@ -463,7 +475,7 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   const target = candidates[0];
   const targetReachableStatus = zpeerReachableStatus(target.peer);
   if (targetReachableStatus !== "online") return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is ${targetReachableStatus}`, targetAlias, taskHash, bodyStored: false }, 1);
-  const topologyBlocker = validateZpeerTopology(repoRoot, self, target.peer);
+  const topologyBlocker = validateZpeerTopology(repoRoot, self, target.peer, roomId, senderAlias, target.membership.alias);
   if (topologyBlocker) return finish("attempt", { status: "blocked", reason: topologyBlocker, targetAlias, taskHash, bodyStored: false }, 1);
   if (target.peer.transport !== "local_socket" || target.peer.endpoint.startsWith("pending-") || target.peer.endpoint === "observe-only") return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is not reachable by local_socket`, targetAlias, taskHash, bodyStored: false }, 1);
   if (self.transport !== "local_socket" || !self.endpoint || self.endpoint.startsWith("pending-") || self.endpoint === "observe-only") return finish("attempt", { status: "blocked", reason: "current session has no local_socket reply endpoint", targetAlias, taskHash, bodyStored: false }, 1);

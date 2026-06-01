@@ -150,10 +150,17 @@ function parseZpeerNewSlashInput(text: string): { hard: boolean } | undefined {
   return { hard: parts[1]?.toLowerCase() === "hard" };
 }
 
+const zpeerNewHardResetPendingRepos = new Set<string>();
+
+export function markZpeerNewHardResetPending(repoRoot: string): void {
+  zpeerNewHardResetPendingRepos.add(repoRoot);
+}
+
 function recordZpeerNewCarryoverPreflight(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string, hard: boolean): void {
   const peer = state.zobLive.peerCard;
   try {
     if (hard) {
+      markZpeerNewHardResetPending(repoRoot);
       clearZpeerNewCarryoverProfile(repoRoot);
     } else {
       writeZpeerNewCarryoverProfile(repoRoot, {
@@ -190,6 +197,70 @@ function recordZpeerNewCarryoverPreflight(pi: ExtensionAPI, state: HarnessRuntim
       status: "blocked_or_failed",
       carryoverWritten: false,
       carryoverCleared: false,
+      errorHashes: [sha256(errorText)],
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+function recordZpeerNewCarryoverOnShutdown(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string, reason: unknown): void {
+  if (reason !== "new") return;
+  if (zpeerNewHardResetPendingRepos.delete(repoRoot)) {
+    pi.appendEntry("zob-znew", {
+      schema: "zob.znew-command.v1",
+      source: "session_shutdown",
+      action: "new_hard",
+      status: "ok",
+      carryoverWritten: false,
+      carryoverCleared: true,
+      shutdownReason: "new",
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+  const peer = state.zobLive.peerCard;
+  try {
+    writeZpeerNewCarryoverProfile(repoRoot, {
+      alias: peer?.zpeerAlias,
+      roomId: peer?.zpeerRoomId,
+      activeRoomId: peer?.zpeerActiveRoomId,
+      memberships: peer?.zpeerMemberships,
+      zagentId: state.zagent.id,
+    });
+    pi.appendEntry("zob-znew", {
+      schema: "zob.znew-command.v1",
+      source: "session_shutdown",
+      action: "new_soft",
+      status: "ok",
+      carryoverWritten: true,
+      carryoverCleared: false,
+      shutdownReason: "new",
+      aliasHash: peer?.zpeerAlias ? sha256(peer.zpeerAlias) : undefined,
+      roomIdHash: peer?.zpeerRoomId ? sha256(peer.zpeerRoomId) : undefined,
+      activeRoomIdHash: peer?.zpeerActiveRoomId ? sha256(peer.zpeerActiveRoomId) : undefined,
+      membershipCount: peer?.zpeerMemberships?.length ?? 0,
+      zagentIdHash: state.zagent.id ? sha256(state.zagent.id) : undefined,
+      localOnly: true,
+      networkEnabled: false,
+      bodyStored: false,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    pi.appendEntry("zob-znew", {
+      schema: "zob.znew-command.v1",
+      source: "session_shutdown",
+      action: "new_soft",
+      status: "blocked_or_failed",
+      carryoverWritten: false,
+      carryoverCleared: false,
+      shutdownReason: "new",
       errorHashes: [sha256(errorText)],
       localOnly: true,
       networkEnabled: false,
@@ -911,7 +982,8 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     }
   });
 
-  pi.on("session_shutdown", async (_event, ctx) => {
+  pi.on("session_shutdown", async (event, ctx) => {
+    recordZpeerNewCarryoverOnShutdown(pi, state, ctx.cwd, event.reason);
     if (state.daemon.loopTimer) clearTimeout(state.daemon.loopTimer);
     state.daemon.loopTimer = undefined;
     state.daemon.loop = {

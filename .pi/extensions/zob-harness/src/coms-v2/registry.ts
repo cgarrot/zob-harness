@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
 import { isRecord } from "../utils/records.js";
@@ -34,6 +34,50 @@ function peerPath(repoRoot: string, peer: Pick<ZobLivePeerCard, "roleId" | "sess
   return join(dir, `${safeFileStem(`${peer.roleId}-${peer.sessionHash.slice(0, 12)}`)}.json`);
 }
 
+function peerPathForProjectId(projectId: string, peer: Pick<ZobLivePeerCard, "roleId" | "sessionHash">): string {
+  return join(registryRoot().path, "projects", safeFileStem(projectId), "agents", `${safeFileStem(`${peer.roleId}-${peer.sessionHash.slice(0, 12)}`)}.json`);
+}
+
+function readPeerCardsFromAgentsDir(dir: string, nowMs: number, teamName?: string): ZobLivePeerCard[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((entry) => entry.endsWith(".json"))
+    .map((entry) => {
+      try {
+        return parsePeerCard(JSON.parse(readFileSync(join(dir, entry), "utf8")) as unknown);
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((peer): peer is ZobLivePeerCard => Boolean(peer))
+    .filter((peer) => !teamName || peer.team === teamName)
+    .map((peer) => ({ ...peer, status: derivePeerStatus(peer, nowMs) }));
+}
+
+function allProjectAgentsDirs(): string[] {
+  const root = registryRoot();
+  const projectsDir = join(root.path, "projects");
+  if (!existsSync(projectsDir)) return [];
+  return readdirSync(projectsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(projectsDir, entry.name, "agents"));
+}
+
+function buildSnapshot(projectId: string, kind: "user_runtime" | "env_override", peers: ZobLivePeerCard[], teamName?: string): ZobLiveRegistrySnapshot {
+  const counts: Record<ZobLivePeerStatus, number> = { online: 0, stale: 0, offline: 0 };
+  for (const peer of peers) counts[peer.status] += 1;
+  return {
+    schema: "zob.live-registry-snapshot.v1",
+    projectId,
+    registry: kind,
+    team: teamName,
+    generatedAt: new Date().toISOString(),
+    peers,
+    counts,
+    bodyStored: false,
+  };
+}
+
 function parsePeerCard(value: unknown): ZobLivePeerCard | undefined {
   if (!isRecord(value) || value.schema !== "zob.live-peer-card.v1") return undefined;
   if (hasForbiddenPersistedKey(value) || value.bodyStored !== false) return undefined;
@@ -56,6 +100,15 @@ export function writeZobLivePeerCard(repoRoot: string, peer: ZobLivePeerCard): Z
   const { dir } = projectAgentsDir(repoRoot);
   mkdirSync(dir, { recursive: true });
   writeFileSync(peerPath(repoRoot, peer), `${JSON.stringify(peer, null, 2)}\n`, "utf8");
+  return peer;
+}
+
+export function writeZobLivePeerCardToProjectId(peer: ZobLivePeerCard): ZobLivePeerCard {
+  if (hasForbiddenPersistedKey(peer)) throw new Error("Refusing to persist ZOB live peer card with forbidden body-like keys");
+  if (peer.bodyStored !== false) throw new Error("ZOB live peer card bodyStored must be false");
+  const filePath = peerPathForProjectId(peer.projectId, peer);
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(peer, null, 2)}\n`, "utf8");
   return peer;
 }
 
@@ -83,31 +136,12 @@ export function unregisterCurrentZobLivePeer(repoRoot: string, teamName = "zob-c
 
 export function readZobLiveRegistrySnapshot(repoRoot: string, teamName?: string): ZobLiveRegistrySnapshot {
   const { dir, projectId, kind } = projectAgentsDir(repoRoot);
+  return buildSnapshot(projectId, kind, readPeerCardsFromAgentsDir(dir, Date.now(), teamName), teamName);
+}
+
+export function readZobLiveRegistryAllProjectsSnapshot(repoRoot: string, teamName?: string): ZobLiveRegistrySnapshot {
+  const { projectId, kind } = projectAgentsDir(repoRoot);
   const nowMs = Date.now();
-  const peers = existsSync(dir)
-    ? readdirSync(dir)
-      .filter((entry) => entry.endsWith(".json"))
-      .map((entry) => {
-        try {
-          return parsePeerCard(JSON.parse(readFileSync(join(dir, entry), "utf8")) as unknown);
-        } catch {
-          return undefined;
-        }
-      })
-      .filter((peer): peer is ZobLivePeerCard => Boolean(peer))
-      .filter((peer) => !teamName || peer.team === teamName)
-      .map((peer) => ({ ...peer, status: derivePeerStatus(peer, nowMs) }))
-    : [];
-  const counts: Record<ZobLivePeerStatus, number> = { online: 0, stale: 0, offline: 0 };
-  for (const peer of peers) counts[peer.status] += 1;
-  return {
-    schema: "zob.live-registry-snapshot.v1",
-    projectId,
-    registry: kind,
-    team: teamName,
-    generatedAt: new Date().toISOString(),
-    peers,
-    counts,
-    bodyStored: false,
-  };
+  const peers = allProjectAgentsDirs().flatMap((dir) => readPeerCardsFromAgentsDir(dir, nowMs, teamName));
+  return buildSnapshot(projectId, kind, peers, teamName);
 }

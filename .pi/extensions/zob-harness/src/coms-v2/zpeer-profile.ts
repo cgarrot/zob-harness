@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -9,6 +9,8 @@ import { isRecord } from "../utils/records.js";
 import { safeFileStem } from "../utils/paths.js";
 
 const PROFILE_SCHEMA = "zob.zpeer-local-profile.v1";
+const NEW_CARRYOVER_SCHEMA = "zob.zpeer-new-carryover.v1";
+const DEFAULT_NEW_CARRYOVER_TTL_MS = 30 * 60 * 1000;
 const FORBIDDEN_PROFILE_KEYS = new Set(["body", "task", "prompt", "output", "content", "message", "response", "rationale", "text", "diff", "patch"]);
 
 export interface ZpeerLocalProfile {
@@ -24,6 +26,31 @@ export interface ZpeerLocalProfile {
   localOnly: true;
   networkEnabled: false;
   bodyStored: false;
+}
+
+export interface ZpeerNewCarryoverProfile {
+  schema: typeof NEW_CARRYOVER_SCHEMA;
+  projectId: string;
+  alias?: string;
+  roomId?: string;
+  activeRoomId?: string;
+  memberships?: ZpeerRoomMembership[];
+  zagentId?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  localOnly: true;
+  networkEnabled: false;
+  bodyStored: false;
+}
+
+export interface ZpeerNewCarryoverInput {
+  alias?: string;
+  roomId?: string;
+  activeRoomId?: string;
+  memberships?: ZpeerRoomMembership[];
+  zagentId?: string;
+  ttlMs?: number;
 }
 
 function registryRoot(): string {
@@ -82,10 +109,30 @@ export function zpeerProfilePath(repoRoot: string, profileId = resolveZpeerProfi
   return join(dir, `${safeFileStem(sha256(profileId).slice(0, 32))}.json`);
 }
 
+function zpeerNewCarryoverProfilePath(repoRoot: string): string {
+  const { dir } = zpeerProfileDir(repoRoot);
+  return join(dir, "new-carryover.json");
+}
+
 function hasForbiddenProfileKey(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   if (Array.isArray(value)) return value.some(hasForbiddenProfileKey);
   return Object.entries(value).some(([key, child]) => FORBIDDEN_PROFILE_KEYS.has(key) || hasForbiddenProfileKey(child));
+}
+
+function validZpeerMemberships(value: unknown): value is ZpeerRoomMembership[] {
+  if (!Array.isArray(value)) return false;
+  for (const membership of value) {
+    if (!isRecord(membership)) return false;
+    if (hasForbiddenProfileKey(membership)) return false;
+    if (typeof membership.roomId !== "string" || typeof membership.alias !== "string" || typeof membership.role !== "string") return false;
+    if (typeof membership.joinedAt !== "string" || membership.localOnly !== true || membership.networkEnabled !== false || membership.bodyStored !== false) return false;
+  }
+  return true;
+}
+
+function validIsoDate(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
 function parseZpeerLocalProfile(value: unknown, repoRoot: string): ZpeerLocalProfile | undefined {
@@ -95,16 +142,23 @@ function parseZpeerLocalProfile(value: unknown, repoRoot: string): ZpeerLocalPro
   if (value.alias !== undefined && typeof value.alias !== "string") return undefined;
   if (value.roomId !== undefined && typeof value.roomId !== "string") return undefined;
   if (value.activeRoomId !== undefined && typeof value.activeRoomId !== "string") return undefined;
-  if (value.memberships !== undefined) {
-    if (!Array.isArray(value.memberships)) return undefined;
-    for (const membership of value.memberships) {
-      if (!isRecord(membership)) return undefined;
-      if (typeof membership.roomId !== "string" || typeof membership.alias !== "string" || typeof membership.role !== "string") return undefined;
-      if (typeof membership.joinedAt !== "string" || membership.localOnly !== true || membership.networkEnabled !== false || membership.bodyStored !== false) return undefined;
-    }
-  }
+  if (value.memberships !== undefined && !validZpeerMemberships(value.memberships)) return undefined;
   if (typeof value.createdAt !== "string" || typeof value.updatedAt !== "string") return undefined;
   return value as unknown as ZpeerLocalProfile;
+}
+
+function parseZpeerNewCarryoverProfile(value: unknown, repoRoot: string, nowMs = Date.now()): ZpeerNewCarryoverProfile | undefined {
+  if (!isRecord(value) || value.schema !== NEW_CARRYOVER_SCHEMA) return undefined;
+  if (hasForbiddenProfileKey(value) || value.bodyStored !== false || value.localOnly !== true || value.networkEnabled !== false) return undefined;
+  if (value.projectId !== buildZobComsProjectId(repoRoot)) return undefined;
+  if (value.alias !== undefined && typeof value.alias !== "string") return undefined;
+  if (value.roomId !== undefined && typeof value.roomId !== "string") return undefined;
+  if (value.activeRoomId !== undefined && typeof value.activeRoomId !== "string") return undefined;
+  if (value.zagentId !== undefined && typeof value.zagentId !== "string") return undefined;
+  if (value.memberships !== undefined && !validZpeerMemberships(value.memberships)) return undefined;
+  if (!validIsoDate(value.createdAt) || !validIsoDate(value.updatedAt) || !validIsoDate(value.expiresAt)) return undefined;
+  if (Date.parse(value.expiresAt) <= nowMs) return undefined;
+  return value as unknown as ZpeerNewCarryoverProfile;
 }
 
 export function readZpeerLocalProfile(repoRoot: string, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile | undefined {
@@ -140,6 +194,52 @@ export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string
   mkdirSync(dir, { recursive: true });
   writeFileSync(zpeerProfilePath(repoRoot, profileId), `${JSON.stringify(profile, null, 2)}\n`, "utf8");
   return profile;
+}
+
+export function readZpeerNewCarryoverProfile(repoRoot: string): ZpeerNewCarryoverProfile | undefined {
+  const path = zpeerNewCarryoverProfilePath(repoRoot);
+  if (!existsSync(path)) return undefined;
+  try {
+    const profile = parseZpeerNewCarryoverProfile(JSON.parse(readFileSync(path, "utf8")) as unknown, repoRoot);
+    if (!profile) clearZpeerNewCarryoverProfile(repoRoot);
+    return profile;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeZpeerNewCarryoverProfile(repoRoot: string, input: ZpeerNewCarryoverInput): ZpeerNewCarryoverProfile {
+  if (hasForbiddenProfileKey(input)) throw new Error("Refusing to persist ZPeer /new carryover profile with forbidden body-like keys");
+  if (input.memberships !== undefined && !validZpeerMemberships(input.memberships)) throw new Error("Refusing to persist ZPeer /new carryover profile with invalid memberships");
+  const { dir, projectId } = zpeerProfileDir(repoRoot);
+  const existing = readZpeerNewCarryoverProfile(repoRoot);
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const ttlMs = input.ttlMs !== undefined && Number.isFinite(input.ttlMs) && input.ttlMs > 0 ? input.ttlMs : DEFAULT_NEW_CARRYOVER_TTL_MS;
+  const profile: ZpeerNewCarryoverProfile = {
+    schema: NEW_CARRYOVER_SCHEMA,
+    projectId,
+    alias: input.alias ?? existing?.alias,
+    roomId: input.roomId ?? existing?.roomId,
+    activeRoomId: input.activeRoomId ?? input.roomId ?? existing?.activeRoomId,
+    memberships: input.memberships ?? existing?.memberships,
+    zagentId: input.zagentId ?? existing?.zagentId,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    expiresAt: new Date(nowMs + ttlMs).toISOString(),
+    localOnly: true,
+    networkEnabled: false,
+    bodyStored: false,
+  };
+  if (hasForbiddenProfileKey(profile)) throw new Error("Refusing to persist ZPeer /new carryover profile with forbidden body-like keys");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(zpeerNewCarryoverProfilePath(repoRoot), `${JSON.stringify(profile, null, 2)}\n`, "utf8");
+  return profile;
+}
+
+export function clearZpeerNewCarryoverProfile(repoRoot: string): void {
+  const path = zpeerNewCarryoverProfilePath(repoRoot);
+  if (existsSync(path)) unlinkSync(path);
 }
 
 function generatedAliasForPeer(peer: Pick<ZobLivePeerCard, "roleId" | "sessionHash">): string | undefined {

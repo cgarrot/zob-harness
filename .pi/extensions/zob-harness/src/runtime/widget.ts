@@ -359,9 +359,17 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           return theme.fg("muted", truncateToWidth(`${marker} ${summary.roomId} ${selfAlias} ${peerState} ${aliasText}`, 52, "…"));
         });
         if (zpeerRoomSummaries.length > zpeerRoomCap) zpeerRoomLines.push(theme.fg("dim", `+${zpeerRoomSummaries.length - zpeerRoomCap} rooms`));
+        const zagentLine = state.zagent.id
+          ? `${theme.fg("accent", "ZAgent")} ${theme.fg("muted", truncateToWidth([
+            state.zagent.alias ? `@${state.zagent.alias}` : state.zagent.id,
+            state.zagent.team ? `team=${state.zagent.team}` : undefined,
+            state.zagent.activeRoom ? `room=${state.zagent.activeRoom}` : undefined,
+          ].filter(Boolean).join(" · "), 52, "…"))}`
+          : undefined;
         const zpeerLines = state.zobLive.peerCard
           ? [
             `${theme.fg("accent", "ZPeer")} ${theme.fg("muted", `${zpeerRoomSummaries.length} room${zpeerRoomSummaries.length === 1 ? "" : "s"}`)}`,
+            ...(zagentLine ? [zagentLine] : []),
             ...zpeerRoomLines,
             `${theme.fg("dim", "Last")} ${theme.fg(state.zobLive.lastEvent ? "muted" : "dim", zpeerLast)}`,
             `${theme.fg("dim", "Wait")} ${theme.fg(zpeerPending > 0 ? "warning" : "muted", `${zpeerPending} pending · hb ${zpeerHeartbeatAge}`)}`,
@@ -369,6 +377,7 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           ]
           : [
             `${theme.fg("accent", "ZPeer")}`,
+            ...(zagentLine ? [zagentLine] : []),
             `${theme.fg("dim", "Last")} ${theme.fg(state.zobLive.lastEvent ? "muted" : "dim", zpeerLast)}`,
             `${theme.fg("dim", "Status")} ${theme.fg("dim", "not connected")}`,
           ];
