@@ -1,7 +1,7 @@
-import { existsSync, readdirSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
-import { loadAgentsFromDir } from "../agents.js";
+import { loadProjectAgents } from "../agents.js";
 import { normalizeAdaptiveDelegationPolicy, validateAdaptiveDelegationPolicy } from "../orchestration/adaptive-delegation.js";
 import { validateOutputContractId } from "../output-contracts.js";
 import { validateAllowedPathPolicy, validateDelegateTaskWriteScope, validateForbiddenPathPolicy, validateToolList } from "../safety.js";
@@ -9,6 +9,7 @@ import type { OrchestrateRunInput, OrchestrationProfileDefinition, Orchestration
 import { parseJsonFile } from "../utils/json.js";
 import { isSafeArtifactName, safeFileStem } from "../utils/paths.js";
 import { isRecord } from "../utils/records.js";
+import { listZobResourceJsonStems, readableZobResourcePath } from "../utils/resources.js";
 import { isStringArray, loadTeamDefinition, validateTeamDefinition } from "./teams.js";
 
 function orchestrationProfilesDir(repoRoot: string): string {
@@ -65,17 +66,12 @@ function isOrchestrationProfileDefinition(value: unknown): value is Orchestratio
 }
 
 export function listOrchestrationProfiles(repoRoot: string): string[] {
-  const dir = orchestrationProfilesDir(repoRoot);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((fileName) => fileName.endsWith(".json"))
-    .map((fileName) => basename(fileName, ".json"))
-    .sort();
+  return listZobResourceJsonStems(repoRoot, "orchestrations");
 }
 
 export function loadOrchestrationProfile(repoRoot: string, profileName: string): { definition?: OrchestrationProfileDefinition; profilePath: string; errors: string[] } {
   if (!/^[a-zA-Z0-9._-]+$/.test(profileName)) return { profilePath: join(orchestrationProfilesDir(repoRoot), `${safeFileStem(profileName)}.json`), errors: [`Invalid orchestration profile name '${profileName}'`] };
-  const profilePath = join(orchestrationProfilesDir(repoRoot), `${profileName}.json`);
+  const profilePath = readableZobResourcePath(repoRoot, "orchestrations", `${profileName}.json`);
   if (!existsSync(profilePath)) return { profilePath, errors: [`Orchestration profile not found: ${profilePath}`] };
   try {
     const parsed = parseJsonFile(profilePath);
@@ -91,7 +87,7 @@ export function validateOrchestrationProfile(repoRoot: string, profile: Orchestr
   const errors: string[] = [];
   if (!profile) return ["Orchestration profile is missing"];
   if (!isSafeArtifactName(profile.name)) errors.push(`Orchestration profile name must be path-safe: ${profile.name}`);
-  const agents = new Map(loadAgentsFromDir(join(repoRoot, ".pi", "agents"), "project").map((agent) => [agent.name.toLowerCase(), agent]));
+  const agents = new Map(loadProjectAgents(repoRoot).map((agent) => [agent.name.toLowerCase(), agent]));
   const modelClasses = new Set(Object.keys(profile.modelPolicy?.classes ?? {}));
   if (modelClasses.size === 0) errors.push("Orchestration profile must define modelPolicy.classes");
 

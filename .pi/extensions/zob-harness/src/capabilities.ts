@@ -8,6 +8,7 @@ import { sha256 } from "./utils/hashing.js";
 import { parseJsonFile } from "./utils/json.js";
 import { safeFileStem } from "./utils/paths.js";
 import { isRecord } from "./utils/records.js";
+import { readableZobResourcePath, readableZobResourcePaths } from "./utils/resources.js";
 
 export interface ReuseScoutInput {
   query: string;
@@ -54,17 +55,23 @@ function readJsonObject(path: string): Record<string, unknown> | undefined {
 }
 
 function listFactoryNames(repoRoot: string): string[] {
-  const dir = join(repoRoot, ".pi", "factories");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => existsSync(join(dir, name, "factory.json")))
-    .sort();
+  const names = new Set<string>();
+  for (const dir of readableZobResourcePaths(repoRoot, "factories")) {
+    for (const name of readdirSync(dir)) {
+      if (existsSync(join(dir, name, "factory.json"))) names.add(name);
+    }
+  }
+  return [...names].sort();
 }
 
 function listOutputContractFiles(repoRoot: string): string[] {
-  const dir = join(repoRoot, ".pi", "output-contracts");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
+  const fileNames = new Set<string>();
+  for (const dir of readableZobResourcePaths(repoRoot, "output-contracts")) {
+    for (const name of readdirSync(dir)) {
+      if (name.endsWith(".json")) fileNames.add(name);
+    }
+  }
+  return [...fileNames].sort();
 }
 
 function capabilityCandidates(repoRoot: string): CapabilityCandidate[] {
@@ -83,13 +90,13 @@ function capabilityCandidates(repoRoot: string): CapabilityCandidate[] {
   }));
 
   const factories = listFactoryNames(repoRoot).map((name) => {
-    const factoryPath = join(repoRoot, ".pi", "factories", name, "factory.json");
+    const factoryPath = readableZobResourcePath(repoRoot, "factories", name, "factory.json");
     const definition = readJsonObject(factoryPath) ?? {};
     const stages = Array.isArray(definition.stages) ? definition.stages.filter(isRecord) : [];
     const stageAgents = [...new Set(stages.map((stage) => String(stage.agent ?? "")).filter(Boolean))].sort();
     const stageContracts = [...new Set(stages.map((stage) => String(stage.outputContract ?? "")).filter(Boolean))].sort();
     const stageTypes = [...new Set(stages.map((stage) => String(stage.type ?? "")).filter(Boolean))].sort();
-    const manifests = ["smoke-manifest.json", "pilot-manifest.json", "batch-manifest.json"].filter((fileName) => existsSync(join(repoRoot, ".pi", "factories", name, fileName)));
+    const manifests = ["smoke-manifest.json", "pilot-manifest.json", "batch-manifest.json"].filter((fileName) => existsSync(readableZobResourcePath(repoRoot, "factories", name, fileName)));
     const description = typeof definition.description === "string" ? definition.description : "";
     return {
       kind: "factory" as const,
@@ -134,7 +141,7 @@ function capabilityCandidates(repoRoot: string): CapabilityCandidate[] {
 
   const contractDefinitions = new Map(getOutputContractDefinitions().map((definition) => [definition.id, definition.required]));
   const outputContracts = listOutputContractFiles(repoRoot).map((fileName) => {
-    const contractPath = join(repoRoot, ".pi", "output-contracts", fileName);
+    const contractPath = readableZobResourcePath(repoRoot, "output-contracts", fileName);
     const parsed = readJsonObject(contractPath) ?? {};
     const id = typeof parsed.id === "string" ? parsed.id : basename(fileName, ".json");
     const description = typeof parsed.description === "string" ? parsed.description : "";

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { loadAgentsFromDir } from "../agents.js";
+import { loadProjectAgents } from "../agents.js";
 import { DEFAULT_RULES } from "../constants.js";
 import { validateOutputContractId } from "../output-contracts.js";
 import { normalizeAdaptiveDelegationPolicy, validateAdaptiveDelegationPolicy } from "../orchestration/adaptive-delegation.js";
@@ -11,6 +11,7 @@ import { sha256 } from "../utils/hashing.js";
 import { parseJsonFile } from "../utils/json.js";
 import { isSafeArtifactName, pathMatches, resolveRepoPath, safeFileStem } from "../utils/paths.js";
 import { isRecord } from "../utils/records.js";
+import { readableZobResourcePath } from "../utils/resources.js";
 
 function isFactoryManifestItem(value: unknown): value is FactoryManifestItem {
   return isRecord(value) && typeof value.id === "string" && typeof value.path === "string";
@@ -103,7 +104,7 @@ export function validateFactoryStages(repoRoot: string, definition: FactoryDefin
   const errors: string[] = [];
   errors.push(...validateFactoryRequiredStages(definition));
   const stages = definition?.stages ?? [];
-  const agents = new Map(loadAgentsFromDir(join(repoRoot, ".pi", "agents"), "project").map((agent) => [agent.name.toLowerCase(), agent]));
+  const agents = new Map(loadProjectAgents(repoRoot).map((agent) => [agent.name.toLowerCase(), agent]));
   const stageNames = new Set<string>();
   for (const stage of stages) {
     if (!isSafeArtifactName(stage.name)) errors.push(`Factory stage name must be path-safe: ${stage.name}`);
@@ -124,7 +125,7 @@ export function validateFactoryStages(repoRoot: string, definition: FactoryDefin
 
 export function loadFactoryDefinition(repoRoot: string, factoryName: string): { definition?: FactoryDefinition; errors: string[] } {
   if (!/^[a-zA-Z0-9._-]+$/.test(factoryName)) return { errors: [`Invalid factory name '${factoryName}'`] };
-  const factoryPath = join(repoRoot, ".pi", "factories", factoryName, "factory.json");
+  const factoryPath = readableZobResourcePath(repoRoot, "factories", factoryName, "factory.json");
   if (!existsSync(factoryPath)) return { errors: [`Factory not found: ${factoryPath}`] };
   try {
     const parsed = parseJsonFile(factoryPath);

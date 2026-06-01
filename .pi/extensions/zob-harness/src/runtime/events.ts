@@ -164,6 +164,10 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
     return;
   }
   const team = loadTeamDefinition(repoRoot, "zob-core");
+  if (!team.definition && team.errors.some((error) => error.startsWith("Team topology not found:"))) {
+    safelyUpdateZobLivePeer(repoRoot, state.zobLive.peerCard ? "touch" : "register");
+    return;
+  }
   const errors = [...team.errors, ...validateTeamDefinition(repoRoot, team.definition)];
   if (errors.length > 0 || !team.definition) throw new Error(errors.join("; "));
   const definition = team.definition;

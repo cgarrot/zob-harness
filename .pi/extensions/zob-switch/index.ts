@@ -135,6 +135,17 @@ export default function zobSwitch(pi: ExtensionAPI): void {
     getArgumentCompletions: argumentCompletions,
     handler: async (args, ctx) => {
       const action = args.trim().toLowerCase();
+      const projectSettingsAvailable = existsSync(join(ctx.cwd, SETTINGS_PATH));
+      if (!projectSettingsAvailable) {
+        const globalMessage = [
+          "ZOB Harness switch: global package loaded",
+          "project switch: unavailable in this cwd (no .pi/settings.json)",
+          "global disable: use `pi remove /Users/cgarrot/zob/zob-harness` outside Pi if needed",
+        ].join("\n");
+        ctx.ui.notify(action === "" || action === "status" ? globalMessage : `${globalMessage}\n/zob on|off only edits project-local .pi/settings.json when present.`, action === "" || action === "status" ? "info" : "warning");
+        return;
+      }
+
       if (action === "off") {
         const current = await readSettings(ctx.cwd);
         const snapshot = await readSnapshot(ctx.cwd);

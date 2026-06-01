@@ -1,6 +1,4 @@
-import { join } from "node:path";
-
-import { loadAgentsFromDir } from "../agents.js";
+import { loadProjectAgents } from "../agents.js";
 import { validateOutputContractId } from "../output-contracts.js";
 import { validateAllowedPathPolicy, validateDelegateTaskWriteScope, validateForbiddenPathPolicy, validateToolList } from "../safety.js";
 import { sha256 } from "../utils/hashing.js";
@@ -159,7 +157,7 @@ export function redactLeadPlanWorkerContractsForPersistence(contracts: LeadPlanW
 
 export function validateLeadPlanWorkerContracts(repoRoot: string, contracts: LeadPlanWorkerContract[], options: LeadPlanWorkerContractValidationOptions = {}): string[] {
   const errors: string[] = [];
-  const agents = new Map(loadAgentsFromDir(join(repoRoot, ".pi", "agents"), "project").map((agent) => [agent.name.toLowerCase(), agent]));
+  const agents = new Map(loadProjectAgents(repoRoot).map((agent) => [agent.name.toLowerCase(), agent]));
   const allowedWorkers = options.allowedWorkerIds ? new Set(options.allowedWorkerIds) : undefined;
   const allowedTools = options.allowedTools ? new Set(options.allowedTools) : undefined;
 

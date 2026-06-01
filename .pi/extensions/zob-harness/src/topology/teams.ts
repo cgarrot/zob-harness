@@ -1,13 +1,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { loadAgentsFromDir } from "../agents.js";
+import { loadProjectAgents } from "../agents.js";
 import { validateOutputContractId } from "../output-contracts.js";
 import { validateToolList } from "../safety.js";
 import type { HarnessAgent, TeamDefinition, TeamLead, TeamRoleBase, TeamWorker } from "../types.js";
 import { parseJsonFile } from "../utils/json.js";
 import { isSafeArtifactName, safeFileStem } from "../utils/paths.js";
 import { isRecord } from "../utils/records.js";
+import { readableZobResourcePath } from "../utils/resources.js";
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -50,7 +51,7 @@ function isTeamDefinition(value: unknown): value is TeamDefinition {
 
 export function loadTeamDefinition(repoRoot: string, teamName: string): { definition?: TeamDefinition; teamPath: string; errors: string[] } {
   if (!/^[a-zA-Z0-9._-]+$/.test(teamName)) return { teamPath: join(repoRoot, ".pi", "teams", `${safeFileStem(teamName)}.json`), errors: [`Invalid team name '${teamName}'`] };
-  const teamPath = join(repoRoot, ".pi", "teams", `${teamName}.json`);
+  const teamPath = readableZobResourcePath(repoRoot, "teams", `${teamName}.json`);
   if (!existsSync(teamPath)) return { teamPath, errors: [`Team topology not found: ${teamPath}`] };
   try {
     const parsed = parseJsonFile(teamPath);
@@ -79,7 +80,7 @@ export function validateTeamDefinition(repoRoot: string, definition: TeamDefinit
   const errors: string[] = [];
   if (!definition) return ["Team topology is missing"];
   if (!isSafeArtifactName(definition.name)) errors.push(`Team name must be path-safe: ${definition.name}`);
-  const agents = new Map(loadAgentsFromDir(join(repoRoot, ".pi", "agents"), "project").map((agent) => [agent.name.toLowerCase(), agent]));
+  const agents = new Map(loadProjectAgents(repoRoot).map((agent) => [agent.name.toLowerCase(), agent]));
   const ids = new Set<string>();
   const markId = (id: string, label: string): void => {
     if (ids.has(id)) errors.push(`Duplicate team role id: ${id}`);

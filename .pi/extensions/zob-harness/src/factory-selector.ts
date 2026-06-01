@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { sha256 } from "./utils/hashing.js";
 import { safeFileStem } from "./utils/paths.js";
 import { isRecord } from "./utils/records.js";
+import { readableZobResourcePaths } from "./utils/resources.js";
 
 export type FactoryDemandSignal = "code_review" | "budget_preflight" | "roadmap_lots" | "opencode_patterns" | "project_dna" | "factory_forge";
 export type FactorySelectionStatus = "existing_factory_selected" | "factory_forge_quarantine_recommended" | "no_factory_available";
@@ -246,17 +247,15 @@ export function selectFactoryForDemands(input: { factories: FactorySelectorCandi
 }
 
 export function loadFactorySelectorCandidates(repoRoot: string): FactorySelectorCandidateInput[] {
-  const factoriesDir = join(repoRoot, ".pi", "factories");
-  if (!existsSync(factoriesDir)) return [];
-  return readdirSync(factoriesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
+  const byId = new Map<string, FactorySelectorCandidateInput>();
+  for (const factoriesDir of readableZobResourcePaths(repoRoot, "factories")) {
+    for (const entry of readdirSync(factoriesDir, { withFileTypes: true }).filter((item) => item.isDirectory())) {
       const factoryName = safeFileStem(entry.name);
       const factoryDir = join(factoriesDir, factoryName);
       const factoryJsonPath = join(factoryDir, "factory.json");
       const parsed = existsSync(factoryJsonPath) ? JSON.parse(readFileSync(factoryJsonPath, "utf8")) as unknown : {};
       const record = isRecord(parsed) ? parsed : {};
-      return {
+      const candidate = {
         id: typeof record.name === "string" ? record.name : factoryName,
         sourcePath: `.pi/factories/${factoryName}/factory.json`,
         summary: typeof record.summary === "string" ? record.summary : undefined,
@@ -264,8 +263,10 @@ export function loadFactorySelectorCandidates(repoRoot: string): FactorySelector
         manifests: readdirSync(factoryDir, { withFileTypes: true }).filter((file) => file.isFile() && file.name.endsWith("-manifest.json")).map((file) => basename(file.name)).sort(),
         metadata: isRecord(record.metadata) ? record.metadata : {},
       };
-    })
-    .sort((left, right) => candidateId(left).localeCompare(candidateId(right)));
+      byId.set(candidateId(candidate), candidate);
+    }
+  }
+  return [...byId.values()].sort((left, right) => candidateId(left).localeCompare(candidateId(right)));
 }
 
 export function buildFactorySelectorSmokeReport(repoRoot: string): FactorySelectorSmokeReport {

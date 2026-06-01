@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { AgentScope, HarnessAgent } from "./types.js";
+import { readableZobResourcePaths } from "./utils/resources.js";
 
 function parseFrontmatter(raw: string): { frontmatter: Record<string, string>; body: string } {
   if (!raw.startsWith("---\n")) return { frontmatter: {}, body: raw };
@@ -60,8 +61,12 @@ function readDirSafe(dir: string): string[] {
   }
 }
 
+function loadProjectAgents(cwd: string): HarnessAgent[] {
+  return readableZobResourcePaths(cwd, "agents").flatMap((dir) => loadAgentsFromDir(dir, "project"));
+}
+
 function discoverAgents(cwd: string, scope: AgentScope): HarnessAgent[] {
-  const projectAgents = scope === "user" ? [] : loadAgentsFromDir(join(cwd, ".pi", "agents"), "project");
+  const projectAgents = scope === "user" ? [] : loadProjectAgents(cwd);
   const userAgents = scope === "project" ? [] : loadAgentsFromDir(join(getAgentDir(), "agents"), "user");
   const ordered = scope === "both" ? [...userAgents, ...projectAgents] : scope === "user" ? userAgents : projectAgents;
   const byName = new Map<string, HarnessAgent>();
@@ -74,4 +79,4 @@ function formatAgentList(agents: HarnessAgent[]): string {
   return agents.map((agent) => `- ${agent.name} [${agent.source}] tools=${agent.tools?.join(",") ?? "default"}: ${agent.description}`).join("\n");
 }
 
-export { discoverAgents, formatAgentList, loadAgentsFromDir };
+export { discoverAgents, formatAgentList, loadAgentsFromDir, loadProjectAgents };

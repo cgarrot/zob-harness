@@ -1,7 +1,7 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { loadAgentsFromDir } from "../agents.js";
+import { loadProjectAgents } from "../agents.js";
 import { BLOCKED_CHAIN_TOOLS, READ_ONLY_CHAIN_TOOLS } from "../constants.js";
 import { validateOutputContractId } from "../output-contracts.js";
 import { validateToolList } from "../safety.js";
@@ -10,6 +10,7 @@ import { sha256 } from "../utils/hashing.js";
 import { parseJsonFile } from "../utils/json.js";
 import { isSafeArtifactName, safeFileStem, safeRunId } from "../utils/paths.js";
 import { isRecord } from "../utils/records.js";
+import { listZobResourceJsonStems, readableZobResourcePath } from "../utils/resources.js";
 import { isStringArray } from "./teams.js";
 
 function chainsDir(repoRoot: string): string {
@@ -17,12 +18,7 @@ function chainsDir(repoRoot: string): string {
 }
 
 export function listChainDefinitions(repoRoot: string): string[] {
-  const dir = chainsDir(repoRoot);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((fileName) => fileName.endsWith(".json"))
-    .map((fileName) => basename(fileName, ".json"))
-    .sort();
+  return listZobResourceJsonStems(repoRoot, "chains");
 }
 
 function isChainStepDefinition(value: unknown): value is ChainStepDefinition {
@@ -55,7 +51,7 @@ function isChainDefinition(value: unknown): value is ChainDefinition {
 
 export function loadChainDefinition(repoRoot: string, chainName: string): { definition?: ChainDefinition; chainPath: string; errors: string[] } {
   if (!/^[a-zA-Z0-9._-]+$/.test(chainName)) return { chainPath: join(chainsDir(repoRoot), `${safeFileStem(chainName)}.json`), errors: [`Invalid chain name '${chainName}'`] };
-  const chainPath = join(chainsDir(repoRoot), `${chainName}.json`);
+  const chainPath = readableZobResourcePath(repoRoot, "chains", `${chainName}.json`);
   if (!existsSync(chainPath)) return { chainPath, errors: [`Chain definition not found: ${chainPath}`] };
   try {
     const parsed = parseJsonFile(chainPath);
@@ -78,7 +74,7 @@ export function validateChainDefinition(repoRoot: string, definition: ChainDefin
   if (definition.readOnly === false) errors.push("Write-enabled chains are not supported without sandbox; only read-only chains may run");
   if (definition.defaultExecution !== undefined && definition.defaultExecution !== "plan_only") errors.push("Chain defaultExecution must be plan_only");
   if (definition.steps.length === 0) errors.push("Chain definition must include at least one step");
-  const agents = new Map(loadAgentsFromDir(join(repoRoot, ".pi", "agents"), "project").map((agent) => [agent.name.toLowerCase(), agent]));
+  const agents = new Map(loadProjectAgents(repoRoot).map((agent) => [agent.name.toLowerCase(), agent]));
   const ids = new Set<string>();
   const readOnlyTools = new Set<string>(READ_ONLY_CHAIN_TOOLS);
   const blockedTools = new Set<string>(BLOCKED_CHAIN_TOOLS);
