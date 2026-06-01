@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync, mkdirSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, existsSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -17,6 +17,7 @@ const previousZpeerProfileId = process.env.ZOB_ZPEER_PROFILE_ID;
 const previousZpeerProfile = process.env.ZPEER_PROFILE;
 const previousComsSessionId = process.env.ZOB_COMS_SESSION_ID;
 const previousTmuxPane = process.env.TMUX_PANE;
+const previousZobComsRoleId = process.env.ZOB_COMS_ROLE_ID;
 const servers = [];
 
 function fail(message) {
@@ -123,6 +124,14 @@ async function main() {
   assert(!hasForbiddenKey(profileJson), 'zpeer profile must not contain forbidden raw body-like keys');
   assert(!alphaProfilePath.includes(join(repoRoot, '.pi', 'coms')), 'zpeer profile path must not be under .pi/coms');
 
+  process.env.ZOB_ZPEER_PROFILE_ID = 'profile-preserve-alias';
+  zpeerProfile.writeZpeerLocalProfile(repoRoot, { alias: 'humanalias', roomId: 'human-room' });
+  const generatedAliasPeer = makePeer({ alias: 'tempbase', roomId: 'human-room', endpoint: join(root, 'generated-alias.sock'), endpointHash: hashing.sha256(join(root, 'generated-alias.sock')), sha256: hashing.sha256 });
+  const generatedAlias = `${generatedAliasPeer.roleId}-${generatedAliasPeer.sessionHash.slice(0, 6)}`;
+  zpeerProfile.writeZpeerLocalProfileFromPeer(repoRoot, { ...generatedAliasPeer, zpeerAlias: generatedAlias, zpeerRoomId: 'human-room', zpeerActiveRoomId: 'human-room', zpeerMemberships: [{ roomId: 'human-room', alias: generatedAlias, role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false }] });
+  assert(zpeerProfile.readZpeerLocalProfile(repoRoot)?.alias === 'humanalias', 'profile save must not overwrite a persisted human alias with a reload-generated alias');
+  process.env.ZOB_ZPEER_PROFILE_ID = 'profile-alpha';
+
   const reloadPeer = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'reloadbase', roomId: 'default', endpoint: join(root, 'reload.sock'), endpointHash: hashing.sha256(join(root, 'reload.sock')), sha256: hashing.sha256 }), restoredAlphaProfile.roomId, restoredAlphaProfile.alias);
   assert(reloadPeer.zpeerAlias === 'persistedalpha', 'simulated reload must apply restored profile alias before registration');
   assert(reloadPeer.zpeerRoomId === 'persisted-room', 'simulated reload must apply restored profile room before registration');
@@ -151,6 +160,25 @@ async function main() {
   const terminalProfileIdTwo = zpeerProfile.resolveZpeerProfileId(repoRoot);
   assert(terminalProfileIdOne === terminalProfileIdTwo, 'terminal-derived zpeer profile id must be stable without explicit env ids');
   assert(zpeerProfile.readZpeerLocalProfile(repoRoot)?.roomId === 'terminal-room', 'terminal-derived zpeer profile must restore room without explicit env ids');
+  process.env.ZOB_COMS_SESSION_ID = 'session-before-reload';
+  const reloadStableProfileIdOne = zpeerProfile.resolveZpeerProfileId(repoRoot);
+  zpeerProfile.writeZpeerLocalProfile(repoRoot, { alias: 'reloadstable', roomId: 'reload-room' });
+  process.env.ZOB_COMS_SESSION_ID = 'session-after-reload';
+  const reloadStableProfileIdTwo = zpeerProfile.resolveZpeerProfileId(repoRoot);
+  assert(reloadStableProfileIdOne === reloadStableProfileIdTwo, 'terminal-derived zpeer profile id must stay stable across changed ZOB_COMS_SESSION_ID reloads');
+  assert(zpeerProfile.readZpeerLocalProfile(repoRoot)?.alias === 'reloadstable' && zpeerProfile.readZpeerLocalProfile(repoRoot)?.roomId === 'reload-room', 'zpeer reload continuity must restore alias and room when coms session id changes');
+  delete process.env.TMUX_PANE;
+  delete process.env.ZOB_COMS_SESSION_ID;
+  delete process.env.ZOB_COMS_ROLE_ID;
+  const defaultRoleProfileIdOne = zpeerProfile.resolveZpeerProfileId(repoRoot);
+  const defaultRoleProfileIdTwo = zpeerProfile.resolveZpeerProfileId(repoRoot);
+  assert(defaultRoleProfileIdOne === 'role-zob-orchestrator' && defaultRoleProfileIdTwo === defaultRoleProfileIdOne, 'profile id fallback must be stable across reloads even without terminal/session env');
+  zpeerProfile.writeZpeerLocalProfile(repoRoot, { alias: 'sharedalias', roomId: 'shared-room', activeRoomId: 'shared-room', memberships: [{ roomId: 'shared-room', alias: 'sharedalias', role: 'member', joinedAt: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false }] });
+  const sharedFallbackProfile = zpeerProfile.readZpeerLocalProfile(repoRoot);
+  assert(sharedFallbackProfile?.roomId === 'shared-room' && sharedFallbackProfile?.alias === undefined && sharedFallbackProfile?.memberships === undefined, 'shared role fallback profiles must preserve room but not alias/memberships across multiple sessions');
+  process.env.ZOB_COMS_ROLE_ID = 'lead-alpha';
+  assert(zpeerProfile.resolveZpeerProfileId(repoRoot) === 'role-lead-alpha', 'role-derived zpeer profile fallback must isolate different role ids when no terminal/session env exists');
+  delete process.env.ZOB_COMS_ROLE_ID;
   process.env.ZOB_ZPEER_PROFILE_ID = 'profile-alpha';
 
   const alphaEndpoint = join(root, 'alpha.sock');
@@ -232,10 +260,10 @@ async function main() {
     });
   });
 
-  const joinedAlpha = zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
+  const joinedAlpha = await zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
   assert(joinedAlpha.ok === true, `alpha multi-room join expected ok, got ${joinedAlpha.reason ?? 'not ok'}`);
   alpha = joinedAlpha.peer;
-  const joinedBeta = zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedbeta');
+  const joinedBeta = await zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedbeta');
   assert(joinedBeta.ok === true, `beta multi-room join expected ok, got ${joinedBeta.reason ?? 'not ok'}`);
   beta = joinedBeta.peer;
   assert(zpeer.zpeerMembershipsForPeer(alpha).length === 2, 'alpha must be in two zpeer rooms after join');
@@ -249,9 +277,27 @@ async function main() {
   assert(explicitRoomEnvelope.sender === 'sharedalpha' && explicitRoomEnvelope.receiver === 'sharedbeta' && explicitRoomEnvelope.runId === 'zpeer:shared-room', 'explicit room envelope must use room-scoped sender/receiver aliases and runId');
   const implicitBlocked = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'sharedbeta', rawPrompt, waitForReply);
   assert(implicitBlocked.status === 'blocked' && String(implicitBlocked.reason).includes("not found in room 'room-one'"), 'implicit active-room send must not cross into shared-room');
-  const duplicateJoin = zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedalpha');
-  assert(duplicateJoin.ok === false && String(duplicateJoin.reason).includes('already exists'), 'duplicate alias in the same room must be blocked');
-  const crossRoomAlias = zpeer.joinZpeerRoom(repoRoot, alpha, 'alias-room', 'beta');
+  const duplicateJoin = await zpeer.joinZpeerRoom(repoRoot, beta, 'shared-room', 'sharedalpha');
+  assert(duplicateJoin.ok === false && String(duplicateJoin.reason).includes('live peer'), 'duplicate alias on a live peer in the same room must be blocked');
+  const releasedGhost = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'released', roomId: 'released-room', endpoint: join(root, 'released-ghost-missing.sock'), endpointHash: hashing.sha256(join(root, 'released-ghost-missing.sock')), sha256: hashing.sha256, heartbeatAt: new Date(Date.now() - 180_000).toISOString() }), 'released-room', 'released');
+  assert(releasedGhost.status !== 'online' || !existsSync(releasedGhost.endpoint), 'released ghost peer must not be reachable online');
+  const aliasContender = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'contender', roomId: 'released-room', endpoint: join(root, 'released-contender.sock'), endpointHash: hashing.sha256(join(root, 'released-contender.sock')), sha256: hashing.sha256 }), 'released-room', 'contender');
+  const reclaimReleased = await zpeer.changeZpeerAlias(repoRoot, aliasContender, 'released');
+  assert(reclaimReleased.ok === true, `stale/offline alias must be reclaimable by a new session, got ${reclaimReleased.reason ?? 'not ok'}`);
+  const joinReleased = await zpeer.joinZpeerRoom(repoRoot, alpha, 'released-room', 'released');
+  assert(joinReleased.ok === true, `stale/offline alias must not block join alias reuse, got ${joinReleased.reason ?? 'not ok'}`);
+  const ghostEndpointPath = join(root, 'online-ghost-file.sock');
+  writeFileSync(ghostEndpointPath, 'not a socket server', 'utf8');
+  const onlineGhost = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'ghostname', roomId: 'ghost-room', endpoint: ghostEndpointPath, endpointHash: hashing.sha256(ghostEndpointPath), sha256: hashing.sha256 }), 'ghost-room', 'ghostname');
+  assert(onlineGhost.status === 'online' && existsSync(onlineGhost.endpoint), 'ghost alias fixture should look online in registry before live ping');
+  const ghostContender = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'ghostcontender', roomId: 'ghost-room', endpoint: join(root, 'ghost-contender.sock'), endpointHash: hashing.sha256(join(root, 'ghost-contender.sock')), sha256: hashing.sha256 }), 'ghost-room', 'ghostcontender');
+  const reclaimGhost = await zpeer.changeZpeerAlias(repoRoot, ghostContender, 'ghostname');
+  assert(reclaimGhost.ok === true, `non-responsive online registry ghost must not block alias reclaim, got ${reclaimGhost.reason ?? 'not ok'}`);
+  const clearGhostRoom = zpeer.clearZpeerRoom(repoRoot, reclaimGhost.peer, 'ghost-room');
+  assert(clearGhostRoom.ok === true && clearGhostRoom.cleared >= 1 && clearGhostRoom.preservedSelf === true, 'clearZpeerRoom must mark other room peers offline while preserving current self');
+  const ghostRoomAfterClear = zpeer.buildZpeerRoomSummary(repoRoot, reclaimGhost.peer, 'ghost-room');
+  assert(ghostRoomAfterClear.aliases.includes('ghostname') && !ghostRoomAfterClear.aliases.includes('ghostcontender'), 'clearZpeerRoom must leave only the current alias visible in the cleared room');
+  const crossRoomAlias = await zpeer.joinZpeerRoom(repoRoot, alpha, 'alias-room', 'beta');
   assert(crossRoomAlias.ok === true, 'same alias in a different room must be allowed');
   alpha = crossRoomAlias.peer;
   const peerRoomSummaries = zpeer.buildZpeerPeerRoomSummaries(repoRoot, alpha);
@@ -304,6 +350,7 @@ async function main() {
   const toolResult = await zpeerAsk.execute('tool-call-zpeer-ask', { targetAlias: 'beta', message: rawPrompt, reason: 'smoke coordination reason' }, undefined, undefined, { cwd: repoRoot });
   assert(toolResult?.details?.status === 'waiting', `zpeer_ask default async expected waiting, got ${toolResult?.details?.status}`);
   assert(toolResult?.details?.mode === 'async', 'zpeer_ask must default to async mode');
+  assert(JSON.stringify(toolResult?.content ?? '').includes('idle/passive wait: no follow-up turn queued'), 'zpeer_ask async waiting result must tell the agent to idle instead of polling/continuing just to wait');
   const asyncWaitingFeed = feedMessages.filter((item) => item.customType === 'zob-zpeer-event' && item.details?.source === 'agent-request' && item.details?.status === 'waiting' && item.details?.msgId === toolResult?.details?.msgId);
   assert(asyncWaitingFeed.length === 1, `zpeer_ask async must emit exactly one compact waiting feed event, got ${asyncWaitingFeed.length}`);
   assert(!feedMessages.some((item) => item.customType === 'zob-zpeer-event' && item.details?.source === 'agent-request' && item.details?.kind === 'attempt'), 'zpeer_ask async must not emit a pre-ACK attempt feed event');
@@ -391,5 +438,7 @@ try {
   else process.env.ZOB_COMS_SESSION_ID = previousComsSessionId;
   if (previousTmuxPane === undefined) delete process.env.TMUX_PANE;
   else process.env.TMUX_PANE = previousTmuxPane;
+  if (previousZobComsRoleId === undefined) delete process.env.ZOB_COMS_ROLE_ID;
+  else process.env.ZOB_COMS_ROLE_ID = previousZobComsRoleId;
   rmSync(root, { recursive: true, force: true });
 }

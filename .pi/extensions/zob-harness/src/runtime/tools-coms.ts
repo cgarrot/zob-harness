@@ -31,6 +31,7 @@ import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js
 import type { HarnessRuntimeState } from "./state.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
+const ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE = 50;
 
 function breakGlassApprovalPresent(): boolean {
   return SHA256_HEX.test(process.env.ZOB_COMS_BREAK_GLASS_APPROVAL_HASH ?? "");
@@ -83,7 +84,7 @@ function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolPara
   const windowMs = 60_000;
   const current = state.zobLive.zpeerAskGuard;
   const guard = current && now - current.windowStartedMs < windowMs ? current : { windowStartedMs: now, count: 0 };
-  if (guard.count >= 3) return "rate guard blocked: max 3 agent-initiated ZPeer asks per 60s window";
+  if (guard.count >= ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE) return `rate guard blocked: max ${ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE} agent-initiated ZPeer asks per 60s window`;
   if (guard.lastRoomId === roomId && guard.lastTargetAlias === targetAlias && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate room/target/message in ask window";
   state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, lastRoomId: roomId, lastTargetAlias: targetAlias, lastMessageHash: messageHash };
   return undefined;
@@ -171,7 +172,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
     name: "zpeer_ask",
     label: "ZPeer Ask",
     description: "Ask a visible local ZPeer via the governed room-scoped local_socket path. Defaults to mode=async; raw message/reply bodies are transient and durable metadata is hash-only.",
-    promptSnippet: "Use zpeer_ask with mode=\"async\" for useful non-trivial peer review/debug/planning coordination; avoid spam and loops.",
+    promptSnippet: "Use zpeer_ask with mode=\"async\" for useful non-trivial peer review/debug/planning coordination; if it returns waiting and nothing else is actionable, stop/idle instead of polling.",
     parameters: ZpeerAskParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!state?.zobLive.peerCard) return { content: [{ type: "text", text: "zpeer_ask blocked: current session has not registered a local peer endpoint" }], details: { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: "local_peer_unavailable", bodyStored: false } };
@@ -213,7 +214,8 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), roomId: result.roomId, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
       pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
-      return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
+      const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";
+      return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
     },
   });
 

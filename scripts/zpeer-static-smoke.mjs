@@ -23,7 +23,7 @@ if (commandMatches.length !== 1) failures.push(`expected exactly one zpeer comma
 const toolsComs = contents['.pi/extensions/zob-harness/src/runtime/tools-coms.ts'];
 const zpeerAskMatches = toolsComs.match(/name: "zpeer_ask"/g) ?? [];
 if (zpeerAskMatches.length !== 1) failures.push(`expected exactly one zpeer_ask tool, found ${zpeerAskMatches.length}`);
-for (const needle of ['parameters: ZpeerAskParams', 'sendZpeerPrompt(ctx.cwd', 'mode = params.mode ?? "async"', 'zpeerAskGuardBlock', 'max 3 agent-initiated ZPeer asks per 60s window', 'customType: "zob-zpeer-event"', 'source: "agent-request"', 'action: "agent_request"', 'feedbackEmittedTerminal', 'reasonInputHash', 'bodyStored: false', 'promptBodiesStored: false', 'outputBodiesStored: false']) {
+for (const needle of ['parameters: ZpeerAskParams', 'sendZpeerPrompt(ctx.cwd', 'mode = params.mode ?? "async"', 'zpeerAskGuardBlock', 'ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE = 50', 'max ${ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE} agent-initiated ZPeer asks per 60s window', 'idle/passive wait: no follow-up turn queued', 'customType: "zob-zpeer-event"', 'source: "agent-request"', 'action: "agent_request"', 'feedbackEmittedTerminal', 'reasonInputHash', 'bodyStored: false', 'promptBodiesStored: false', 'outputBodiesStored: false']) {
   if (!toolsComs.includes(needle)) failures.push(`zpeer_ask tool missing ${needle}`);
 }
 if (toolsComs.includes('emitZpeerAskEvent({ kind: "attempt", status: "agent-request"')) failures.push('zpeer_ask async must not emit pre-ACK attempt feed noise');
@@ -51,7 +51,7 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'o
 
 const zpeer = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer.ts'];
 const zpeerProfile = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer-profile.ts'];
-for (const needle of ['networkEnabled: false', 'localOnly: true', 'bodyStored: false', 'sendZobLocalEnvelope', 'taskHash', 'outputHash', 'ZpeerSendMode', 'status: "waiting"', 'status: "reply"', 'zpeerMembershipsForPeer', 'joinZpeerRoom', 'leaveZpeerRoom', 'useZpeerRoom', 'roomId?: string', 'buildZpeerPeerRoomSummaries', 'active: membership.roomId === activeRoomId']) {
+for (const needle of ['networkEnabled: false', 'localOnly: true', 'bodyStored: false', 'sendZobLocalEnvelope', 'taskHash', 'outputHash', 'ZpeerSendMode', 'status: "waiting"', 'status: "reply"', 'zpeerMembershipsForPeer', 'joinZpeerRoom', 'leaveZpeerRoom', 'useZpeerRoom', 'clearZpeerRoom', 'preservedSelf: true', 'roomId?: string', 'buildZpeerPeerRoomSummaries', 'active: membership.roomId === activeRoomId', 'peerRespondsToAliasPing', 'activeAliasCollision', 'zpeer-alias-ping']) {
   if (!zpeer.includes(needle)) failures.push(`zpeer missing ${needle}`);
 }
 for (const needle of ['peer-messages.jsonl', 'peer-status.jsonl', 'appendZpeerPeerRecords', 'reasonHash', 'bodyStored: false']) {
@@ -59,7 +59,7 @@ for (const needle of ['peer-messages.jsonl', 'peer-status.jsonl', 'appendZpeerPe
 }
 if (/required_network|pi-vs-claude-code|sse/.test(zpeer)) failures.push('zpeer must not enable network/SSE transport');
 if (!zpeer.includes('normalizeZpeerMemberships(restoredMemberships)') || !zpeer.includes('restoredRoomId(roomId) ?? restoredRoomId(peer.zpeerActiveRoomId) ?? baseMemberships[0]?.roomId') || !zpeer.includes(': safeZpeerRoomId(roomId ?? peer.zpeerActiveRoomId ?? peer.zpeerRoomId)')) failures.push('ensureZpeerFields restored memberships must avoid legacy/default fallback injection');
-for (const needle of ['schema: PROFILE_SCHEMA', 'profileId', 'projectId', 'alias', 'roomId', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false', 'ZOB_ZPEER_PROFILE_ID', 'ZPEER_PROFILE', 'ZOB_COMS_SESSION_ID', 'zpeer-profiles']) {
+for (const needle of ['schema: PROFILE_SCHEMA', 'profileId', 'projectId', 'alias', 'roomId', 'localOnly: true', 'networkEnabled: false', 'bodyStored: false', 'ZOB_ZPEER_PROFILE_ID', 'ZPEER_PROFILE', 'ZOB_COMS_SESSION_ID', 'ZOB_COMS_ROLE_ID', 'zob-orchestrator', 'zpeerProfileIdIsSharedFallback', 'sharedFallback ? undefined', 'generatedAliasForPeer', 'activeMembershipAlias', 'existing?.alias ?? candidateAlias', 'zpeer-profiles']) {
   if (!zpeerProfile.includes(needle)) failures.push(`zpeer profile missing ${needle}`);
 }
 if (zpeerProfile.includes('join(repoRoot, ".pi", "coms")')) failures.push('zpeer profile must not persist under .pi/coms');
@@ -73,9 +73,9 @@ for (const forbidden of ['prompt:', 'response:', 'body:', 'content:', 'message:'
 }
 
 const command = contents['.pi/extensions/zob-harness/src/runtime/commands.ts'];
-if (!command.includes('writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer)')) failures.push('zpeer command must save profile after successful name/room changes');
+if (!command.includes('zpeerCommandProfileId(ctx)') || !command.includes('writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId)')) failures.push('zpeer command must save profile under the current Pi session profile after successful name/room changes');
 if (!command.includes('customType: "zob-zpeer-response"') || !command.includes('result.transientResponse')) failures.push('zpeer command missing transient response display support');
-for (const needle of ['customType: "zob-zpeer-event"', 'if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt"', 'feedbackEmittedTerminal', 'send_async', 'replyTimeoutMs', 'safety: local-only/hash-only/bodyStored=false', 'verb === "join"', 'verb === "use"', 'verb === "leave"', 'verb === "rooms"', 'verb === "in"']) {
+for (const needle of ['customType: "zob-zpeer-event"', 'if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt"', 'feedbackEmittedTerminal', 'send_async', 'replyTimeoutMs', 'idle/passive wait; no follow-up turn queued', 'safety: local-only/hash-only/bodyStored=false', 'verb === "clear"', 'action: "clear"', 'verb === "join"', 'verb === "use"', 'verb === "leave"', 'verb === "rooms"', 'verb === "in"']) {
   if (!command.includes(needle)) failures.push(`zpeer command missing UX event/status support ${needle}`);
 }
 if (!command.includes('const eventFromAlias = peerAliasInRoom(state.zobLive.peerCard, eventRoomId)') || !command.includes('peerAliasInRoom(state.zobLive.peerCard, resultRoomId)')) failures.push('/zpeer in <room> events must use room-scoped sender alias');
@@ -86,9 +86,13 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'o
 
 if (!contents['.pi/extensions/zob-harness/src/runtime/events.ts'].includes('ensureZpeerFields')) failures.push('runtime does not auto-ensure zpeer fields');
 const events = contents['.pi/extensions/zob-harness/src/runtime/events.ts'];
-if (!events.includes('readZpeerLocalProfile(repoRoot)')) failures.push('runtime must load zpeer profile before ensuring/registering fields');
-if (!events.includes('zpeerProfile?.roomId, zpeerProfile?.alias')) failures.push('runtime must apply persisted zpeer room/alias during ensure');
-for (const needle of ['ZPEER AWARENESS (transient, rebuilt each turn)', 'zpeer_ask with mode=\\"async\\"', 'avoid spam', 'Raw ZPeer bodies are transient', 'registerMessageRenderer("zob-zpeer-event"', 'scheduleZpeerHeartbeat', 'clearZpeerHeartbeatTimer', 'refreshZpeerSelf(repoRoot', 'kind: "response_sent"', 'kind: "inbound"']) {
+if (!events.includes('readZpeerLocalProfile(repoRoot, profileId)')) failures.push('runtime must load session-scoped zpeer profile before ensuring/registering fields');
+if (!events.includes('sharedZpeerProfile ? undefined : zpeerProfile?.alias') || !events.includes('sharedZpeerProfile ? undefined : zpeerProfile?.memberships')) failures.push('runtime must not restore alias/memberships from shared role fallback zpeer profiles');
+if ((events.match(/writeZpeerLocalProfileFromPeer\(repoRoot, state\.zobLive\.peerCard, profileId\)/g) ?? []).length < 3 || !events.includes('zpeerRuntimeProfileId(ctx)')) failures.push('runtime must persist zpeer self profile under the current Pi session during initial registration, refresh, and shutdown');
+if (!events.includes('zpeerProfileRoomId') || !events.includes('zpeerProfileAlias') || !events.includes('zpeerProfileMemberships')) failures.push('runtime must apply persisted zpeer room and conditionally stable alias/memberships during ensure');
+if (!events.includes('event.source === "extension" && !event.text.trim()') || !events.includes('action: "handled" as const')) failures.push('runtime must handle empty extension follow-ups without continuing the agent');
+if (!events.includes('ZPeer async reply received from @') || !events.includes('{ triggerTurn: true, deliverAs: "followUp" }')) failures.push('runtime must resume an idle agent with a follow-up when an async ZPeer reply arrives');
+for (const needle of ['ZPEER AWARENESS (transient, rebuilt each turn)', 'zpeer_ask with mode=\\"async\\"', 'Passive wait rule', 'stop the turn and remain idle', 'avoid spam', 'Raw ZPeer bodies are transient', 'registerMessageRenderer("zob-zpeer-event"', 'scheduleZpeerHeartbeat', 'clearZpeerHeartbeatTimer', 'refreshZpeerSelf(repoRoot', 'kind: "response_sent"', 'kind: "inbound"']) {
   if (!events.includes(needle)) failures.push(`runtime missing zpeer awareness/event support ${needle}`);
 }
 const responseSentBlock = events.match(/setZpeerLastEvent\(state, \{\s*kind: "response_sent"[\s\S]*?customType: "zob-zpeer-event"[\s\S]*?triggerTurn: false[\s\S]*?\}\);/)?.[0] ?? '';

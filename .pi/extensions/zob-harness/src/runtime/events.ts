@@ -9,7 +9,7 @@ import { appendLiveCompletedRef } from "../coms-v2/ledger-bridge.js";
 import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../coms-v2/registry.js";
-import { readZpeerLocalProfile } from "../coms-v2/zpeer-profile.js";
+import { readZpeerLocalProfile, writeZpeerLocalProfileFromPeer, zpeerProfileIdIsSharedFallback } from "../coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, ensureZpeerFields, refreshZpeerSelf } from "../coms-v2/zpeer.js";
 import { buildZobLiveResponseEnvelope } from "../coms-v2/response-capture.js";
 import { writeZobComsRedactedCapture } from "../coms-v2/transcript-capture.js";
@@ -55,14 +55,20 @@ function setZpeerLastEvent(state: HarnessRuntimeState, event: Omit<ZobLiveLastEv
   };
 }
 
-const ZPEER_HEARTBEAT_MIN_INTERVAL_MS = 20_000;
+const ZPEER_HEARTBEAT_MIN_INTERVAL_MS = 5_000;
+
+function zpeerRuntimeProfileId(ctx: ExtensionContext): string {
+  const sessionIdentity = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
+  return `session-${sha256(sessionIdentity).slice(0, 24)}`;
+}
 
 function clearZpeerHeartbeatTimer(state: HarnessRuntimeState): void {
   if (state.zobLive.heartbeatTimer) clearTimeout(state.zobLive.heartbeatTimer);
   state.zobLive.heartbeatTimer = undefined;
 }
 
-function scheduleZpeerHeartbeat(state: HarnessRuntimeState, repoRoot: string): void {
+function scheduleZpeerHeartbeat(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext): void {
+  const repoRoot = ctx.cwd;
   if (!state.zobLive.server || !state.zobLive.peerCard) return;
   clearZpeerHeartbeatTimer(state);
   const peer = state.zobLive.peerCard;
@@ -72,10 +78,11 @@ function scheduleZpeerHeartbeat(state: HarnessRuntimeState, repoRoot: string): v
       if (!state.zobLive.server || !state.zobLive.peerCard) return;
       state.zobLive.peerCard = refreshZpeerSelf(repoRoot, state.zobLive.peerCard);
       state.zobLive.lastHeartbeatMs = Date.now();
+      renderHarnessWidget(pi, state, ctx);
     } catch {
-      // Heartbeat is best-effort and must not break the harness runtime.
+      // Heartbeat/HUD refresh is best-effort and must not break the harness runtime.
     } finally {
-      if (state.zobLive.server && state.zobLive.peerCard) scheduleZpeerHeartbeat(state, repoRoot);
+      if (state.zobLive.server && state.zobLive.peerCard) scheduleZpeerHeartbeat(pi, state, ctx);
     }
   }, intervalMs);
   timer.unref?.();
@@ -100,7 +107,7 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
   const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 8).map((alias) => `@${alias}`);
   const unavailable = summary.stale + summary.offline;
   const duplicateLine = summary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${summary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
-  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- memberships: ${memberships}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- memberships: ${memberships}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [
@@ -159,7 +166,9 @@ function handleSameAgentModeIntent(pi: ExtensionAPI, state: HarnessRuntimeState,
   }, { triggerTurn: false });
 }
 
-async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string): Promise<void> {
+async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext): Promise<void> {
+  const repoRoot = ctx.cwd;
+  const profileId = zpeerRuntimeProfileId(ctx);
   const policy = readZobComsV2Policy(repoRoot);
   if (policy.mode === "off" || policy.mode === "required_network") {
     safelyUpdateZobLivePeer(repoRoot, state.zobLive.peerCard ? "touch" : "register");
@@ -173,7 +182,11 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
   const errors = [...team.errors, ...validateTeamDefinition(repoRoot, team.definition)];
   if (errors.length > 0 || !team.definition) throw new Error(errors.join("; "));
   const definition = team.definition;
-  const zpeerProfile = readZpeerLocalProfile(repoRoot);
+  const zpeerProfile = readZpeerLocalProfile(repoRoot, profileId);
+  const sharedZpeerProfile = zpeerProfile ? zpeerProfileIdIsSharedFallback(zpeerProfile.profileId) : false;
+  const zpeerProfileRoomId = zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId;
+  const zpeerProfileAlias = sharedZpeerProfile ? undefined : zpeerProfile?.alias;
+  const zpeerProfileMemberships = sharedZpeerProfile ? undefined : zpeerProfile?.memberships;
   if (!state.zobLive.server || !state.zobLive.peerCard) {
     const basePeer = buildCurrentZobLivePeerCard(repoRoot, definition, policy);
     const endpoint = makeZobLocalEndpoint(basePeer.sessionId);
@@ -200,10 +213,10 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
         if (envelope.transientResponse) {
           void pi.sendMessage({
             customType: "zob-zpeer-response",
-            content: envelope.transientResponse,
+            content: `ZPeer async reply received from @${envelope.sender ?? "?"} to @${envelope.receiver ?? "?"}. Continue the prior task using this response; do not poll or wait further only for this reply.\n\n${envelope.transientResponse}`,
             display: true,
-            details: { msgId: envelope.msgId, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
-          }, { triggerTurn: false });
+            details: { msgId: envelope.msgId, fromAlias: envelope.sender, toAlias: envelope.receiver, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
+          }, { triggerTurn: true, deliverAs: "followUp" });
         }
         const parentMsgId = envelope.runId && envelope.receiver && envelope.sender ? `${envelope.runId}:${envelope.receiver}:${envelope.sender}:${envelope.msgId}` : undefined;
         if (parentMsgId) {
@@ -236,22 +249,29 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }, { triggerTurn: true, deliverAs: "followUp" });
       return buildZobLiveAckEnvelope(envelope);
     });
-    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId, zpeerProfile?.alias, zpeerProfile?.memberships);
+    const peerCard = ensureZpeerFields(repoRoot, { ...basePeer, transport: "local_socket" as const, endpoint, endpointHash: sha256(endpoint), status: "online" as const }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships);
     state.zobLive.server = server;
     state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
+    try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
     state.zobLive.lastHeartbeatMs = Date.now();
-    scheduleZpeerHeartbeat(state, repoRoot);
+    scheduleZpeerHeartbeat(pi, state, ctx);
   } else {
-    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId, zpeerProfile?.alias, zpeerProfile?.memberships));
+    state.zobLive.peerCard = refreshZpeerSelf(repoRoot, ensureZpeerFields(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "online" }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships));
+    try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
     state.zobLive.lastHeartbeatMs = Date.now();
-    scheduleZpeerHeartbeat(state, repoRoot);
+    scheduleZpeerHeartbeat(pi, state, ctx);
   }
 }
 
-async function stopZobLiveRuntime(state: HarnessRuntimeState, repoRoot: string): Promise<void> {
+async function stopZobLiveRuntime(state: HarnessRuntimeState, ctx: ExtensionContext): Promise<void> {
+  const repoRoot = ctx.cwd;
+  const profileId = zpeerRuntimeProfileId(ctx);
   try {
     clearZpeerHeartbeatTimer(state);
-    if (state.zobLive.peerCard) writeZobLivePeerCard(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "offline" });
+    if (state.zobLive.peerCard) {
+      try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort shutdown continuity */ }
+      writeZobLivePeerCard(repoRoot, { ...state.zobLive.peerCard, heartbeatAt: new Date().toISOString(), status: "offline" });
+    }
     if (state.zobLive.server) await state.zobLive.server.close();
   } finally {
     state.zobLive = { pendingReplies: state.zobLive.pendingReplies };
@@ -460,6 +480,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
         else if (readiness.decision === "block") ctx.ui.notify(formatMissionReadinessForUi(readiness), "warning");
       }
     }
+    if (event.source === "extension" && !event.text.trim()) return { action: "handled" as const };
     if (event.source === "extension") return { action: "continue" as const };
     const nextMode = inferModeFromUserIntent(event.text);
     if (!nextMode || nextMode === state.activeMode) return { action: "continue" as const };
@@ -700,13 +721,13 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     state.delegations.runs = [];
     restoreHarnessState(state, ctx);
     state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
-    await startOrRefreshZobLiveRuntime(pi, state, ctx.cwd);
+    await startOrRefreshZobLiveRuntime(pi, state, ctx);
     applyMode(pi, state, ctx, state.activeMode, false);
     renderHarnessWidget(pi, state, ctx);
   });
 
   pi.on("tool_execution_end", async (_event, ctx) => {
-    await startOrRefreshZobLiveRuntime(pi, state, ctx.cwd);
+    await startOrRefreshZobLiveRuntime(pi, state, ctx);
     renderHarnessWidget(pi, state, ctx);
   });
 
@@ -735,7 +756,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       continuousLoop: false,
       cronEnabled: false,
     };
-    await stopZobLiveRuntime(state, ctx.cwd);
+    await stopZobLiveRuntime(state, ctx);
     safelyUpdateZobLivePeer(ctx.cwd, "unregister");
     disposeDelegationMouseSupport(state, { force: true });
     ctx.ui.setWidget("zob-harness", undefined);

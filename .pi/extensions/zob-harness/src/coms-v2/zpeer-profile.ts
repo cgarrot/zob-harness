@@ -59,11 +59,17 @@ function derivedSessionSeed(repoRoot: string): string | undefined {
 export function resolveZpeerProfileId(repoRoot: string): string {
   const explicit = firstEnvValue(["ZOB_ZPEER_PROFILE_ID", "ZPEER_PROFILE"]);
   if (explicit) return safeFileStem(`explicit-${explicit.value}`).slice(0, 80) || `explicit-${sha256(explicit.value).slice(0, 16)}`;
-  const comsSession = firstEnvValue(["ZOB_COMS_SESSION_ID"]);
-  if (comsSession) return safeFileStem(`coms-${comsSession.value}`).slice(0, 80) || `coms-${sha256(comsSession.value).slice(0, 16)}`;
   const terminalSeed = derivedSessionSeed(repoRoot);
   if (terminalSeed) return `terminal-${sha256(terminalSeed).slice(0, 20)}`;
-  return `process-${sha256(`${repoRoot}:${process.pid}:${Date.now()}`).slice(0, 20)}`;
+  const comsSession = firstEnvValue(["ZOB_COMS_SESSION_ID"]);
+  if (comsSession) return safeFileStem(`coms-${comsSession.value}`).slice(0, 80) || `coms-${sha256(comsSession.value).slice(0, 16)}`;
+  const role = firstEnvValue(["ZOB_COMS_ROLE_ID"]);
+  const roleId = role?.value ?? "zob-orchestrator";
+  return `role-${safeFileStem(roleId).slice(0, 40) || sha256(roleId).slice(0, 16)}`;
+}
+
+export function zpeerProfileIdIsSharedFallback(profileId = resolveZpeerProfileId("")): boolean {
+  return profileId.startsWith("role-");
 }
 
 function zpeerProfileDir(repoRoot: string): { dir: string; projectId: string } {
@@ -115,14 +121,15 @@ export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string
   const { dir, projectId } = zpeerProfileDir(repoRoot);
   const existing = readZpeerLocalProfile(repoRoot, profileId);
   const now = new Date().toISOString();
+  const sharedFallback = zpeerProfileIdIsSharedFallback(profileId);
   const profile: ZpeerLocalProfile = {
     schema: PROFILE_SCHEMA,
     profileId,
     projectId,
-    alias: input.alias ?? existing?.alias,
+    alias: sharedFallback ? undefined : input.alias ?? existing?.alias,
     roomId: input.roomId ?? existing?.roomId,
     activeRoomId: input.activeRoomId ?? input.roomId ?? existing?.activeRoomId,
-    memberships: input.memberships ?? existing?.memberships,
+    memberships: sharedFallback ? undefined : input.memberships ?? existing?.memberships,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     localOnly: true,
@@ -135,6 +142,22 @@ export function writeZpeerLocalProfile(repoRoot: string, input: { alias?: string
   return profile;
 }
 
-export function writeZpeerLocalProfileFromPeer(repoRoot: string, peer: Pick<ZobLivePeerCard, "zpeerAlias" | "zpeerRoomId" | "zpeerActiveRoomId" | "zpeerMemberships">, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
-  return writeZpeerLocalProfile(repoRoot, { alias: peer.zpeerAlias, roomId: peer.zpeerRoomId, activeRoomId: peer.zpeerActiveRoomId, memberships: peer.zpeerMemberships }, profileId);
+function generatedAliasForPeer(peer: Pick<ZobLivePeerCard, "roleId" | "sessionHash">): string | undefined {
+  const roleAlias = `${peer.roleId}-${peer.sessionHash.slice(0, 6)}`;
+  if (/^[a-zA-Z][a-zA-Z0-9_-]{1,31}$/.test(roleAlias)) return roleAlias;
+  return `peer-${peer.sessionHash.slice(0, 8)}`;
+}
+
+function activeMembershipAlias(peer: Pick<ZobLivePeerCard, "zpeerRoomId" | "zpeerActiveRoomId" | "zpeerMemberships">): string | undefined {
+  const activeRoomId = peer.zpeerActiveRoomId ?? peer.zpeerRoomId;
+  return peer.zpeerMemberships?.find((membership) => membership.roomId === activeRoomId)?.alias;
+}
+
+export function writeZpeerLocalProfileFromPeer(repoRoot: string, peer: Pick<ZobLivePeerCard, "roleId" | "sessionHash" | "zpeerAlias" | "zpeerRoomId" | "zpeerActiveRoomId" | "zpeerMemberships">, profileId = resolveZpeerProfileId(repoRoot)): ZpeerLocalProfile {
+  const existing = readZpeerLocalProfile(repoRoot, profileId);
+  const generatedAlias = generatedAliasForPeer(peer);
+  const membershipAlias = activeMembershipAlias(peer);
+  const candidateAlias = membershipAlias ?? peer.zpeerAlias;
+  const alias = candidateAlias && candidateAlias !== generatedAlias ? candidateAlias : existing?.alias ?? candidateAlias;
+  return writeZpeerLocalProfile(repoRoot, { alias, roomId: peer.zpeerRoomId, activeRoomId: peer.zpeerActiveRoomId, memberships: peer.zpeerMemberships }, profileId);
 }

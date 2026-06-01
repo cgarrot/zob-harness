@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
 import { MODE_PROMPTS } from "../constants.js";
@@ -14,7 +14,7 @@ import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../utils/hashing.js";
 import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../git-ops.js";
 import { writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
-import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../coms-v2/zpeer.js";
+import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../coms-v2/zpeer.js";
 import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
 import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "../goal-runtime.js";
 import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
@@ -36,6 +36,11 @@ import { applyMode, renderHarnessWidget } from "./widget.js";
 
 const COMPUTE_PROFILES = ["auto", "low", "medium", "high", "xhigh", "max"] as const;
 const COMPUTE_DOMAINS = ["generic", "project-dna", "factory", "orchestration"] as const;
+
+function zpeerCommandProfileId(ctx: ExtensionCommandContext): string {
+  const sessionIdentity = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
+  return `session-${sha256(sessionIdentity).slice(0, 24)}`;
+}
 
 function zcommitArgumentCompletions(prefix: string): AutocompleteItem[] | null {
   const query = prefix.trim().toLowerCase();
@@ -684,27 +689,28 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
       }
       const parts = trimmed.split(/\s+/);
       const verb = parts[0]?.toLowerCase();
+      const zpeerProfileId = zpeerCommandProfileId(ctx);
       if (verb === "name") {
-        const result = changeZpeerAlias(ctx.cwd, self, parts[1] ?? "");
+        const result = await changeZpeerAlias(ctx.cwd, self, parts[1] ?? "");
         if (!result.ok) {
           ctx.ui.notify(`/zpeer name blocked: ${result.reason}`, "warning");
           return;
         }
         state.zobLive.peerCard = result.peer;
-        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId);
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "name", aliasHash: sha256(result.peer.zpeerAlias ?? ""), roomIdHash: sha256(result.peer.zpeerRoomId ?? "default"), localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         renderHarnessWidget(pi, state, ctx);
         ctx.ui.notify(`zpeer alias set to @${result.peer.zpeerAlias}`, "info");
         return;
       }
       if (verb === "room") {
-        const result = changeZpeerRoom(ctx.cwd, self, parts[1] ?? "");
+        const result = await changeZpeerRoom(ctx.cwd, self, parts[1] ?? "");
         if (!result.ok) {
           ctx.ui.notify(`/zpeer room blocked: ${result.reason}`, "warning");
           return;
         }
         state.zobLive.peerCard = result.peer;
-        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId);
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "room", aliasHash: sha256(result.peer.zpeerAlias ?? ""), roomIdHash: sha256(result.peer.zpeerRoomId ?? "default"), membershipCount: zpeerMembershipsForPeer(result.peer).length, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         renderHarnessWidget(pi, state, ctx);
         ctx.ui.notify(`zpeer room set to ${result.peer.zpeerRoomId} as @${result.peer.zpeerAlias}`, "info");
@@ -718,17 +724,28 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
         ctx.ui.notify(`zpeer active=${self.zpeerRoomId ?? "default"} rooms=${summaries.map((summary) => `${summary.roomId}(${summary.online}/${summary.peerCount})`).join(", ") || "none"}`, "info");
         return;
       }
+      if (verb === "clear") {
+        const result = clearZpeerRoom(ctx.cwd, self, parts[1] ?? self.zpeerRoomId ?? "default");
+        if (!result.ok) {
+          ctx.ui.notify(`/zpeer clear blocked: ${result.reason}`, "warning");
+          return;
+        }
+        pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "clear", roomIdHash: sha256(result.roomId), clearedCount: result.cleared, preservedSelf: result.preservedSelf, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+        renderHarnessWidget(pi, state, ctx);
+        ctx.ui.notify(`zpeer room ${result.roomId} cleared: ${result.cleared} other peer${result.cleared === 1 ? "" : "s"} marked offline/removed; current session preserved`, "info");
+        return;
+      }
       if (verb === "join") {
         const asIndex = parts.indexOf("as");
         const alias = asIndex >= 0 ? parts[asIndex + 1] : undefined;
         const role = parts.includes("--bridge") ? "bridge" : parts.includes("--observer") ? "observer" : "member";
-        const result = joinZpeerRoom(ctx.cwd, self, parts[1] ?? "", alias, role);
+        const result = await joinZpeerRoom(ctx.cwd, self, parts[1] ?? "", alias, role);
         if (!result.ok) {
           ctx.ui.notify(`/zpeer join blocked: ${result.reason}`, "warning");
           return;
         }
         state.zobLive.peerCard = result.peer;
-        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId);
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "join", aliasHash: sha256(alias ?? result.peer.zpeerAlias ?? ""), roomIdHash: sha256(parts[1] ?? "default"), membershipCount: zpeerMembershipsForPeer(result.peer).length, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         renderHarnessWidget(pi, state, ctx);
         ctx.ui.notify(`zpeer joined ${parts[1]} (${role}); active=${result.peer.zpeerRoomId}`, "info");
@@ -741,7 +758,7 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
           return;
         }
         state.zobLive.peerCard = result.peer;
-        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId);
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "use", aliasHash: sha256(result.peer.zpeerAlias ?? ""), roomIdHash: sha256(result.peer.zpeerRoomId ?? "default"), membershipCount: zpeerMembershipsForPeer(result.peer).length, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         renderHarnessWidget(pi, state, ctx);
         ctx.ui.notify(`zpeer active room set to ${result.peer.zpeerRoomId} as @${result.peer.zpeerAlias}`, "info");
@@ -754,7 +771,7 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
           return;
         }
         state.zobLive.peerCard = result.peer;
-        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer);
+        writeZpeerLocalProfileFromPeer(ctx.cwd, result.peer, zpeerProfileId);
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "leave", roomIdHash: sha256(parts[1] ?? "default"), membershipCount: zpeerMembershipsForPeer(result.peer).length, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         renderHarnessWidget(pi, state, ctx);
         ctx.ui.notify(`zpeer left ${parts[1]}; active=${result.peer.zpeerRoomId}`, "info");
@@ -818,11 +835,12 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
           ctx.ui.notify(`zpeer ${result.roomId ?? eventRoomId} @${targetAlias} reply · response displayed transiently · outputHash=${result.outputHash ?? "present"}`, "info");
         } else {
           const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
-          ctx.ui.notify(ok ? `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}` : `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}: ${result.reason ?? "see metadata"}`, ok ? "info" : "warning");
+          const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait; no follow-up turn queued" : "";
+          ctx.ui.notify(ok ? `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}` : `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}: ${result.reason ?? "see metadata"}`, ok ? "info" : "warning");
         }
         return;
       }
-      ctx.ui.notify("Usage: /zpeer | /zpeer rooms | /zpeer join <roomId> [as <alias>] | /zpeer use <roomId> | /zpeer leave <roomId> | /zpeer @alias <prompt> | /zpeer in <roomId> @alias <prompt>", "warning");
+      ctx.ui.notify("Usage: /zpeer | /zpeer rooms | /zpeer clear <roomId> | /zpeer join <roomId> [as <alias>] | /zpeer use <roomId> | /zpeer leave <roomId> | /zpeer @alias <prompt> | /zpeer in <roomId> @alias <prompt>", "warning");
     },
   });
 
