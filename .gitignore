@@ -23,6 +23,7 @@ reports/
 .pi/context/
 .pi/goal-rooms/
 .pi/workspace-claims/
+.pi/worker-pools/
 .pi/merge-queue/
 .pi/mission-control/command-proposals.jsonl
 .pi/mission-control/proposals/
