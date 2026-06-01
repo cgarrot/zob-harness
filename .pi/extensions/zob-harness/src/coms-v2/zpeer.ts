@@ -180,6 +180,34 @@ function zpeerReachableStatus(peer: ZobLivePeerCard): ZobLivePeerStatus {
   return "offline";
 }
 
+async function peerRespondsToAliasPing(peer: ZobLivePeerCard): Promise<boolean> {
+  if (zpeerReachableStatus(peer) !== "online") return false;
+  try {
+    const response = await sendZobLocalEnvelope(peer.endpoint, {
+      schema: "zob.live-envelope.v1",
+      type: "ping",
+      msgId: `zpeer-alias-ping:${Date.now()}`,
+      hops: 0,
+      timestamp: new Date().toISOString(),
+      bodyStored: false,
+    }, { timeoutMs: 1_000 });
+    return response.type === "pong" || response.type === "ack";
+  } catch {
+    return false;
+  }
+}
+
+async function activeAliasCollision(repoRoot: string, self: ZobLivePeerCard, roomId: string, alias: string): Promise<ZpeerRoomPeer | undefined> {
+  for (const entry of peersInRoom(repoRoot, roomId)) {
+    if (entry.peer.sessionHash === self.sessionHash || entry.membership.alias !== alias) continue;
+    if (await peerRespondsToAliasPing(entry.peer)) return entry;
+    if (zpeerReachableStatus(entry.peer) === "online") {
+      try { writeZobLivePeerCard(repoRoot, { ...entry.peer, heartbeatAt: new Date().toISOString(), status: "offline" }); } catch { /* best-effort stale alias release */ }
+    }
+  }
+  return undefined;
+}
+
 export function ensureZpeerFields(repoRoot: string, peer: ZobLivePeerCard, roomId?: string, alias?: string, restoredMemberships?: ZpeerRoomMembership[]): ZobLivePeerCard {
   const hasRestoredMemberships = Boolean(restoredMemberships && restoredMemberships.length > 0);
   const baseMemberships = hasRestoredMemberships
@@ -204,25 +232,28 @@ export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId
   return writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
 }
 
-function peersInRoom(repoRoot: string, roomId: string): ZpeerRoomPeer[] {
-  const projectId = buildZobComsProjectId(repoRoot);
-  return readZobLiveRegistrySnapshot(repoRoot).peers
-    .filter((peer) => peer.projectId === projectId)
+type ZobLiveRegistrySnapshotValue = ReturnType<typeof readZobLiveRegistrySnapshot>;
+
+function peersInRoomFromSnapshot(snapshot: ZobLiveRegistrySnapshotValue, roomId: string): ZpeerRoomPeer[] {
+  return snapshot.peers
+    .filter((peer) => peer.projectId === snapshot.projectId)
     .flatMap((peer) => zpeerMembershipsForPeer(peer)
       .filter((membership) => membership.roomId === roomId)
       .map((membership) => ({ peer, membership })));
 }
 
-export function buildZpeerRoomSummary(repoRoot: string, self?: ZobLivePeerCard, requestedRoomId?: string): ZpeerRoomSummary {
-  const roomId = safeZpeerRoomId(requestedRoomId) ?? (self ? activeZpeerRoomId(self) : DEFAULT_ROOM_ID);
-  const peers = peersInRoom(repoRoot, roomId);
+function peersInRoom(repoRoot: string, roomId: string): ZpeerRoomPeer[] {
+  return peersInRoomFromSnapshot(readZobLiveRegistrySnapshot(repoRoot), roomId);
+}
+
+function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard | undefined, roomId: string, peers: ZpeerRoomPeer[]): ZpeerRoomSummary {
   const counts: Record<ZobLivePeerStatus, number> = { online: 0, stale: 0, offline: 0 };
   const aliases = peers.map((entry) => entry.membership.alias).sort();
   for (const entry of peers) counts[zpeerReachableStatus(entry.peer)] += 1;
   const duplicateAliases = aliases.filter((alias, index) => aliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index);
   return {
     schema: "zob.zpeer-room-summary.v1",
-    projectId: buildZobComsProjectId(repoRoot),
+    projectId,
     roomId,
     selfAlias: self ? peerAliasInRoom(self, roomId) : undefined,
     peerCount: peers.length,
@@ -238,10 +269,17 @@ export function buildZpeerRoomSummary(repoRoot: string, self?: ZobLivePeerCard, 
   };
 }
 
+export function buildZpeerRoomSummary(repoRoot: string, self?: ZobLivePeerCard, requestedRoomId?: string): ZpeerRoomSummary {
+  const snapshot = readZobLiveRegistrySnapshot(repoRoot);
+  const roomId = safeZpeerRoomId(requestedRoomId) ?? (self ? activeZpeerRoomId(self) : DEFAULT_ROOM_ID);
+  return buildZpeerRoomSummaryFromPeers(snapshot.projectId, self, roomId, peersInRoomFromSnapshot(snapshot, roomId));
+}
+
 export function buildZpeerPeerRoomSummaries(repoRoot: string, self: ZobLivePeerCard): ZpeerPeerRoomSummary[] {
+  const snapshot = readZobLiveRegistrySnapshot(repoRoot);
   const activeRoomId = activeZpeerRoomId(self);
   return zpeerMembershipsForPeer(self).map((membership) => ({
-    ...buildZpeerRoomSummary(repoRoot, self, membership.roomId),
+    ...buildZpeerRoomSummaryFromPeers(snapshot.projectId, self, membership.roomId, peersInRoomFromSnapshot(snapshot, membership.roomId)),
     active: membership.roomId === activeRoomId,
   })).sort((left, right) => {
     if (left.active !== right.active) return left.active ? -1 : 1;
@@ -249,26 +287,26 @@ export function buildZpeerPeerRoomSummaries(repoRoot: string, self: ZobLivePeerC
   });
 }
 
-export function changeZpeerAlias(repoRoot: string, self: ZobLivePeerCard, requestedAlias: string, requestedRoomId?: string): { ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string } {
+export async function changeZpeerAlias(repoRoot: string, self: ZobLivePeerCard, requestedAlias: string, requestedRoomId?: string): Promise<{ ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string }> {
   const alias = safeZpeerAlias(requestedAlias);
   if (!alias) return { ok: false, reason: "alias must match [a-zA-Z][a-zA-Z0-9_-]{1,31}" };
   const roomId = safeZpeerRoomId(requestedRoomId) ?? activeZpeerRoomId(self);
   const memberships = zpeerMembershipsForPeer(self);
   const current = memberships.find((membership) => membership.roomId === roomId);
   if (!current) return { ok: false, reason: `current peer is not a member of room '${roomId}'` };
-  const collision = peersInRoom(repoRoot, roomId).find((entry) => entry.peer.sessionHash !== self.sessionHash && entry.membership.alias === alias && entry.peer.status !== "offline");
-  if (collision) return { ok: false, reason: `alias '${alias}' is already used in room '${roomId}'` };
+  const collision = await activeAliasCollision(repoRoot, self, roomId, alias);
+  if (collision) return { ok: false, reason: `alias '${alias}' is already used by a live peer in room '${roomId}'` };
   return { ok: true, peer: refreshZpeerSelf(repoRoot, withZpeerMembershipState(repoRoot, self, upsertMembership(memberships, { ...current, alias }), activeZpeerRoomId(self))) };
 }
 
-export function joinZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedRoom: string, requestedAlias?: string, role: ZpeerRoomMembershipRole = "member"): { ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string } {
+export async function joinZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedRoom: string, requestedAlias?: string, role: ZpeerRoomMembershipRole = "member"): Promise<{ ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string }> {
   const roomId = safeZpeerRoomId(requestedRoom);
   if (!roomId) return { ok: false, reason: "room must match [a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}" };
   const memberships = zpeerMembershipsForPeer(self);
   const existing = memberships.find((membership) => membership.roomId === roomId);
   const alias = safeZpeerAlias(requestedAlias ?? existing?.alias ?? self.zpeerAlias) ?? generatedZpeerAlias(self);
-  const collision = peersInRoom(repoRoot, roomId).find((entry) => entry.peer.sessionHash !== self.sessionHash && entry.membership.alias === alias && entry.peer.status !== "offline");
-  if (collision) return { ok: false, reason: `alias '${alias}' already exists in target room '${roomId}'; rename first or use 'as <alias>'` };
+  const collision = await activeAliasCollision(repoRoot, self, roomId, alias);
+  if (collision) return { ok: false, reason: `alias '${alias}' already exists on a live peer in target room '${roomId}'; rename first or use 'as <alias>'` };
   const next = buildMembership({ roomId, alias, role, joinedAt: existing?.joinedAt ?? new Date().toISOString() });
   return { ok: true, peer: refreshZpeerSelf(repoRoot, withZpeerMembershipState(repoRoot, self, upsertMembership(memberships, next), activeZpeerRoomId(self))) };
 }
@@ -292,12 +330,37 @@ export function useZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedR
   return { ok: true, peer: refreshZpeerSelf(repoRoot, withZpeerMembershipState(repoRoot, self, memberships, roomId)) };
 }
 
-export function changeZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedRoom: string): { ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string } {
+export function clearZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedRoom: string): { ok: true; roomId: string; cleared: number; preservedSelf: true } | { ok: false; reason: string } {
+  const roomId = safeZpeerRoomId(requestedRoom);
+  if (!roomId) return { ok: false, reason: "room must match [a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}" };
+  let cleared = 0;
+  for (const entry of peersInRoom(repoRoot, roomId)) {
+    if (entry.peer.sessionHash === self.sessionHash) continue;
+    const remaining = zpeerMembershipsForPeer(entry.peer).filter((membership) => membership.roomId !== roomId);
+    const fallbackRoomId = `cleared-${entry.peer.sessionHash.slice(0, 8)}`;
+    const fallbackAlias = safeZpeerAlias(entry.peer.zpeerAlias) ?? generatedZpeerAlias(entry.peer);
+    const nextMemberships = remaining.length > 0 ? remaining : [buildMembership({ roomId: fallbackRoomId, alias: fallbackAlias, role: "observer", joinedAt: new Date().toISOString() })];
+    const active = nextMemberships[0];
+    writeZobLivePeerCard(repoRoot, {
+      ...entry.peer,
+      heartbeatAt: new Date().toISOString(),
+      status: "offline",
+      zpeerRoomId: active.roomId,
+      zpeerActiveRoomId: active.roomId,
+      zpeerAlias: active.alias,
+      zpeerMemberships: nextMemberships,
+    });
+    cleared += 1;
+  }
+  return { ok: true, roomId, cleared, preservedSelf: true };
+}
+
+export async function changeZpeerRoom(repoRoot: string, self: ZobLivePeerCard, requestedRoom: string): Promise<{ ok: true; peer: ZobLivePeerCard } | { ok: false; reason: string }> {
   const roomId = safeZpeerRoomId(requestedRoom);
   if (!roomId) return { ok: false, reason: "room must match [a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}" };
   const memberships = zpeerMembershipsForPeer(self);
   if (!memberships.some((membership) => membership.roomId === roomId)) {
-    const joined = joinZpeerRoom(repoRoot, self, roomId, self.zpeerAlias ?? generatedZpeerAlias(self));
+    const joined = await joinZpeerRoom(repoRoot, self, roomId, self.zpeerAlias ?? generatedZpeerAlias(self));
     if (!joined.ok) return joined;
     return useZpeerRoom(repoRoot, joined.peer, roomId);
   }

@@ -7,13 +7,45 @@ import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../goal-todos
 import { isRecord } from "../utils/records.js";
 import type { AssistantLikeMessage, ModeName } from "../types.js";
 import { readHarnessReadinessWidgetData } from "../orchestration/widget-readers.js";
-import { buildZpeerPeerRoomSummaries } from "../coms-v2/zpeer.js";
+import { buildZpeerPeerRoomSummaries, type ZpeerPeerRoomSummary } from "../coms-v2/zpeer.js";
 import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import { formatZcompactHudLine } from "./auto-compaction.js";
 import type { HarnessRuntimeState } from "./state.js";
 
 const PRODUCT_HUD_IGNORED_READINESS_BLOCKERS = new Set(["global_autonomy_not_proven_for_arbitrary_factories"]);
+
+type HarnessReadinessWidgetData = ReturnType<typeof readHarnessReadinessWidgetData>;
+
+interface TimedCache<T> {
+  value: T;
+  computedAtMs: number;
+}
+
+interface WidgetRuntimeCache {
+  conversationCost?: TimedCache<number | undefined>;
+  readiness?: TimedCache<HarnessReadinessWidgetData>;
+  zpeer?: TimedCache<ZpeerPeerRoomSummary[]> & { key: string };
+  statuses: Record<string, string | undefined>;
+}
+
+const CONVERSATION_COST_CACHE_TTL_MS = 5_000;
+const READINESS_CACHE_TTL_MS = 5_000;
+const ZPEER_ROOM_SUMMARY_CACHE_TTL_MS = 1_000;
+const widgetCaches = new WeakMap<HarnessRuntimeState, WidgetRuntimeCache>();
+
+function widgetCacheFor(state: HarnessRuntimeState): WidgetRuntimeCache {
+  let cache = widgetCaches.get(state);
+  if (!cache) {
+    cache = { statuses: {} };
+    widgetCaches.set(state, cache);
+  }
+  return cache;
+}
+
+function cacheFresh<T>(cache: TimedCache<T> | undefined, nowMs: number, ttlMs: number): cache is TimedCache<T> {
+  return Boolean(cache && nowMs - cache.computedAtMs < ttlMs);
+}
 
 function isProductHudReadinessBlocker(blocker: string): boolean {
   return !PRODUCT_HUD_IGNORED_READINESS_BLOCKERS.has(blocker.trim());
@@ -98,14 +130,57 @@ function readConversationCostFromBranch(ctx: ExtensionContext): number | undefin
   return foundNumeric ? total : undefined;
 }
 
+function cachedConversationCost(state: HarnessRuntimeState, ctx: ExtensionContext, nowMs: number): number | undefined {
+  const cache = widgetCacheFor(state);
+  if (cacheFresh(cache.conversationCost, nowMs, CONVERSATION_COST_CACHE_TTL_MS)) return cache.conversationCost.value;
+  const value = readConversationCostFromBranch(ctx);
+  cache.conversationCost = { value, computedAtMs: nowMs };
+  return value;
+}
+
+function cachedReadiness(state: HarnessRuntimeState, ctx: ExtensionContext, nowMs: number): HarnessReadinessWidgetData {
+  const cache = widgetCacheFor(state);
+  if (cacheFresh(cache.readiness, nowMs, READINESS_CACHE_TTL_MS)) return cache.readiness.value;
+  const value = readHarnessReadinessWidgetData(ctx.cwd);
+  cache.readiness = { value, computedAtMs: nowMs };
+  return value;
+}
+
+function zpeerCacheKey(state: HarnessRuntimeState): string {
+  const peer = state.zobLive.peerCard;
+  if (!peer) return "none";
+  const memberships = peer.zpeerMemberships?.map((membership) => `${membership.roomId}:${membership.alias}:${membership.role}`).join("|") ?? "";
+  return [peer.sessionHash, peer.heartbeatAt, peer.status, peer.zpeerActiveRoomId, memberships, state.zobLive.lastHeartbeatMs ?? 0, state.zobLive.lastEvent?.at ?? ""].join("/");
+}
+
+function cachedZpeerRoomSummaries(state: HarnessRuntimeState, ctx: ExtensionContext, nowMs: number): ZpeerPeerRoomSummary[] {
+  const peer = state.zobLive.peerCard;
+  if (!peer) return [];
+  const cache = widgetCacheFor(state);
+  const key = zpeerCacheKey(state);
+  if (cache.zpeer && cache.zpeer.key === key && nowMs - cache.zpeer.computedAtMs < ZPEER_ROOM_SUMMARY_CACHE_TTL_MS) return cache.zpeer.value;
+  const value = buildZpeerPeerRoomSummaries(ctx.cwd, peer);
+  cache.zpeer = { key, value, computedAtMs: nowMs };
+  return value;
+}
+
+function setStatusIfChanged(ctx: ExtensionContext, state: HarnessRuntimeState, key: string, value: string | undefined): void {
+  if (typeof ctx.ui.setStatus !== "function") return;
+  const cache = widgetCacheFor(state);
+  if (Object.prototype.hasOwnProperty.call(cache.statuses, key) && cache.statuses[key] === value) return;
+  cache.statuses[key] = value;
+  ctx.ui.setStatus(key, value);
+}
+
 export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext): void {
   void pi;
+  const nowMs = Date.now();
   const scopeGateText = state.activeGoal ? state.activeGoal.activeGoal : "unset";
   const runtimeGoal = state.runtimeGoal;
   const runtimeObjectiveText = runtimeGoal ? runtimeGoal.objective : "unset";
   const runtimeTodoSummary = runtimeGoal ? summarizeGoalTodos(state.goalTodos, runtimeGoal.goalId) : undefined;
   const todoDiagnostics = runtimeGoal ? goalTodoCompletionDiagnostics(state.goalTodos, runtimeGoal.goalId) : undefined;
-  const readiness = readHarnessReadinessWidgetData(ctx.cwd);
+  const readiness = cachedReadiness(state, ctx, nowMs);
   const daemonStatus = buildDaemonRuntimeState({
     policy: state.daemon.policy,
     runtimeGoal: state.runtimeGoal,
@@ -119,7 +194,33 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
     loop: state.daemon.loop,
   });
   const daemonPlan = state.daemon.lastPlan ?? buildDaemonTickPlan(daemonStatus);
-  if (typeof ctx.ui.setStatus === "function") ctx.ui.setStatus("zob-goal", undefined);
+  const delegationSummaryForStatus = summarizeDelegations(state.delegations);
+  const agentTokens = runtimeGoal?.usage.tokensUsed;
+  const subTokenRuns = state.delegations.runs.filter((run) => run.usage);
+  const subTokens = subTokenRuns.reduce((sum, run) => sum + Math.max(0, Math.trunc((run.usage?.input ?? 0) + (run.usage?.output ?? 0))), 0);
+  const totalKnownTokens = (agentTokens ?? 0) + subTokens;
+  const hasKnownTokens = runtimeGoal !== undefined || subTokenRuns.length > 0;
+  const knownCostRuns = state.delegations.runs.filter((run) => run.usage);
+  const knownSubCost = knownCostRuns.reduce((sum, run) => sum + delegationCost(run), 0);
+  const conversationCost = cachedConversationCost(state, ctx, nowMs);
+  const hasConversationCost = typeof conversationCost === "number";
+  const totalKnownCost = hasConversationCost ? knownSubCost + conversationCost : undefined;
+  const subDurationMs = state.delegations.runs.reduce((sum, run) => sum + delegationDurationMs(run, nowMs), 0);
+  const statusCost = hasConversationCost
+    ? `cost total ${formatDelegationCost(totalKnownCost)} · convo ${formatDelegationCost(conversationCost)} · sub ${formatDelegationCost(knownSubCost)}`
+    : `cost total n/a · convo n/a · sub ${formatDelegationCost(knownSubCost)}`;
+  const statusTokens = hasKnownTokens ? formatHudTokenCount(totalKnownTokens) : "—";
+  const elapsedTime = runtimeGoal
+    ? formatGoalElapsed(runtimeGoal.createdAt, goalEndTimeMs(runtimeGoal, nowMs))
+    : "—";
+  const statusTime = runtimeGoal || state.delegations.runs.length > 0
+    ? `elapsed ${elapsedTime} · agent ${formatAgentSeconds(runtimeGoal?.usage.activeSeconds)} · sub ${state.delegations.runs.length > 0 ? formatDuration(subDurationMs) : "—"} cum`
+    : "—";
+  const zcompactLine = formatZcompactHudLine(state.zcompact, ctx);
+  const zcompactColor = state.zcompact.running ? "warning" : state.zcompact.mode === "auto" ? "success" : state.zcompact.mode === "observe" ? "accent" : "dim";
+  setStatusIfChanged(ctx, state, "zob-goal", undefined);
+  setStatusIfChanged(ctx, state, "zob-usage", ctx.ui.theme.fg("muted", `usage ${statusCost} · tok total ${statusTokens} · time ${statusTime}`));
+  setStatusIfChanged(ctx, state, "zob-zcompact", ctx.ui.theme.fg(zcompactColor, zcompactLine));
 
   ctx.ui.setWidget("zob-harness", (_tui, theme) => {
     const mouseOwner = Symbol("zob-harness-widget");
@@ -167,33 +268,8 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
       render(width: number): string[] {
         disposeDelegationMouseSupport(state, { owner: mouseOwner });
         const panelWidth = Math.max(1, width);
-        const delegationSummary = summarizeDelegations(state.delegations);
-        const nowMs = Date.now();
-        const agentTokens = runtimeGoal?.usage.tokensUsed;
-        const subTokenRuns = state.delegations.runs.filter((run) => run.usage);
-        const subTokens = subTokenRuns.reduce((sum, run) => sum + Math.max(0, Math.trunc((run.usage?.input ?? 0) + (run.usage?.output ?? 0))), 0);
-        const totalKnownTokens = (agentTokens ?? 0) + subTokens;
-        const hasKnownTokens = runtimeGoal !== undefined || subTokenRuns.length > 0;
-        const knownCostRuns = state.delegations.runs.filter((run) => run.usage);
-        const knownSubCost = knownCostRuns.reduce((sum, run) => sum + delegationCost(run), 0);
-        const conversationCost = readConversationCostFromBranch(ctx);
-        const hasConversationCost = typeof conversationCost === "number";
-        const totalKnownCost = hasConversationCost ? knownSubCost + conversationCost : undefined;
-        const subDurationMs = state.delegations.runs.reduce((sum, run) => sum + delegationDurationMs(run, nowMs), 0);
-        const statusCost = hasConversationCost
-          ? `cost total ${formatDelegationCost(totalKnownCost)} · convo ${formatDelegationCost(conversationCost)} · sub ${formatDelegationCost(knownSubCost)}`
-          : `cost total n/a · convo n/a · sub ${formatDelegationCost(knownSubCost)}`;
-        const statusTokens = hasKnownTokens ? formatHudTokenCount(totalKnownTokens) : "—";
-        const elapsedTime = runtimeGoal
-          ? formatGoalElapsed(runtimeGoal.createdAt, goalEndTimeMs(runtimeGoal, nowMs))
-          : "—";
-        const statusTime = runtimeGoal || state.delegations.runs.length > 0
-          ? `elapsed ${elapsedTime} · agent ${formatAgentSeconds(runtimeGoal?.usage.activeSeconds)} · sub ${state.delegations.runs.length > 0 ? formatDuration(subDurationMs) : "—"} cum`
-          : "—";
-        const zcompactLine = formatZcompactHudLine(state.zcompact, ctx);
-        const zcompactColor = state.zcompact.running ? "warning" : state.zcompact.mode === "auto" ? "success" : state.zcompact.mode === "observe" ? "accent" : "dim";
-        ctx.ui.setStatus("zob-usage", theme.fg("muted", `usage ${statusCost} · tok total ${statusTokens} · time ${statusTime}`));
-        ctx.ui.setStatus("zob-zcompact", theme.fg(zcompactColor, zcompactLine));
+        const delegationSummary = delegationSummaryForStatus;
+        const renderNowMs = Date.now();
         const closedTodos = runtimeTodoSummary ? runtimeTodoSummary.done + runtimeTodoSummary.skipped : 0;
         const totalTodos = runtimeTodoSummary?.total ?? 0;
         const progress = totalTodos > 0
@@ -266,12 +342,12 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
         const assistantsState = assistantsCount > 0
           ? `${assistantsCount} active`
           : "none";
-        const zpeerRoomSummaries = state.zobLive.peerCard ? buildZpeerPeerRoomSummaries(ctx.cwd, state.zobLive.peerCard) : [];
+        const zpeerRoomSummaries = cachedZpeerRoomSummaries(state, ctx, renderNowMs);
         const zpeerLast = state.zobLive.lastEvent
           ? `${state.zobLive.lastEvent.kind} ${state.zobLive.lastEvent.fromAlias ? `@${state.zobLive.lastEvent.fromAlias}` : "?"}→${state.zobLive.lastEvent.toAlias ? `@${state.zobLive.lastEvent.toAlias}` : "?"} ${state.zobLive.lastEvent.status}`
           : "none";
         const zpeerPending = state.zobLive.pendingReplies.snapshot().filter((item) => item.status === "pending").length;
-        const zpeerHeartbeatAge = state.zobLive.lastHeartbeatMs ? formatDuration(nowMs - state.zobLive.lastHeartbeatMs) : "—";
+        const zpeerHeartbeatAge = state.zobLive.lastHeartbeatMs ? formatDuration(renderNowMs - state.zobLive.lastHeartbeatMs) : "—";
         const zpeerRoomCap = 4;
         const zpeerRoomLines = zpeerRoomSummaries.slice(0, zpeerRoomCap).map((summary) => {
           const marker = summary.active ? "*" : " ";
