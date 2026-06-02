@@ -97,6 +97,7 @@ export interface ZagentRuntimeState {
   description?: string;
   rooms: ZAgentRoomBinding[];
   activeRoom?: string;
+  defaultMode?: ModeName;
   prompt?: string;
   promptRef?: string;
   path?: string;

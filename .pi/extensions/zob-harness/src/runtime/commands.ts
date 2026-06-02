@@ -598,6 +598,7 @@ function formatZagentShow(loaded: ReturnType<typeof loadZagentManifest>): string
     loaded.manifest.team ? `team: ${loaded.manifest.team}` : undefined,
     loaded.manifest.role ? `role: ${loaded.manifest.role}` : undefined,
     loaded.manifest.alias ? `alias: @${loaded.manifest.alias}` : undefined,
+    loaded.manifest.defaultMode ? `defaultMode: ${loaded.manifest.defaultMode}` : undefined,
     rooms.length ? `rooms: ${rooms.map((room) => `${room.id}${room.alias ? `@${room.alias}` : ""}${room.active ? "*" : ""}`).join(", ")}` : "rooms: none",
     loaded.manifest.promptRef ? `promptRef: ${loaded.manifest.promptRef}` : "promptRef: none",
     loaded.promptPath ? `promptPath: ${loaded.promptPath}` : undefined,
@@ -663,25 +664,44 @@ function zteamMembers(team: ZTeamManifest): Array<{ id: string; alias?: string; 
   }));
 }
 
-function zteamLaunchPlanText(team: ZTeamManifest): { text: string; roomIds: string[]; agentIds: string[] } {
+function safeLaunchPlanModel(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length > 160) return undefined;
+  if (trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r") || trimmed.includes("..")) return undefined;
+  if (trimmed.startsWith("/") || trimmed.startsWith("~")) return undefined;
+  return /^[a-zA-Z0-9._:/+@-]+$/.test(trimmed) ? trimmed : undefined;
+}
+
+function zteamLaunchPlanText(repoRoot: string, team: ZTeamManifest): { text: string; roomIds: string[]; agentIds: string[]; modelIds: string[]; defaultModes: string[] } {
   const teamRooms = normalizeZagentRoomBindings(team.rooms, team.defaultRoom, team.activeRoom).map((room) => room.id);
   const members = zteamMembers(team);
   const roomIds = [...new Set([...teamRooms, ...members.flatMap((member) => (member.rooms ?? []).map((room) => room.id))])];
   const agentIds = members.map((member) => member.id);
+  const loadedAgents = members.map((member) => ({ member, loaded: loadZagentManifest(repoRoot, member.id) }));
+  const modelIds = [...new Set(loadedAgents.map(({ loaded }) => safeLaunchPlanModel(loaded.manifest.model)).filter((model): model is string => Boolean(model)))];
+  const defaultModes = [...new Set(loadedAgents.map(({ loaded }) => loaded.manifest.defaultMode).filter((mode): mode is ModeName => Boolean(mode)))];
   const lines = [
     `# ZTeam launch-plan: ${team.id}`,
     "No processes spawned. Copy/paste each command in a separate terminal when approved.",
     "",
-    ...members.map((member) => {
+    ...loadedAgents.map(({ member, loaded }) => {
+      const rawModel = loaded.manifest.model;
+      const model = safeLaunchPlanModel(rawModel);
+      const defaultMode = loaded.manifest.defaultMode;
       const rooms = (member.rooms ?? []).map((room) => `${room.id}${room.active ? "*" : ""}`).join(", ") || teamRooms.join(", ") || "default";
       const alias = member.alias ? ` alias=@${member.alias}` : "";
-      return `ZOB_ZAGENT_ID=${member.id} pi    # expected_rooms=${rooms}${alias}`;
+      const modelArg = model ? ` --model ${model}` : "";
+      const modelNote = rawModel ? (model ? ` model=${model}` : " model=invalid_omitted") : "";
+      const modeNote = defaultMode ? ` defaultMode=${defaultMode}` : "";
+      return `ZOB_ZAGENT_ID=${member.id} pi${modelArg}    # expected_rooms=${rooms}${alias}${modelNote}${modeNote}`;
     }),
     "",
     `Expected rooms: ${roomIds.join(", ") || "default"}`,
+    modelIds.length ? `Models: ${modelIds.join(", ")}` : "Models: default Pi model unless each ZAgent manifest sets a safe model",
+    defaultModes.length ? `Default modes: ${defaultModes.join(", ")}` : "Default modes: restored/current ZOB mode unless each ZAgent manifest sets defaultMode",
     "After each session starts, run /zagent use <id> to bind its ZPeer alias/rooms.",
   ];
-  return { text: lines.join("\n"), roomIds, agentIds };
+  return { text: lines.join("\n"), roomIds, agentIds, modelIds, defaultModes };
 }
 
 function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: string): AutocompleteItem[] | null {
@@ -969,11 +989,11 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
           return;
         }
         const loaded = loadZteamManifest(ctx.cwd, id);
-        const plan = zteamLaunchPlanText(loaded.manifest);
+        const plan = zteamLaunchPlanText(ctx.cwd, loaded.manifest);
         pi.appendEntry("zob-zagent", zagentLedgerEntry("zteam_launch_plan", { teamId: loaded.manifest.id, status: loaded.errors.length === 0 ? "ok" : "blocked", roomIds: plan.roomIds, path: loaded.path, errors: loaded.errors }));
         renderHarnessWidget(pi, state, ctx);
-        void pi.sendMessage({ customType: "zob-zteam-launch-plan", content: loaded.errors.length ? `${plan.text}\n\nBlocked manifest errors:\n- ${loaded.errors.join("\n- ")}` : plan.text, display: true, details: { id: loaded.manifest.id, agentIdHashes: plan.agentIds.map((agentId) => sha256(agentId)), roomIdHashes: plan.roomIds.map((roomId) => sha256(roomId)), bodyStored: false } }, { triggerTurn: false });
-        ctx.ui.notify(`zteam ${loaded.manifest.id} launch-plan printed; spawn count=0; expectedRooms=${plan.roomIds.join(",") || "default"}`, loaded.errors.length === 0 ? "info" : "warning");
+        void pi.sendMessage({ customType: "zob-zteam-launch-plan", content: loaded.errors.length ? `${plan.text}\n\nBlocked manifest errors:\n- ${loaded.errors.join("\n- ")}` : plan.text, display: true, details: { id: loaded.manifest.id, agentIdHashes: plan.agentIds.map((agentId) => sha256(agentId)), roomIdHashes: plan.roomIds.map((roomId) => sha256(roomId)), modelIdHashes: plan.modelIds.map((modelId) => sha256(modelId)), defaultModeHashes: plan.defaultModes.map((mode) => sha256(mode)), bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zteam ${loaded.manifest.id} launch-plan printed; spawn count=0; expectedRooms=${plan.roomIds.join(",") || "default"}; models=${plan.modelIds.length || "default"}; defaultModes=${plan.defaultModes.length || "current"}`, loaded.errors.length === 0 ? "info" : "warning");
         return;
       }
       ctx.ui.notify("Usage: /zteam list | /zteam show <id> | /zteam launch-plan <id>", "warning");

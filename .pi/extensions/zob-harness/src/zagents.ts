@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 
+import type { ModeName } from "./types/core.js";
 import { safeZpeerAlias, safeZpeerRoomId } from "./coms-v2/zpeer.js";
 import { parseJsonFile } from "./utils/json.js";
 import { isSafeArtifactName } from "./utils/paths.js";
@@ -12,6 +13,7 @@ const ZAGENT_PROMPTS_DIR = ".pi/zagents/prompts";
 const ZAGENT_SCHEMA_ID = "zob.zagent.v1";
 const ZTEAM_SCHEMA_ID = "zob.zteam.v1";
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/;
+const ZAGENT_MODE_NAMES = new Set<ModeName>(["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla"]);
 
 export const ZAGENT_MANIFEST_SCHEMA = {
   schema: ZAGENT_SCHEMA_ID,
@@ -65,6 +67,7 @@ export interface ZAgentManifest {
   communicationPolicy?: ZAgentCommunicationPolicy;
   contextRefs?: ZAgentContextRefInput[];
   model?: string;
+  defaultMode?: ModeName;
   tools?: string[];
   metadata?: Record<string, unknown>;
   localOnly: true;
@@ -269,6 +272,19 @@ function validateRoomBindings(rooms: ZAgentRoomRef[] | undefined, label: string)
   return errors;
 }
 
+
+function safePiModelPattern(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length > 160) return undefined;
+  if (trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r") || trimmed.includes("..")) return undefined;
+  if (trimmed.startsWith("/") || trimmed.startsWith("~")) return undefined;
+  return /^[a-zA-Z0-9._:/+@-]+$/.test(trimmed) ? trimmed : undefined;
+}
+
+function isZagentModeName(value: unknown): value is ModeName {
+  return typeof value === "string" && ZAGENT_MODE_NAMES.has(value as ModeName);
+}
+
 function validateCommunicationPolicy(policy: unknown, label: string): string[] {
   const errors: string[] = [];
   if (policy === undefined) return errors;
@@ -305,6 +321,7 @@ function isZAgentManifest(value: unknown): value is ZAgentManifest {
     && isCommunicationPolicy(value.communicationPolicy)
     && (value.contextRefs === undefined || (Array.isArray(value.contextRefs) && value.contextRefs.every(isContextRef)))
     && (value.model === undefined || typeof value.model === "string")
+    && (value.defaultMode === undefined || isZagentModeName(value.defaultMode))
     && (value.tools === undefined || isStringArray(value.tools))
     && (value.metadata === undefined || isRecord(value.metadata))
     && value.localOnly === true
@@ -371,6 +388,12 @@ export function validateZagentManifest(repoRoot: string, manifest: unknown, mani
   errors.push(...validateRoomBindings(rooms, "zagent.rooms"));
   errors.push(...validateActiveRoom(manifest.activeRoom, bindings, "zagent"));
   errors.push(...validateCommunicationPolicy(manifest.communicationPolicy, "zagent.communicationPolicy"));
+  if (typeof manifest.model === "string" && safePiModelPattern(manifest.model) !== manifest.model.trim()) {
+    errors.push(`zagent.model must be a safe Pi --model pattern: ${manifest.model}`);
+  }
+  if (manifest.defaultMode !== undefined && !isZagentModeName(manifest.defaultMode)) {
+    errors.push(`zagent.defaultMode must be one of ${[...ZAGENT_MODE_NAMES].join(",")}: ${String(manifest.defaultMode)}`);
+  }
   if (typeof manifest.promptRef === "string") {
     const prompt = resolveZagentPromptRef(repoRoot, manifest.promptRef);
     errors.push(...prompt.errors);
@@ -565,10 +588,11 @@ export function formatZagentList(agents: ZAgentLoaded[]): string {
     const alias = manifest.alias ? ` @${manifest.alias}` : "";
     const role = manifest.role ? ` role=${manifest.role}` : "";
     const team = manifest.team ? ` team=${manifest.team}` : "";
+    const mode = manifest.defaultMode ? ` defaultMode=${manifest.defaultMode}` : "";
     const rooms = normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom);
     const roomText = rooms.length ? ` rooms=${rooms.map((room) => `${room.id}${room.active ? "*" : ""}`).join(",")}` : "";
     const status = errors.length === 0 ? "ok" : `errors=${errors.length}`;
-    return `- ${manifest.id}${alias} [${status}]${team}${role}${roomText}${relPrompt} path=${relPath}`;
+    return `- ${manifest.id}${alias} [${status}]${team}${role}${mode}${roomText}${relPrompt} path=${relPath}`;
   }).join("\n");
 }
 

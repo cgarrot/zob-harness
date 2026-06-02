@@ -91,6 +91,7 @@ function loadActiveZagentById(state: HarnessRuntimeState, repoRoot: string, zage
     description: manifest.description,
     rooms,
     activeRoom,
+    defaultMode: manifest.defaultMode,
     prompt: prompt.body,
     promptRef: manifest.promptRef,
     path: loaded.path,
@@ -138,7 +139,7 @@ function formatZagentPromptHint(state: HarnessRuntimeState): string {
   const policy = zagent.communicationPolicy ? JSON.stringify(zagent.communicationPolicy) : "not specified";
   const errors = zagent.errors.length > 0 ? `\n- load warnings: ${zagent.errors.slice(0, 5).join(" | ")}` : "";
   const promptBody = zagent.prompt?.trim() ? `\n\nZAGENT PROMPT BODY\n${zagent.prompt.trim()}` : "";
-  return `\n\nZAGENT RUNTIME ACTIVATION\n- id: ${zagent.id}\n- team: ${zagent.team ?? "default"}\n- teams: ${zagent.teams?.join(", ") || zagent.team || "default"}\n- role: ${zagent.role ?? "not specified"}\n- alias: ${zagent.alias ? `@${zagent.alias}` : "not specified"}\n- rooms: ${rooms.join(", ") || "none"}\n- activeRoom: ${zagent.activeRoom ?? "not specified"}\n- communicationPolicy: ${policy}\n- promptRef: ${zagent.promptRef ?? "none"}\n- ZAgents are full Pi sessions tied to ZPeer/live coordination, not delegate subagents.${errors}${promptBody}`;
+  return `\n\nZAGENT RUNTIME ACTIVATION\n- id: ${zagent.id}\n- team: ${zagent.team ?? "default"}\n- teams: ${zagent.teams?.join(", ") || zagent.team || "default"}\n- role: ${zagent.role ?? "not specified"}\n- alias: ${zagent.alias ? `@${zagent.alias}` : "not specified"}\n- rooms: ${rooms.join(", ") || "none"}\n- activeRoom: ${zagent.activeRoom ?? "not specified"}\n- defaultMode: ${zagent.defaultMode ?? "not specified"}\n- communicationPolicy: ${policy}\n- promptRef: ${zagent.promptRef ?? "none"}\n- ZAgents are full Pi sessions tied to ZPeer/live coordination, not delegate subagents.${errors}${promptBody}`;
 }
 
 function zpeerRuntimeProfileId(ctx: ExtensionContext): string {
@@ -969,6 +970,9 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     state.delegations.runs = [];
     restoreHarnessState(state, ctx);
     loadActiveZagentFromEnv(state, ctx.cwd);
+    if (state.zagent.defaultMode && state.zagent.defaultMode !== state.activeMode) {
+      applyMode(pi, state, ctx, state.zagent.defaultMode, false);
+    }
     state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
     await startOrRefreshZobLiveRuntime(pi, state, ctx);
     applyMode(pi, state, ctx, state.activeMode, false);
