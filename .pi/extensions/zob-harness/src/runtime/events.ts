@@ -10,7 +10,7 @@ import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from
 import { readZobComsV2Policy } from "../coms-v2/policy.js";
 import { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../coms-v2/registry.js";
 import { clearZpeerNewCarryoverProfile, readZpeerLocalProfile, readZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer, writeZpeerNewCarryoverProfile, zpeerProfileIdIsSharedFallback } from "../coms-v2/zpeer-profile.js";
-import { buildZpeerRoomSummary, ensureZpeerFields, refreshZpeerSelf } from "../coms-v2/zpeer.js";
+import { buildZpeerPeerRoomSummaries, ensureZpeerFields, refreshZpeerSelf } from "../coms-v2/zpeer.js";
 import type { ZpeerRoomMembership } from "../coms-v2/types.js";
 import { buildZobLiveResponseEnvelope } from "../coms-v2/response-capture.js";
 import { writeZobComsRedactedCapture } from "../coms-v2/transcript-capture.js";
@@ -20,7 +20,7 @@ import { formatGoalTodoPromptHint } from "../goal-todos.js";
 import { resolveRuleProfile } from "../rules.js";
 import { loadDamageRules } from "../safety.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
-import { loadZagentManifest, normalizeZagentRoomBindings, readZagentPrompt } from "../zagents.js";
+import { loadZagentManifest, readZagentPrompt, resolveZagentRuntimeRoomBindings } from "../zagents.js";
 import type { AssistantLikeMessage } from "../types.js";
 import { blockedFeedback } from "../utils/formatting.js";
 import { sha256 } from "../utils/hashing.js";
@@ -78,12 +78,14 @@ function loadActiveZagentById(state: HarnessRuntimeState, repoRoot: string, zage
   const loaded = loadZagentManifest(repoRoot, zagentId);
   const manifest = loaded.manifest;
   const prompt = readZagentPrompt(repoRoot, manifest.promptRef);
-  const rooms = normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom);
+  const resolved = resolveZagentRuntimeRoomBindings(repoRoot, manifest);
+  const rooms = resolved.rooms;
   const activeRoom = manifest.activeRoom ?? rooms.find((room) => room.active)?.id ?? manifest.defaultRoom;
   const errors = [...loaded.errors, ...prompt.errors];
   const nextZagent: ActiveZagentState = {
     id: manifest.id,
-    team: manifest.team,
+    team: manifest.team ?? resolved.teamIds[0],
+    teams: resolved.teamIds,
     role: manifest.role,
     alias: manifest.alias,
     description: manifest.description,
@@ -136,7 +138,7 @@ function formatZagentPromptHint(state: HarnessRuntimeState): string {
   const policy = zagent.communicationPolicy ? JSON.stringify(zagent.communicationPolicy) : "not specified";
   const errors = zagent.errors.length > 0 ? `\n- load warnings: ${zagent.errors.slice(0, 5).join(" | ")}` : "";
   const promptBody = zagent.prompt?.trim() ? `\n\nZAGENT PROMPT BODY\n${zagent.prompt.trim()}` : "";
-  return `\n\nZAGENT RUNTIME ACTIVATION\n- id: ${zagent.id}\n- team: ${zagent.team ?? "default"}\n- role: ${zagent.role ?? "not specified"}\n- alias: ${zagent.alias ? `@${zagent.alias}` : "not specified"}\n- rooms: ${rooms.join(", ") || "none"}\n- activeRoom: ${zagent.activeRoom ?? "not specified"}\n- communicationPolicy: ${policy}\n- promptRef: ${zagent.promptRef ?? "none"}\n- ZAgents are full Pi sessions tied to ZPeer/live coordination, not delegate subagents.${errors}${promptBody}`;
+  return `\n\nZAGENT RUNTIME ACTIVATION\n- id: ${zagent.id}\n- team: ${zagent.team ?? "default"}\n- teams: ${zagent.teams?.join(", ") || zagent.team || "default"}\n- role: ${zagent.role ?? "not specified"}\n- alias: ${zagent.alias ? `@${zagent.alias}` : "not specified"}\n- rooms: ${rooms.join(", ") || "none"}\n- activeRoom: ${zagent.activeRoom ?? "not specified"}\n- communicationPolicy: ${policy}\n- promptRef: ${zagent.promptRef ?? "none"}\n- ZAgents are full Pi sessions tied to ZPeer/live coordination, not delegate subagents.${errors}${promptBody}`;
 }
 
 function zpeerRuntimeProfileId(ctx: ExtensionContext): string {
@@ -309,13 +311,22 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
   if (!state.zobLive.peerCard) {
     return "\n\nZPEER AWARENESS\n- local peer endpoint: unavailable this turn\n- Use zpeer_ask with mode=\"async\" or /zpeer only when useful or user-requested for peer coordination; avoid spam/loops and do not invent hidden worker-to-worker chat.";
   }
-  const summary = buildZpeerRoomSummary(repoRoot, state.zobLive.peerCard);
-  const memberships = state.zobLive.peerCard.zpeerMemberships?.length ?? summary.membershipCount ?? 1;
-  const selfAlias = summary.selfAlias ?? "?";
-  const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 8).map((alias) => `@${alias}`);
-  const unavailable = summary.stale + summary.offline;
-  const duplicateLine = summary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${summary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
-  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- room: ${summary.roomId}\n- memberships: ${memberships}\n- self: @${selfAlias}\n- online peers: ${peerAliases.join(", ") || "none"}\n- unavailable peers: ${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateLine}\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
+  const summaries = buildZpeerPeerRoomSummaries(repoRoot, state.zobLive.peerCard);
+  const activeSummary = summaries.find((summary) => summary.active) ?? summaries[0];
+  const memberships = (state.zobLive.peerCard.zpeerMemberships?.length ?? summaries.length) || 1;
+  const roomLines = summaries.slice(0, 6).map((summary) => {
+    const selfAlias = summary.selfAlias ?? "?";
+    const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 6).map((alias) => `@${alias}`);
+    const unavailable = summary.stale + summary.offline;
+    const duplicateText = summary.duplicateAliases.length > 0 ? ` duplicates=${summary.duplicateAliases.map((alias) => `@${alias}`).join(",")}` : "";
+    return `  - ${summary.active ? "*" : " "} ${summary.roomId}: self=@${selfAlias}; online=${peerAliases.join(",") || "none"}; unavailable=${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateText}`;
+  });
+  if (summaries.length > 6) roomLines.push(`  - +${summaries.length - 6} more room${summaries.length - 6 === 1 ? "" : "s"}`);
+  const activeSelfAlias = activeSummary?.selfAlias ?? "?";
+  const activePeerAliases = (activeSummary?.aliases ?? []).filter((alias) => alias !== activeSelfAlias).slice(0, 8).map((alias) => `@${alias}`);
+  const activeUnavailable = (activeSummary?.stale ?? 0) + (activeSummary?.offline ?? 0);
+  const activeDuplicateLine = activeSummary && activeSummary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${activeSummary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [

@@ -9,7 +9,7 @@ import { buildComputeWorkflowShape } from "../compute-workflow-shape.js";
 import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
 import { runQueueDaemonTick } from "../queue.js";
 import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
-import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../zagents.js";
+import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, resolveZagentRuntimeRoomBindings, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../zagents.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../utils/hashing.js";
@@ -627,7 +627,7 @@ function normalizeZpeerRole(role: string | undefined): "member" | "bridge" | "ob
 
 async function applyZagentToZpeer(repoRoot: string, peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]>, manifest: ZAgentManifest): Promise<{ ok: true; peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]> } | { ok: false; reason: string; peer: NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]> }> {
   let current = refreshZpeerSelf(repoRoot, peer);
-  const rooms = normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom);
+  const rooms = resolveZagentRuntimeRoomBindings(repoRoot, manifest).rooms;
   if (rooms.length === 0 && manifest.alias) {
     const changed = await changeZpeerAlias(repoRoot, current, manifest.alias);
     if (!changed.ok) return { ok: false, reason: changed.reason, peer: current };
@@ -874,11 +874,13 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
         }
         const loaded = loadZagentManifest(ctx.cwd, id);
         const prompt = readZagentPrompt(ctx.cwd, loaded.manifest.promptRef);
-        const rooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+        const resolved = resolveZagentRuntimeRoomBindings(ctx.cwd, loaded.manifest);
+        const rooms = resolved.rooms;
         const errors = [...loaded.errors, ...prompt.errors];
         state.zagent = {
           id: loaded.manifest.id,
-          team: loaded.manifest.team,
+          team: loaded.manifest.team ?? resolved.teamIds[0],
+          teams: resolved.teamIds,
           role: loaded.manifest.role,
           alias: loaded.manifest.alias,
           description: loaded.manifest.description,

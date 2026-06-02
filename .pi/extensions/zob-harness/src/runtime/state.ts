@@ -91,6 +91,7 @@ export interface DaemonHarnessRuntimeState {
 export interface ZagentRuntimeState {
   id?: string;
   team?: string;
+  teams?: string[];
   role?: string;
   alias?: string;
   description?: string;

@@ -476,6 +476,64 @@ export function listZteamManifests(repoRoot: string): ZTeamLoaded[] {
   return listJsonFiles(projectZteamsDir(repoRoot)).map((path) => loadZteamManifest(repoRoot, basename(path, ".json")));
 }
 
+export interface ZAgentResolvedTeamMembership {
+  teamId: string;
+  alias?: string;
+  role?: string;
+  rooms: ZAgentRoomBinding[];
+}
+
+function zteamMemberMatchesZagent(member: ZTeamMemberManifest | ZTeamAgentManifest, zagentId: string): boolean {
+  return zteamMemberAgentId(member) === zagentId;
+}
+
+export function resolveZagentTeamMemberships(repoRoot: string, zagentId: string): ZAgentResolvedTeamMembership[] {
+  const memberships: ZAgentResolvedTeamMembership[] = [];
+  for (const loaded of listZteamManifests(repoRoot)) {
+    if (loaded.errors.length > 0) continue;
+    const teamRooms = normalizeZagentRoomBindings(loaded.manifest.rooms, loaded.manifest.defaultRoom, loaded.manifest.activeRoom);
+    const members = [...(loaded.manifest.members ?? []), ...(loaded.manifest.agents ?? [])];
+    for (const member of members) {
+      if (!zteamMemberMatchesZagent(member, zagentId)) continue;
+      const memberRooms = zteamMemberRooms(member, loaded.manifest.defaultRoom);
+      const rooms = memberRooms.length > 0 ? memberRooms : teamRooms;
+      memberships.push({
+        teamId: loaded.manifest.id,
+        alias: member.alias,
+        role: member.role,
+        rooms,
+      });
+    }
+  }
+  return memberships;
+}
+
+export function resolveZagentRuntimeRoomBindings(repoRoot: string, manifest: ZAgentManifest): { rooms: ZAgentRoomBinding[]; teamIds: string[] } {
+  const byRoom = new Map<string, ZAgentRoomBinding>();
+  const pushRoom = (room: ZAgentRoomBinding, defaults: { alias?: string; role?: string } = {}): void => {
+    const id = safeZpeerRoomId(room.id);
+    if (!id) return;
+    const existing = byRoom.get(id);
+    byRoom.set(id, {
+      ...existing,
+      ...room,
+      id,
+      alias: existing?.alias ?? room.alias ?? defaults.alias,
+      role: existing?.role ?? room.role ?? defaults.role,
+      active: existing?.active === true || room.active === true,
+    });
+  };
+
+  for (const room of normalizeZagentRoomBindings(manifest.rooms, manifest.defaultRoom, manifest.activeRoom)) pushRoom(room, { alias: manifest.alias });
+  const teamIds = new Set<string>(manifest.team ? [manifest.team] : []);
+  for (const membership of resolveZagentTeamMemberships(repoRoot, manifest.id)) {
+    teamIds.add(membership.teamId);
+    for (const room of membership.rooms) pushRoom(room, { alias: membership.alias ?? manifest.alias, role: membership.role });
+  }
+  const rooms = [...byRoom.values()];
+  return { rooms, teamIds: [...teamIds] };
+}
+
 function policyAllowsZpeerContact(policy: ZAgentCommunicationPolicy | undefined, roomId?: string, alias?: string): boolean {
   if (!policy) return true;
   if (policy.zpeerContact === false || policy.allowZpeerContact === false) return false;

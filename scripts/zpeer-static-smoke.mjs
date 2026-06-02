@@ -139,7 +139,7 @@ for (const needle of ['readZpeerNewCarryoverProfile(repoRoot)', 'const carryover
 }
 if (!events.includes('event.source === "extension" && !event.text.trim()') || !events.includes('action: "handled" as const')) failures.push('runtime must handle empty extension follow-ups without continuing the agent');
 if (!events.includes('ZPeer async reply received from @') || !events.includes('{ triggerTurn: true, deliverAs: "followUp" }')) failures.push('runtime must resume an idle agent with a follow-up when an async ZPeer reply arrives');
-for (const needle of ['ZPEER AWARENESS (transient, rebuilt each turn)', 'zpeer_ask with mode=\\"async\\"', 'Passive wait rule', 'stop the turn and remain idle', 'avoid spam', 'Raw ZPeer bodies are transient', 'registerMessageRenderer("zob-zpeer-event"', 'scheduleZpeerHeartbeat', 'clearZpeerHeartbeatTimer', 'refreshZpeerSelf(repoRoot', 'kind: "response_sent"', 'kind: "inbound"']) {
+for (const needle of ['ZPEER AWARENESS (transient, rebuilt each turn)', 'buildZpeerPeerRoomSummaries(repoRoot, state.zobLive.peerCard)', '- rooms:', 'explicit roomId', 'zpeer_ask with mode=\\"async\\"', 'Passive wait rule', 'stop the turn and remain idle', 'avoid spam', 'Raw ZPeer bodies are transient', 'registerMessageRenderer("zob-zpeer-event"', 'scheduleZpeerHeartbeat', 'clearZpeerHeartbeatTimer', 'refreshZpeerSelf(repoRoot', 'kind: "response_sent"', 'kind: "inbound"']) {
   if (!events.includes(needle)) failures.push(`runtime missing zpeer awareness/event support ${needle}`);
 }
 const responseSentBlock = events.match(/setZpeerLastEvent\(state, \{\s*kind: "response_sent"[\s\S]*?customType: "zob-zpeer-event"[\s\S]*?triggerTurn: false[\s\S]*?\}\);/)?.[0] ?? '';
