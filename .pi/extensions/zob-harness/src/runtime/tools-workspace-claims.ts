@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { createWorkspaceClaim, listWorkspaceClaims, releaseWorkspaceClaim, workspaceClaimBodyFreeViolations } from "../workspace-claims.js";
-import { WorkspaceClaimParams, WorkspaceClaimsListParams, WorkspaceReleaseParams } from "../schemas.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { createWorkspaceClaim, listWorkspaceClaims, releaseWorkspaceClaim, workspaceClaimBodyFreeViolations } from "../domains/governance/workspace-claims.js";
+import { WorkspaceClaimParams, WorkspaceClaimsListParams, WorkspaceReleaseParams } from "./schemas.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 
 export function registerWorkspaceClaimTools(pi: ExtensionAPI): void {
   pi.registerTool({

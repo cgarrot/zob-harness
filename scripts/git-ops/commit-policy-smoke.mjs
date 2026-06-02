@@ -31,14 +31,14 @@ const policy = JSON.parse(readText(".pi/git-policy.json"));
 const capabilities = JSON.parse(readText(".pi/capabilities/zob-public-runtime-capabilities.json"));
 const damageRules = JSON.parse(readText(".pi/damage-control-rules.json"));
 const skill = readText(".pi/skills/zob-commit/SKILL.md");
-const gitOps = readText(".pi/extensions/zob-harness/src/git-ops.ts");
+const gitOps = readText(".pi/extensions/zob-harness/src/domains/git/git-ops.ts");
 const commands = readText(".pi/extensions/zob-harness/src/runtime/commands.ts");
 const events = readText(".pi/extensions/zob-harness/src/runtime/events.ts");
 const toolsZcommit = readText(".pi/extensions/zob-harness/src/runtime/tools-zcommit.ts");
 const runtime = readText(".pi/extensions/zob-harness/src/runtime/zobHarness.ts");
 const state = readText(".pi/extensions/zob-harness/src/runtime/state.ts");
-const goalTodos = readText(".pi/extensions/zob-harness/src/goal-todos.ts");
-const goalRuntime = readText(".pi/extensions/zob-harness/src/goal-runtime.ts");
+const goalTodos = readText(".pi/extensions/zob-harness/src/domains/goal/goal-todos.ts");
+const goalRuntime = readText(".pi/extensions/zob-harness/src/runtime/goal-runtime.ts");
 const toolsDelegation = readText(".pi/extensions/zob-harness/src/runtime/tools-delegation.ts");
 
 const allowedZcommitCommands = [
@@ -173,7 +173,8 @@ assertIncludes(gitOps, "zcommitFileContentHash", "git-ops.ts child dirty delta c
 assertIncludes(gitOps, "hardForbiddenZcommitPatterns", "git-ops.ts policy/hard forbidden path filter");
 assertIncludes(gitOps, "...Object.keys(runtime.ownedPathRefs ?? {})", "git-ops.ts retains explicit owned path refs for legacy/adopt metadata");
 assertNotIncludes(gitOps, "dirtyFiles.map", "git-ops.ts must not blindly map all dirty files into ownership refs");
-assertIncludes(gitOps, '["diff", "--cached", "--name-only", "-z"]', "git-ops.ts cached index inspection");
+assertIncludes(gitOps, '["diff", "--cached", "--no-renames", "--name-only", "-z"]', "git-ops.ts cached index inspection must be stable for delete+add rehomes");
+assertIncludes(gitOps, '["diff", "--cached", "--no-renames", "--binary", "--", ...paths]', "git-ops.ts cached patch capture must avoid rename-collapsed rehomes");
 assertIncludes(gitOps, '["diff", "--cached", "--check"]', "git-ops.ts cached diff verification");
 assertIncludes(gitOps, "sameStringSet(stagedAfterAdd, eligiblePaths)", "git-ops.ts staged path allowlist verification");
 assertIncludes(gitOps, "commitMessageArgs", "git-ops.ts Conventional Commit path");

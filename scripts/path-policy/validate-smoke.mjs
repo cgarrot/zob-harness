@@ -39,9 +39,9 @@ for (const file of listTsFiles(srcRoot)) {
   writeFileSync(out, outputText);
 }
 
-const safety = await import(pathToFileURL(join(outRoot, "safety.js")).href);
-const paths = await import(pathToFileURL(join(outRoot, "utils", "paths.js")).href);
-const adaptive = await import(pathToFileURL(join(outRoot, "orchestration", "adaptive-delegation.js")).href);
+const safety = await import(pathToFileURL(join(outRoot, "domains", "governance", "safety.js")).href);
+const paths = await import(pathToFileURL(join(outRoot, "core", "utils", "paths.js")).href);
+const adaptive = await import(pathToFileURL(join(outRoot, "domains", "orchestration", "adaptive-delegation.js")).href);
 
 const invalidAllowedPaths = ["docs/../", "docs/../src", "./docs/../", "a/../../b"];
 for (const candidate of invalidAllowedPaths) {

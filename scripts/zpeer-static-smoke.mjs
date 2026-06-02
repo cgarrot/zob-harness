@@ -2,19 +2,19 @@
 import { readFileSync } from 'node:fs';
 
 const files = [
-  '.pi/extensions/zob-harness/src/coms-v2/zpeer.ts',
-  '.pi/extensions/zob-harness/src/coms-v2/registry.ts',
-  '.pi/extensions/zob-harness/src/coms-v2/zpeer-profile.ts',
-  '.pi/extensions/zob-harness/src/coms-v2/transcript-capture.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/coms-v2/registry.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer-profile.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/coms-v2/transcript-capture.ts',
   '.pi/extensions/zob-harness/src/runtime/commands.ts',
   '.pi/extensions/zob-harness/src/runtime/tools-coms.ts',
   '.pi/extensions/zob-harness/src/runtime/events.ts',
   '.pi/extensions/zob-harness/src/runtime/state.ts',
-  '.pi/extensions/zob-harness/src/goal-runtime.ts',
+  '.pi/extensions/zob-harness/src/runtime/goal-runtime.ts',
   '.pi/extensions/zob-harness/src/runtime/widget.ts',
-  '.pi/extensions/zob-harness/src/mission-control.ts',
-  '.pi/extensions/zob-harness/src/schemas.ts',
-  '.pi/extensions/zob-harness/src/constants.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/mission-control.ts',
+  '.pi/extensions/zob-harness/src/runtime/schemas.ts',
+  '.pi/extensions/zob-harness/src/core/constants.ts',
   '.pi/capabilities/zob-public-runtime-capabilities.json',
 ];
 const contents = Object.fromEntries(files.map((file) => [file, readFileSync(file, 'utf8')]));
@@ -30,13 +30,13 @@ for (const needle of ['parameters: ZpeerAskParams', 'sendZpeerPrompt(ctx.cwd', '
 }
 if (toolsComs.includes('emitZpeerAskEvent({ kind: "attempt", status: "agent-request"')) failures.push('zpeer_ask async must not emit pre-ACK attempt feed noise');
 if (!toolsComs.includes('peerAliasInRoom(self, requestedRoomId)') || !toolsComs.includes('peerAliasInRoom(self, eventRoomId)')) failures.push('zpeer_ask feed events must use room-scoped sender alias for explicit roomId');
-const schemas = contents['.pi/extensions/zob-harness/src/schemas.ts'];
+const schemas = contents['.pi/extensions/zob-harness/src/runtime/schemas.ts'];
 for (const needle of ['const ZpeerAskParams', 'targetAlias', 'message', 'roomId', 'Default async', '["async", "await", "long"]', 'timeoutMs', 'ZpeerAskParams']) {
   if (!schemas.includes(needle)) failures.push(`zpeer_ask schema missing ${needle}`);
 }
 const registry = contents['.pi/capabilities/zob-public-runtime-capabilities.json'];
 if (!registry.includes('"name": "zpeer_ask"') || !registry.includes('rate/loop guarded')) failures.push('capability registry missing zpeer_ask visibility/safety notes');
-const constants = contents['.pi/extensions/zob-harness/src/constants.ts'];
+const constants = contents['.pi/extensions/zob-harness/src/core/constants.ts'];
 const zpeerComsAllowlistBlock = constants.match(/export const ZOB_COMS_TOOLS = \[[^\n]*\] as const;/)?.[0] ?? '';
 if (!zpeerComsAllowlistBlock.includes('"zpeer_ask"')) failures.push('ZOB_COMS_TOOLS missing zpeer_ask active allowlist entry');
 const modeBlocks = Object.fromEntries([...constants.matchAll(/\n  (explore|plan|implement|oracle|orchestrator|factory): \[[^\n]*\],/g)].map((match) => [match[1], match[0]]));
@@ -51,9 +51,9 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'o
   if (appendBlocks.some((block) => block.includes(forbidden))) failures.push(`zpeer_ask appendEntry contains forbidden raw key/value ${forbidden}`);
 }
 
-const zpeer = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer.ts'];
-const liveRegistry = contents['.pi/extensions/zob-harness/src/coms-v2/registry.ts'];
-const zpeerProfile = contents['.pi/extensions/zob-harness/src/coms-v2/zpeer-profile.ts'];
+const zpeer = contents['.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer.ts'];
+const liveRegistry = contents['.pi/extensions/zob-harness/src/domains/coms/coms-v2/registry.ts'];
+const zpeerProfile = contents['.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer-profile.ts'];
 for (const needle of ['networkEnabled: false', 'localOnly: true', 'bodyStored: false', 'sendZobLocalEnvelope', 'taskHash', 'outputHash', 'ZpeerSendMode', 'status: "waiting"', 'status: "reply"', 'zpeerMembershipsForPeer', 'joinZpeerRoom', 'leaveZpeerRoom', 'useZpeerRoom', 'clearZpeerRoom', 'preservedSelf: true', 'roomId?: string', 'buildZpeerPeerRoomSummaries', 'active: membership.roomId === activeRoomId', 'peerRespondsToAliasPing', 'activeAliasCollision', 'zpeer-alias-ping']) {
   if (!zpeer.includes(needle)) failures.push(`zpeer missing ${needle}`);
 }
@@ -150,7 +150,7 @@ for (const needle of ['roomId:', 'fromAlias:', 'toAlias:', 'status: "response_se
 for (const forbidden of ['transientPrompt:', 'transientResponse:', 'prompt:', 'response:', 'body:', 'content: responseText', 'message:', 'text:', 'rationale:', 'diff:', 'patch:']) {
   if (responseSentBlock.includes(forbidden)) failures.push(`response_sent feed card contains forbidden raw/body-like field ${forbidden}`);
 }
-const transcriptCapture = contents['.pi/extensions/zob-harness/src/coms-v2/transcript-capture.ts'];
+const transcriptCapture = contents['.pi/extensions/zob-harness/src/domains/coms/coms-v2/transcript-capture.ts'];
 const artifactBlock = transcriptCapture.match(/const artifact = \{[\s\S]*?\n  \};/)?.[0] ?? '';
 if (!artifactBlock) failures.push('redacted capture artifact shape not found');
 for (const needle of ['rawBodiesStored: false', 'redactedBodiesStored: true', 'comsLedgerBodyStored: false', 'bodyStored: false', 'taskHash: input.taskHash', 'outputHash: input.outputHash']) {
@@ -175,7 +175,7 @@ if (!stateTs?.includes('ZobLiveLastEvent')) failures.push('runtime state missing
 for (const needle of ['ZobPassivePeerWaitState', 'passivePeerWait?: ZobPassivePeerWaitState', 'schema: "zob.passive-peer-wait.v1"', 'suppressGoalContinuation: true', 'bodyStored: false', 'localOnly: true', 'networkEnabled: false']) {
   if (!stateTs.includes(needle)) failures.push(`runtime state missing passive peer wait field ${needle}`);
 }
-const goalRuntime = contents['.pi/extensions/zob-harness/src/goal-runtime.ts'];
+const goalRuntime = contents['.pi/extensions/zob-harness/src/runtime/goal-runtime.ts'];
 for (const needle of ['state.zobLive.passivePeerWait?.suppressGoalContinuation === true', 'clearRuntimeGoalContinuationTimer(state)', 'return;']) {
   if (!goalRuntime.includes(needle)) failures.push(`goal runtime missing passive peer continuation suppression ${needle}`);
 }
@@ -189,7 +189,7 @@ for (const forbidden of ['transientPrompt:', 'transientResponse:', 'message:', '
 for (const needle of ['clearPassivePeerWaitForResponse', 'envelope.type !== "response"', 'envelope.msgId === wait.msgId', 'state.zobLive.passivePeerWait = undefined', 'envelope.sender === wait.targetAlias']) {
   if (!events.includes(needle)) failures.push(`runtime events missing passive wait response clear ${needle}`);
 }
-if (!contents['.pi/extensions/zob-harness/src/mission-control.ts'].includes('zpeerRooms')) failures.push('Mission Control missing zpeerRooms summary');
+if (!contents['.pi/extensions/zob-harness/src/domains/coms/mission-control.ts'].includes('zpeerRooms')) failures.push('Mission Control missing zpeerRooms summary');
 
 if (failures.length > 0) {
   console.error(`zpeer static smoke FAIL\n- ${failures.join('\n- ')}`);

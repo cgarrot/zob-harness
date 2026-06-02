@@ -1,23 +1,23 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
 
-import { DEFAULT_RULES, MODE_PROMPTS } from "../constants.js";
+import { DEFAULT_RULES, MODE_PROMPTS } from "../core/constants.js";
 import type { ChildResult, DamageRules, DelegationFailureKind, GoalState, ModeName, QueueTickResult, RuleResolution } from "../types.js";
-import { validateGoalState, validateStrictGoalSpecAnchor, type StrictGoalSpecAnchor } from "../goal.js";
-import { DEFAULT_GOAL_ACTIVATION_MODE, restoreGoalActivationModeFromBranch, restoreRuntimeGoalFromBranch, type GoalActivationMode, type RuntimeGoal } from "../goal-runtime.js";
-import { createGoalTodoState, restoreGoalTodosFromBranch, type GoalTodoState } from "../goal-todos.js";
-import { isRecord } from "../utils/records.js";
-import type { ZobLiveEnvelope } from "../coms-v2/envelope.js";
-import type { ZobLocalTransportServer } from "../coms-v2/local-transport.js";
-import { ZobPendingReplies } from "../coms-v2/pending-replies.js";
-import type { ZobLivePeerCard } from "../coms-v2/types.js";
+import { validateGoalState, validateStrictGoalSpecAnchor, type StrictGoalSpecAnchor } from "../domains/goal/goal.js";
+import { DEFAULT_GOAL_ACTIVATION_MODE, restoreGoalActivationModeFromBranch, restoreRuntimeGoalFromBranch, type GoalActivationMode, type RuntimeGoal } from "./goal-runtime.js";
+import { createGoalTodoState, restoreGoalTodosFromBranch, type GoalTodoState } from "../domains/goal/goal-todos.js";
+import { isRecord } from "../core/utils/records.js";
+import type { ZobLiveEnvelope } from "../domains/coms/coms-v2/envelope.js";
+import type { ZobLocalTransportServer } from "../domains/coms/coms-v2/local-transport.js";
+import { ZobPendingReplies } from "../domains/coms/coms-v2/pending-replies.js";
+import type { ZobLivePeerCard } from "../domains/coms/coms-v2/types.js";
 import { createDelegationMonitorState, trimDelegationRuns, type DelegationMonitorState, type DelegationRunMode, type DelegationRunSource, type DelegationRunStatus, type DelegationRunView } from "./delegation-monitor.js";
-import { DEFAULT_DAEMON_RUNTIME_POLICY, type DaemonLoopSnapshot, type DaemonRuntimePolicy, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
-import { createInteractiveAutonomyRuntimeState, restoreInteractiveAutonomyState, type InteractiveAutonomyRuntimeState } from "../interactive-autonomy.js";
+import { DEFAULT_DAEMON_RUNTIME_POLICY, type DaemonLoopSnapshot, type DaemonRuntimePolicy, type DaemonRuntimeState, type DaemonTickPlan } from "../domains/autonomy/daemon-runtime.js";
+import { createInteractiveAutonomyRuntimeState, restoreInteractiveAutonomyState, type InteractiveAutonomyRuntimeState } from "../domains/autonomy/interactive-autonomy.js";
 import type { ZobModeIntent } from "./mode-intent.js";
-import type { ZAgentRoomBinding } from "../zagents.js";
+import type { ZAgentRoomBinding } from "../domains/coms/zagents.js";
 import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
-import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../git-ops.js";
+import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../domains/git/git-ops.js";
 
 export interface DelegationMouseRuntimeState {
   tui?: TUI;

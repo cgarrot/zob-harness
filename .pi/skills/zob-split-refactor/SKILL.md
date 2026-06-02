@@ -23,7 +23,7 @@ description: Use when splitting a monolithic ZOB/Pi TypeScript extension into mo
 
 ## Slice workflow
 
-1. Read `docs/ZOB_HARNESS_INDEX_REFACTOR_PLAYBOOK.md` once for the phase.
+1. Read `docs/ZOB_HARNESS_ARCHITECTURE.md` once for the phase.
 2. Read the local `AGENTS.md` for the target folder.
 3. Read only the relevant `index.ts` range and already-extracted modules.
 4. Move a bounded block with minimal import/export changes.

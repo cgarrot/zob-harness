@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { createWorkerPoolOwnerDecision, createWorkerPoolOwnerRequest, createWorkerPoolPlan, listWorkerPoolPlans, workerPoolBodyFreeViolations } from "../worker-pool.js";
-import { WorkerPoolOwnerDecisionParams, WorkerPoolOwnerRequestParams, WorkerPoolPlanParams, WorkerPoolStatusParams } from "../schemas.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { createWorkerPoolOwnerDecision, createWorkerPoolOwnerRequest, createWorkerPoolPlan, listWorkerPoolPlans, workerPoolBodyFreeViolations } from "../domains/governance/worker-pool.js";
+import { WorkerPoolOwnerDecisionParams, WorkerPoolOwnerRequestParams, WorkerPoolPlanParams, WorkerPoolStatusParams } from "./schemas.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 
 export function registerWorkerPoolTools(pi: ExtensionAPI): void {
   pi.registerTool({

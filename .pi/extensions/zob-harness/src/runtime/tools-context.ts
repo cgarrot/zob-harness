@@ -4,13 +4,13 @@ import {
   ContextReadinessParams,
   ContextScopeValidateParams,
   ContextWritebackProposalParams,
-} from "../schemas.js";
+} from "./schemas.js";
 import {
   buildContextGbrainReadinessAudit,
   buildDefaultContextScope,
   validateContextScope,
   writeContextWritebackProposal,
-} from "../context-gbrain.js";
+} from "../domains/context/context-gbrain.js";
 
 export function registerContextTools(pi: ExtensionAPI): void {
   pi.registerTool({

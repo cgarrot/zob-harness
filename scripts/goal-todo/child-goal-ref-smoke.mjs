@@ -39,9 +39,9 @@ for (const file of listTsFiles(srcRoot)) {
   writeFileSync(out, outputText);
 }
 
-const goalTodos = await import(pathToFileURL(join(outRoot, "goal-todos.js")).href);
+const goalTodos = await import(pathToFileURL(join(outRoot, "domains", "goal", "goal-todos.js")).href);
 const modeIntent = await import(pathToFileURL(join(outRoot, "runtime", "mode-intent.js")).href);
-const modelAvailability = await import(pathToFileURL(join(outRoot, "model-availability.js")).href);
+const modelAvailability = await import(pathToFileURL(join(outRoot, "domains", "models", "model-availability.js")).href);
 const toolsDelegationSource = readFileSync(join(srcRoot, "runtime", "tools-delegation.ts"), "utf8");
 assert(!toolsDelegationSource.includes("childGoalTodoErrors"), "delegation runtime must not reference stale childGoalTodoErrors symbol");
 assert(toolsDelegationSource.includes("...childGoalResolution.errors"), "delegation preflight must include structured childGoalResolution.errors");

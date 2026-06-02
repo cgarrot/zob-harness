@@ -1,14 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { buildZobLivePresenceSummary } from "../coms-v2/presence.js";
-import { readZobComsV2Policy } from "../coms-v2/policy.js";
-import { OrchestrateRunParams, ChainRunParams } from "../schemas.js";
-import { createSupervisedReadonlyDispatcher } from "../child-runner.js";
-import { runOrchestrateRun } from "../orchestration/run.js";
-import { runSupervisedReadonlyOrchestration } from "../orchestration/supervised-readonly.js";
-import { runChainPlanOnly } from "../topology/chains.js";
-import { sha256 } from "../utils/hashing.js";
-import { isRecord } from "../utils/records.js";
+import { buildZobLivePresenceSummary } from "../domains/coms/coms-v2/presence.js";
+import { readZobComsV2Policy } from "../domains/coms/coms-v2/policy.js";
+import { OrchestrateRunParams, ChainRunParams } from "./schemas.js";
+import { createSupervisedReadonlyDispatcher } from "../domains/delegation/child-runner.js";
+import { runOrchestrateRun } from "../domains/orchestration/run.js";
+import { runSupervisedReadonlyOrchestration } from "../domains/orchestration/supervised-readonly.js";
+import { runChainPlanOnly } from "../domains/topology/chains.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { isRecord } from "../core/utils/records.js";
 import type { HarnessRuntimeState } from "./state.js";
 import { strictGoalSpecErrors } from "./state.js";
 

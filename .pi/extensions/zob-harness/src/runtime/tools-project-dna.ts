@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { buildProjectDnaAgenticPlan, buildProjectDnaFederatedQueryResult, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit, writeProjectDnaWritebackProposal } from "../project-dna.js";
-import { ProjectDnaFederatedQueryParams, ProjectDnaPlanWorkflowParams, ProjectDnaQueryParams, ProjectDnaReadinessParams, ProjectDnaWritebackProposalParams } from "../schemas.js";
+import { buildProjectDnaAgenticPlan, buildProjectDnaFederatedQueryResult, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit, writeProjectDnaWritebackProposal } from "../domains/project-dna/project-dna.js";
+import { ProjectDnaFederatedQueryParams, ProjectDnaPlanWorkflowParams, ProjectDnaQueryParams, ProjectDnaReadinessParams, ProjectDnaWritebackProposalParams } from "./schemas.js";
 
 export function registerProjectDnaTools(pi: ExtensionAPI): void {
   pi.registerTool({

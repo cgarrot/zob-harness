@@ -21,9 +21,9 @@ export type {
   SupervisedReadonlyDispatcher,
 } from "./src/types.js";
 
-export { CHRONICLE_STATES } from "./src/chronicle.js";
+export { CHRONICLE_STATES } from "./src/domains/telemetry/chronicle.js";
 
-export type { ChronicleState } from "./src/chronicle.js";
+export type { ChronicleState } from "./src/domains/telemetry/chronicle.js";
 
 export type {
   ChildStopCondition,
@@ -35,17 +35,17 @@ export type {
   RuleResolverInput,
 } from "./src/types.js";
 
-export { pathMatches } from "./src/utils/paths.js";
+export { pathMatches } from "./src/core/utils/paths.js";
 
-export { parseGoalState, validateGoalState, validateStrictGoalSpecAnchor, parseBillableJobIntake, validateBillableJobIntake } from "./src/goal.js";
-export type { StrictGoalSpecAnchor, StrictGoalSpecAnchorKind } from "./src/goal.js";
-export { DEFAULT_GOAL_ACTIVATION_MODE, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, formatGoalActivationMode, formatRuntimeGoalSummary, queueRuntimeGoalContinuation, restoreRuntimeGoalFromBranch, resumeRuntimeGoal, runtimeGoalStatusLine } from "./src/goal-runtime.js";
-export type { GoalActivationMode, RuntimeGoal, RuntimeGoalStatus, RuntimeGoalOracleStatus, RuntimeGoalOracleVerdict } from "./src/goal-runtime.js";
+export { parseGoalState, validateGoalState, validateStrictGoalSpecAnchor, parseBillableJobIntake, validateBillableJobIntake } from "./src/domains/goal/goal.js";
+export type { StrictGoalSpecAnchor, StrictGoalSpecAnchorKind } from "./src/domains/goal/goal.js";
+export { DEFAULT_GOAL_ACTIVATION_MODE, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, formatGoalActivationMode, formatRuntimeGoalSummary, queueRuntimeGoalContinuation, restoreRuntimeGoalFromBranch, resumeRuntimeGoal, runtimeGoalStatusLine } from "./src/runtime/goal-runtime.js";
+export type { GoalActivationMode, RuntimeGoal, RuntimeGoalStatus, RuntimeGoalOracleStatus, RuntimeGoalOracleVerdict } from "./src/runtime/goal-runtime.js";
 export { extractModeIntent, looksLikeCompletePlanResponse, stripModeIntentMarkup, validateModeIntent } from "./src/runtime/mode-intent.js";
 export type { ZobModeIntent, ZobModeIntentConfidence, ZobModeIntentRisk, ZobModeIntentValidation } from "./src/runtime/mode-intent.js";
 export { capturePlanArtifact, extractPlanTitle, shouldCapturePlanResponse } from "./src/runtime/plan-capture.js";
 export type { PlanCaptureInput, PlanCaptureResult, PlanIndexEntry } from "./src/runtime/plan-capture.js";
-export { ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "./src/constants.js";
+export { ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "./src/core/constants.js";
 export { ZOB_COMPACTION_DETAILS_SCHEMA, ZOB_COMPACTION_ENTRY_TYPE, ZOB_COMPACTION_HARD_CAP_TOKENS, ZOB_COMPACTION_LEDGER_SCHEMA, ZOB_COMPACTION_SUMMARY_SCHEMA, ZOB_COMPACTION_TARGET_TOKENS, buildDeterministicZobCompactionResult, buildDeterministicZobCompactionSummary, buildZobCompactionDetails, buildZobCompactionInstructions, buildZobCompactionLedgerEntry, buildZobCompactionStateCapsule, withZobCompactionDetails, zobCompactionBodyFreeViolations } from "./src/runtime/compaction-policy.js";
 export type { ZobCompactionDetails, ZobCompactionFileRefsInput, ZobCompactionInstructionInput, ZobCompactionLedgerEntry, ZobCompactionStateCapsule } from "./src/runtime/compaction-policy.js";
 export { isAdaptiveZmodeAlias, renderAdaptiveZmodeTemplate, resolveAdaptiveZmodeEntrypoint, validateAdaptiveZmodeEntrypoint } from "./src/runtime/adaptive-zmode.js";
@@ -84,20 +84,20 @@ export {
   splitGoalTodo,
   summarizeGoalTodos,
   validateGoalTodoGraph,
-} from "./src/goal-todos.js";
-export type { GoalRoomTodoReducerAction, GoalRoomTodoReducerDecision, GoalTodoClaimRef, GoalTodoClaimValidationRef, GoalTodoCompletionDiagnostics, GoalTodoNode, GoalTodoOwner, GoalTodoPolicy, GoalTodoPriority, GoalTodoState, GoalTodoStatus, GoalTodoSummary, ResolveGoalTodoAction, TodoClaimValidationResult, TodoSplitRequest, TodoSplitRequestAction, TodoSplitRiskLevel } from "./src/goal-todos.js";
-export { importChainRunTodos, importFactoryRunTodos, importOrchestrationRunTodos } from "./src/goal-todo-imports.js";
-export type { GoalTodoImportResult } from "./src/goal-todo-imports.js";
-export { appendGoalRoomMessage, buildGoalRoomMessage, goalRoomBodyFreeViolations, isGoalRoomMessage, listGoalRoomMessages, validateGoalRoomMessageInput, validateGoalRoomMessageRecord } from "./src/goal-room.js";
-export type { GoalRoomAudience, GoalRoomListInput, GoalRoomMessageInput, GoalRoomMessageKind, GoalRoomPriority } from "./src/goal-room.js";
-export { buildPromptPackReport, defaultFactoryAgentPromptPacks, promptPackBodyFreeViolations, validatePromptPack } from "./src/prompt-packs.js";
-export type { PromptPackContextPolicy, PromptPackDefinition, PromptPackEvalResult, PromptPackEventPolicy, PromptPackReport, PromptPackRole } from "./src/prompt-packs.js";
-export { buildFactorySelectorSmokeReport, detectFactoryDemandSignals, loadFactorySelectorCandidates, selectFactoryForDemands } from "./src/factory-selector.js";
-export type { FactoryDemandInput, FactoryDemandSignal, FactorySelectionStatus, FactorySelectorCandidateInput, FactorySelectorCandidateScore, FactorySelectorDemandSummary, FactorySelectorResult, FactorySelectorSmokeReport } from "./src/factory-selector.js";
-export { buildControlledWorkerPoolPlan, buildLaunchAuthorizedApplySmokeReport, evaluateLaunchAuthorizedApplyGate } from "./src/launch-apply.js";
-export type { ApplyGateStatus, ControlledWorkerPoolLane, ControlledWorkerPoolPlan, LaunchAuthorizedApplyGate, LaunchAuthorizedApplyInput, LaunchAuthorizedApplySmokeReport, WorkerPoolLaneKind } from "./src/launch-apply.js";
-export { writeFullAutonomyTestRun } from "./src/full-autonomy-test.js";
-export type { FullAutonomyTestInput, FullAutonomyTestRun } from "./src/full-autonomy-test.js";
+} from "./src/domains/goal/goal-todos.js";
+export type { GoalRoomTodoReducerAction, GoalRoomTodoReducerDecision, GoalTodoClaimRef, GoalTodoClaimValidationRef, GoalTodoCompletionDiagnostics, GoalTodoNode, GoalTodoOwner, GoalTodoPolicy, GoalTodoPriority, GoalTodoState, GoalTodoStatus, GoalTodoSummary, ResolveGoalTodoAction, TodoClaimValidationResult, TodoSplitRequest, TodoSplitRequestAction, TodoSplitRiskLevel } from "./src/domains/goal/goal-todos.js";
+export { importChainRunTodos, importFactoryRunTodos, importOrchestrationRunTodos } from "./src/domains/goal/goal-todo-imports.js";
+export type { GoalTodoImportResult } from "./src/domains/goal/goal-todo-imports.js";
+export { appendGoalRoomMessage, buildGoalRoomMessage, goalRoomBodyFreeViolations, isGoalRoomMessage, listGoalRoomMessages, validateGoalRoomMessageInput, validateGoalRoomMessageRecord } from "./src/domains/goal/goal-room.js";
+export type { GoalRoomAudience, GoalRoomListInput, GoalRoomMessageInput, GoalRoomMessageKind, GoalRoomPriority } from "./src/domains/goal/goal-room.js";
+export { buildPromptPackReport, defaultFactoryAgentPromptPacks, promptPackBodyFreeViolations, validatePromptPack } from "./src/domains/delegation/prompt-packs.js";
+export type { PromptPackContextPolicy, PromptPackDefinition, PromptPackEvalResult, PromptPackEventPolicy, PromptPackReport, PromptPackRole } from "./src/domains/delegation/prompt-packs.js";
+export { buildFactorySelectorSmokeReport, detectFactoryDemandSignals, loadFactorySelectorCandidates, selectFactoryForDemands } from "./src/domains/factory/factory-selector.js";
+export type { FactoryDemandInput, FactoryDemandSignal, FactorySelectionStatus, FactorySelectorCandidateInput, FactorySelectorCandidateScore, FactorySelectorDemandSummary, FactorySelectorResult, FactorySelectorSmokeReport } from "./src/domains/factory/factory-selector.js";
+export { buildControlledWorkerPoolPlan, buildLaunchAuthorizedApplySmokeReport, evaluateLaunchAuthorizedApplyGate } from "./src/domains/governance/launch-apply.js";
+export type { ApplyGateStatus, ControlledWorkerPoolLane, ControlledWorkerPoolPlan, LaunchAuthorizedApplyGate, LaunchAuthorizedApplyInput, LaunchAuthorizedApplySmokeReport, WorkerPoolLaneKind } from "./src/domains/governance/launch-apply.js";
+export { writeFullAutonomyTestRun } from "./src/domains/autonomy/full-autonomy-test.js";
+export type { FullAutonomyTestInput, FullAutonomyTestRun } from "./src/domains/autonomy/full-autonomy-test.js";
 export {
   DEFAULT_INTERACTIVE_AUTONOMY_POLICY,
   INTERACTIVE_AUTONOMY_MODES,
@@ -113,23 +113,23 @@ export {
   scoreMissionReadiness,
   toAutonomyStateLedgerEntry,
   toMissionReadinessLedgerEntry,
-} from "./src/interactive-autonomy.js";
-export type { InteractiveAutonomyLaunchPolicy, InteractiveAutonomyMode, InteractiveAutonomyPolicy, InteractiveAutonomyRuntimeState, InteractiveAutonomySafetyPolicy, InteractiveAutonomyThresholds, InteractiveLaunchAuthorization, MissionReadinessDecision, MissionReadinessReport, MissionReadinessSignals, MissionReadinessVerdict, MissionRiskLevel } from "./src/interactive-autonomy.js";
-export { appendGovernedRequestsToGoalRoom, extractGovernedRequestsFromText, governedRequestBodyFreeViolations, isGovernedRequest, validateGovernedRequest } from "./src/governed-requests.js";
-export type { GovernedRequestExtractionResult, GovernedRequestKind, GovernedRequestPriority, GovernedRequestRecord, GovernedRequestRisk } from "./src/governed-requests.js";
-export { createWorkspaceClaim, isWorkspaceClaimRecord, isWorkspaceReleaseRecord, listWorkspaceClaims, releaseWorkspaceClaim, workspaceClaimBodyFreeViolations } from "./src/workspace-claims.js";
-export type { WorkspaceClaimInput, WorkspaceClaimMode, WorkspaceClaimRecord, WorkspaceClaimsListInput, WorkspaceClaimStatus, WorkspaceConflictWarning, WorkspaceReleaseInput, WorkspaceReleaseRecord } from "./src/workspace-claims.js";
-export { createWorkerPoolOwnerDecision, createWorkerPoolOwnerRequest, createWorkerPoolPlan, isWorkerPoolPlanRecord, listWorkerPoolPlans, workerPoolBodyFreeViolations } from "./src/worker-pool.js";
-export type { WorkerPoolAssignmentInput, WorkerPoolAssignmentRecord, WorkerPoolCommunicationPolicyInput, WorkerPoolCommunicationPolicyMode, WorkerPoolCommunicationPolicyRecord, WorkerPoolConflictRecord, WorkerPoolDecision, WorkerPoolOwnerDecisionInput, WorkerPoolOwnerDecisionRecord, WorkerPoolOwnerRequestInput, WorkerPoolOwnerRequestRecord, WorkerPoolPlanInput, WorkerPoolPlanRecord, WorkerPoolStatusInput } from "./src/worker-pool.js";
-export { decideMergeCandidate, isMergeCandidateRecord, isMergeDecisionRecord, listMergeQueue, mergeQueueBodyFreeViolations, submitMergeCandidate } from "./src/merge-queue.js";
-export type { MergeCandidateInput, MergeCandidatePriority, MergeCandidateRecord, MergeCandidateRisk, MergeDecision, MergeDecisionInput, MergeDecisionRecord, MergeQueueListInput } from "./src/merge-queue.js";
-export { DEFAULT_PROMOTION_GATES, advancePromotionCandidate, appendPromotionLedger, createPromotionCandidate, promotionCandidateDir, promotionCandidateRef, promotionReportsDir, summarizePromotionCandidates, transitionAllowed, validatePromotionCandidate, writePromotionCandidate } from "./src/promotion/candidate.js";
-export { addPromotionComsMessageRef, buildPromotionComsMessageRef, buildPromotionComsThread, validatePromotionComsMessageRef, validatePromotionComsReadiness, validatePromotionComsThread, writePromotionComsThread } from "./src/promotion/coms.js";
-export { applyDocumentationPromotionInQuarantine, prepareDocumentationPromotion, validateDocumentationPromotion, validateDocumentationPromotionCandidate } from "./src/promotion/documentation.js";
-export { activateFactoryPromotionInQuarantine, prepareFactoryPromotion, validateFactoryPromotionCandidate, validateFactoryPromotionManifest } from "./src/promotion/factory.js";
-export { applyTempAgentPromotionInQuarantine, prepareTempAgentPromotion, validateTempAgentCardForPromotion, validateTempAgentPromotionArtifact, validateTempAgentPromotionCandidate } from "./src/promotion/temp-agent.js";
-export { markWriteLaneAppliedInQuarantine, prepareWriteLanePromotion, validateWriteLaneDiffMetadata, validateWriteLanePromotionCandidate } from "./src/promotion/write-lane.js";
-export type { PromotionApplyScope, PromotionCandidateInput, PromotionCandidateRecord, PromotionComsMessageRef, PromotionComsThreadInput, PromotionComsThreadRecord, PromotionGates, PromotionKind, PromotionStatus, PromotionTransitionInput, PromotionValidationResult } from "./src/promotion/types.js";
+} from "./src/domains/autonomy/interactive-autonomy.js";
+export type { InteractiveAutonomyLaunchPolicy, InteractiveAutonomyMode, InteractiveAutonomyPolicy, InteractiveAutonomyRuntimeState, InteractiveAutonomySafetyPolicy, InteractiveAutonomyThresholds, InteractiveLaunchAuthorization, MissionReadinessDecision, MissionReadinessReport, MissionReadinessSignals, MissionReadinessVerdict, MissionRiskLevel } from "./src/domains/autonomy/interactive-autonomy.js";
+export { appendGovernedRequestsToGoalRoom, extractGovernedRequestsFromText, governedRequestBodyFreeViolations, isGovernedRequest, validateGovernedRequest } from "./src/domains/governance/governed-requests.js";
+export type { GovernedRequestExtractionResult, GovernedRequestKind, GovernedRequestPriority, GovernedRequestRecord, GovernedRequestRisk } from "./src/domains/governance/governed-requests.js";
+export { createWorkspaceClaim, isWorkspaceClaimRecord, isWorkspaceReleaseRecord, listWorkspaceClaims, releaseWorkspaceClaim, workspaceClaimBodyFreeViolations } from "./src/domains/governance/workspace-claims.js";
+export type { WorkspaceClaimInput, WorkspaceClaimMode, WorkspaceClaimRecord, WorkspaceClaimsListInput, WorkspaceClaimStatus, WorkspaceConflictWarning, WorkspaceReleaseInput, WorkspaceReleaseRecord } from "./src/domains/governance/workspace-claims.js";
+export { createWorkerPoolOwnerDecision, createWorkerPoolOwnerRequest, createWorkerPoolPlan, isWorkerPoolPlanRecord, listWorkerPoolPlans, workerPoolBodyFreeViolations } from "./src/domains/governance/worker-pool.js";
+export type { WorkerPoolAssignmentInput, WorkerPoolAssignmentRecord, WorkerPoolCommunicationPolicyInput, WorkerPoolCommunicationPolicyMode, WorkerPoolCommunicationPolicyRecord, WorkerPoolConflictRecord, WorkerPoolDecision, WorkerPoolOwnerDecisionInput, WorkerPoolOwnerDecisionRecord, WorkerPoolOwnerRequestInput, WorkerPoolOwnerRequestRecord, WorkerPoolPlanInput, WorkerPoolPlanRecord, WorkerPoolStatusInput } from "./src/domains/governance/worker-pool.js";
+export { decideMergeCandidate, isMergeCandidateRecord, isMergeDecisionRecord, listMergeQueue, mergeQueueBodyFreeViolations, submitMergeCandidate } from "./src/domains/governance/merge-queue.js";
+export type { MergeCandidateInput, MergeCandidatePriority, MergeCandidateRecord, MergeCandidateRisk, MergeDecision, MergeDecisionInput, MergeDecisionRecord, MergeQueueListInput } from "./src/domains/governance/merge-queue.js";
+export { DEFAULT_PROMOTION_GATES, advancePromotionCandidate, appendPromotionLedger, createPromotionCandidate, promotionCandidateDir, promotionCandidateRef, promotionReportsDir, summarizePromotionCandidates, transitionAllowed, validatePromotionCandidate, writePromotionCandidate } from "./src/domains/promotion/candidate.js";
+export { addPromotionComsMessageRef, buildPromotionComsMessageRef, buildPromotionComsThread, validatePromotionComsMessageRef, validatePromotionComsReadiness, validatePromotionComsThread, writePromotionComsThread } from "./src/domains/promotion/coms.js";
+export { applyDocumentationPromotionInQuarantine, prepareDocumentationPromotion, validateDocumentationPromotion, validateDocumentationPromotionCandidate } from "./src/domains/promotion/documentation.js";
+export { activateFactoryPromotionInQuarantine, prepareFactoryPromotion, validateFactoryPromotionCandidate, validateFactoryPromotionManifest } from "./src/domains/promotion/factory.js";
+export { applyTempAgentPromotionInQuarantine, prepareTempAgentPromotion, validateTempAgentCardForPromotion, validateTempAgentPromotionArtifact, validateTempAgentPromotionCandidate } from "./src/domains/promotion/temp-agent.js";
+export { markWriteLaneAppliedInQuarantine, prepareWriteLanePromotion, validateWriteLaneDiffMetadata, validateWriteLanePromotionCandidate } from "./src/domains/promotion/write-lane.js";
+export type { PromotionApplyScope, PromotionCandidateInput, PromotionCandidateRecord, PromotionComsMessageRef, PromotionComsThreadInput, PromotionComsThreadRecord, PromotionGates, PromotionKind, PromotionStatus, PromotionTransitionInput, PromotionValidationResult } from "./src/domains/promotion/types.js";
 
 export {
   listRulePackPaths,
@@ -139,7 +139,7 @@ export {
   inferRuleProfile,
   resolveRuleProfile,
   formatRuleResolution,
-} from "./src/rules.js";
+} from "./src/domains/governance/rules.js";
 
 export {
   validateSixPartContract,
@@ -156,7 +156,7 @@ export {
   createSandboxMetadata,
   createDiffGateResult,
   createRollbackMetadata,
-} from "./src/safety.js";
+} from "./src/domains/governance/safety.js";
 
 export {
   listOutputContracts,
@@ -166,9 +166,9 @@ export {
   validateOutputContract,
   validateChildOutput,
   applyChildGates,
-} from "./src/output-contracts.js";
+} from "./src/domains/delegation/output-contracts.js";
 
-export { buildChildEnv } from "./src/safety.js";
+export { buildChildEnv } from "./src/domains/governance/safety.js";
 
 export {
   validateSandboxWritePlanInputs,
@@ -183,16 +183,16 @@ export {
   runSandboxApplySimulation,
   validateSandboxManualApplyPreflightInputs,
   runSandboxManualApplyPreflight,
-} from "./src/sandbox.js";
+} from "./src/domains/governance/sandbox.js";
 
 export {
   buildAutonomyReadinessAudit,
   writeAutonomyReadinessAuditReport,
   buildFactoryRegistryReadinessAudit,
   writeFactoryRegistryReadinessAuditReport,
-} from "./src/autonomy-readiness.js";
+} from "./src/domains/autonomy/autonomy-readiness.js";
 
-export { validateBudgetPolicyConfig, evaluateStrictBudgetDispatchGate, buildBudgetReadinessAudit, writeBudgetReadinessAuditReport } from "./src/budget-policy.js";
+export { validateBudgetPolicyConfig, evaluateStrictBudgetDispatchGate, buildBudgetReadinessAudit, writeBudgetReadinessAuditReport } from "./src/domains/governance/budget-policy.js";
 
 export {
   evaluateBudgetPreflightDryRun,
@@ -203,19 +203,19 @@ export {
   classifyDelegationChronicleCompletion,
   classifyFactoryChronicleCompletion,
   writeChronicleSnapshot,
-} from "./src/chronicle.js";
+} from "./src/domains/telemetry/chronicle.js";
 
-export { buildCapabilityIndex, buildReuseScoutReport, writeCapabilityIndex, writeReuseScoutReport } from "./src/capabilities.js";
+export { buildCapabilityIndex, buildReuseScoutReport, writeCapabilityIndex, writeReuseScoutReport } from "./src/domains/delegation/capabilities.js";
 
-export { buildAutonomousRuntimeDryRun, buildAutonomousRuntimeDryRunFinalReport, buildAutonomousRuntimeDryRunValidation, validateAutonomousReadOnlySmokeRunArtifacts, validateAutonomousRuntimeDryRunArtifacts, writeAutonomousReadOnlySmokeRunReport, writeAutonomousRuntimeDryRunReport } from "./src/autonomous-runtime.js";
-export type { AutonomousApplyPolicy, AutonomousBudgetProfile, AutonomousReadOnlySmokeRunInput, AutonomousRisk, AutonomousRuntimeDryRunInput } from "./src/autonomous-runtime.js";
+export { buildAutonomousRuntimeDryRun, buildAutonomousRuntimeDryRunFinalReport, buildAutonomousRuntimeDryRunValidation, validateAutonomousReadOnlySmokeRunArtifacts, validateAutonomousRuntimeDryRunArtifacts, writeAutonomousReadOnlySmokeRunReport, writeAutonomousRuntimeDryRunReport } from "./src/domains/autonomy/autonomous-runtime.js";
+export type { AutonomousApplyPolicy, AutonomousBudgetProfile, AutonomousReadOnlySmokeRunInput, AutonomousRisk, AutonomousRuntimeDryRunInput } from "./src/domains/autonomy/autonomous-runtime.js";
 
-export { buildDaemonReadinessDryRun, writeDaemonReadinessDryRunReport } from "./src/daemon-readiness.js";
+export { buildDaemonReadinessDryRun, writeDaemonReadinessDryRunReport } from "./src/domains/autonomy/daemon-readiness.js";
 
-export { validateDaemonPolicyConfig, buildDaemonPolicyReadinessAudit, writeDaemonPolicyReadinessAuditReport } from "./src/daemon-policy.js";
+export { validateDaemonPolicyConfig, buildDaemonPolicyReadinessAudit, writeDaemonPolicyReadinessAuditReport } from "./src/domains/autonomy/daemon-policy.js";
 
-export { DEFAULT_DAEMON_RUNTIME_POLICY, DAEMON_RUNTIME_STATUSES, buildDaemonRuntimeState, buildDaemonTickPlan, evaluateDaemonStopCondition, selectNextActionableTodo } from "./src/daemon-runtime.js";
-export type { DaemonLoopSnapshot, DaemonLoopStatus, DaemonRuntimeActionKind, DaemonRuntimeAutonomySnapshot, DaemonRuntimePolicy, DaemonRuntimeState, DaemonRuntimeStateInput, DaemonRuntimeStatus, DaemonRuntimeTodoCounts, DaemonRuntimeTodoRef, DaemonStopCondition, DaemonTickPlan } from "./src/daemon-runtime.js";
+export { DEFAULT_DAEMON_RUNTIME_POLICY, DAEMON_RUNTIME_STATUSES, buildDaemonRuntimeState, buildDaemonTickPlan, evaluateDaemonStopCondition, selectNextActionableTodo } from "./src/domains/autonomy/daemon-runtime.js";
+export type { DaemonLoopSnapshot, DaemonLoopStatus, DaemonRuntimeActionKind, DaemonRuntimeAutonomySnapshot, DaemonRuntimePolicy, DaemonRuntimeState, DaemonRuntimeStateInput, DaemonRuntimeStatus, DaemonRuntimeTodoCounts, DaemonRuntimeTodoRef, DaemonStopCondition, DaemonTickPlan } from "./src/domains/autonomy/daemon-runtime.js";
 
 export {
   evaluateModelRoutingDryRun,
@@ -224,25 +224,25 @@ export {
   validateModelRoutingConfig,
   buildModelRoutingReadinessAudit,
   writeModelRoutingReadinessAuditReport,
-} from "./src/model-routing.js";
+} from "./src/domains/models/model-routing.js";
 
 export {
   buildComputePreview,
   resolveComputeProfile,
   validateComputeProfileArtifacts,
   writeComputeProfileReports,
-} from "./src/compute-profile.js";
-export type { ComputeCapsInput, ComputeDomain, ComputeEffectiveProfile, ComputePreviewConfidence, ComputePreviewInput, ComputeProfileValidationInput, ComputeRequestedProfile } from "./src/compute-profile.js";
-export { buildComputeWorkflowShape, validateComputeWorkflowShape } from "./src/compute-workflow-shape.js";
-export type { ComputeWorkflowShapeInput } from "./src/compute-workflow-shape.js";
+} from "./src/domains/compute/compute-profile.js";
+export type { ComputeCapsInput, ComputeDomain, ComputeEffectiveProfile, ComputePreviewConfidence, ComputePreviewInput, ComputeProfileValidationInput, ComputeRequestedProfile } from "./src/domains/compute/compute-profile.js";
+export { buildComputeWorkflowShape, validateComputeWorkflowShape } from "./src/domains/compute/compute-workflow-shape.js";
+export type { ComputeWorkflowShapeInput } from "./src/domains/compute/compute-workflow-shape.js";
 
 export {
   buildProjectDnaFederatedQueryResult,
   buildProjectDnaQueryResult,
   buildProjectDnaReadinessAudit,
   writeProjectDnaWritebackProposal,
-} from "./src/project-dna.js";
-export type { ProjectDnaFederatedQueryInput, ProjectDnaQueryInput, ProjectDnaWritebackProposalInput } from "./src/project-dna.js";
+} from "./src/domains/project-dna/project-dna.js";
+export type { ProjectDnaFederatedQueryInput, ProjectDnaQueryInput, ProjectDnaWritebackProposalInput } from "./src/domains/project-dna/project-dna.js";
 
 export {
   buildDelegationTelemetrySummary,
@@ -251,7 +251,7 @@ export {
   writeFactoryTelemetrySummary,
   buildDailyTelemetrySummary,
   writeDailyTelemetrySummary,
-} from "./src/telemetry.js";
+} from "./src/domains/telemetry/telemetry.js";
 
 export {
   READ_ONLY_QUEUE_JOB_TYPES,
@@ -261,9 +261,9 @@ export {
   writeQueueLifecycleEvent,
   runQueueDaemonTick,
   buildQueueDashboardSummary,
-} from "./src/queue.js";
+} from "./src/domains/telemetry/queue.js";
 
-export { loadTeamDefinition, validateTeamDefinition } from "./src/topology/teams.js";
+export { loadTeamDefinition, validateTeamDefinition } from "./src/domains/topology/teams.js";
 
 export {
   listOrchestrationProfiles,
@@ -271,7 +271,7 @@ export {
   validateOrchestrationProfile,
   teamDefinitionFromOrchestrationProfile,
   validateOrchestrateRunInputs,
-} from "./src/topology/orchestration-profiles.js";
+} from "./src/domains/topology/orchestration-profiles.js";
 
 export {
   listChainDefinitions,
@@ -280,7 +280,7 @@ export {
   validateChainRunInputs,
   buildChainPlan,
   runChainPlanOnly,
-} from "./src/topology/chains.js";
+} from "./src/domains/topology/chains.js";
 
 export {
   validateZobComsEdge,
@@ -293,7 +293,7 @@ export {
   transitionZobComsStatus,
   replyZobComsMessage,
   awaitZobComsMessage,
-} from "./src/topology/coms.js";
+} from "./src/domains/topology/coms.js";
 
 export {
   MISSION_CONTROL_COMMANDS,
@@ -303,20 +303,20 @@ export {
   buildZobComsTransportReadiness,
   buildZobCommunicationReadinessAudit,
   buildMissionControlSnapshot,
-} from "./src/mission-control.js";
+} from "./src/domains/coms/mission-control.js";
 
-export { readZobComsV2Policy, zobComsRegistryEnabled } from "./src/coms-v2/policy.js";
-export { buildZobComsProjectId, buildCurrentZobLivePeerCard } from "./src/coms-v2/identity.js";
-export { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard, readZobLiveRegistrySnapshot } from "./src/coms-v2/registry.js";
-export { buildZobLivePresenceSummary, redactZobLivePeerForMissionControl } from "./src/coms-v2/presence.js";
-export { buildZobLiveEnvelope, buildZobLiveAckEnvelope, buildZobLivePongEnvelope, buildZobLiveErrorEnvelope, validateZobLiveEnvelope, parseZobLiveEnvelopeLine } from "./src/coms-v2/envelope.js";
-export { makeZobLocalEndpoint, bindZobLocalEndpoint, sendZobLocalEnvelope, pingZobLocalEndpoint, pruneZobLocalEndpoint } from "./src/coms-v2/local-transport.js";
-export { ZobPendingReplies } from "./src/coms-v2/pending-replies.js";
-export { buildZobLiveResponseCapture, buildZobLiveResponseEnvelope } from "./src/coms-v2/response-capture.js";
-export { appendLiveSendRequestedRef, appendLiveDeliveredStatus, appendLiveRunningStatus, appendLiveCompletedRef, appendLiveErrorStatus, appendPeerStaleStatus } from "./src/coms-v2/ledger-bridge.js";
-export { redactZobComsText, writeZobComsRedactedCapture } from "./src/coms-v2/transcript-capture.js";
-export type { ZobLiveEnvelope, ZobLiveEnvelopeType } from "./src/coms-v2/envelope.js";
-export type { ZobComsTranscriptCapturePolicy, ZobComsTranscriptMode, ZobComsTranscriptRetentionClass, ZobComsTransportMode, ZobComsV2Policy, ZobLivePeerCard, ZobLivePeerStatus, ZobLivePresenceSummary, ZobLiveRegistrySnapshot } from "./src/coms-v2/types.js";
+export { readZobComsV2Policy, zobComsRegistryEnabled } from "./src/domains/coms/coms-v2/policy.js";
+export { buildZobComsProjectId, buildCurrentZobLivePeerCard } from "./src/domains/coms/coms-v2/identity.js";
+export { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard, readZobLiveRegistrySnapshot } from "./src/domains/coms/coms-v2/registry.js";
+export { buildZobLivePresenceSummary, redactZobLivePeerForMissionControl } from "./src/domains/coms/coms-v2/presence.js";
+export { buildZobLiveEnvelope, buildZobLiveAckEnvelope, buildZobLivePongEnvelope, buildZobLiveErrorEnvelope, validateZobLiveEnvelope, parseZobLiveEnvelopeLine } from "./src/domains/coms/coms-v2/envelope.js";
+export { makeZobLocalEndpoint, bindZobLocalEndpoint, sendZobLocalEnvelope, pingZobLocalEndpoint, pruneZobLocalEndpoint } from "./src/domains/coms/coms-v2/local-transport.js";
+export { ZobPendingReplies } from "./src/domains/coms/coms-v2/pending-replies.js";
+export { buildZobLiveResponseCapture, buildZobLiveResponseEnvelope } from "./src/domains/coms/coms-v2/response-capture.js";
+export { appendLiveSendRequestedRef, appendLiveDeliveredStatus, appendLiveRunningStatus, appendLiveCompletedRef, appendLiveErrorStatus, appendPeerStaleStatus } from "./src/domains/coms/coms-v2/ledger-bridge.js";
+export { redactZobComsText, writeZobComsRedactedCapture } from "./src/domains/coms/coms-v2/transcript-capture.js";
+export type { ZobLiveEnvelope, ZobLiveEnvelopeType } from "./src/domains/coms/coms-v2/envelope.js";
+export type { ZobComsTranscriptCapturePolicy, ZobComsTranscriptMode, ZobComsTranscriptRetentionClass, ZobComsTransportMode, ZobComsV2Policy, ZobLivePeerCard, ZobLivePeerStatus, ZobLivePresenceSummary, ZobLiveRegistrySnapshot } from "./src/domains/coms/coms-v2/types.js";
 
 export {
   buildContextBrainSourceRegistry,
@@ -331,9 +331,9 @@ export {
   writeContextWritebackProposal,
   buildContextGbrainReadinessAudit,
   writeContextGbrainReadinessAuditReport,
-} from "./src/context-gbrain.js";
+} from "./src/domains/context/context-gbrain.js";
 
-export { readLatestOrchestrationWidgetSummary, readHarnessReadinessWidgetSummary } from "./src/orchestration/widget-readers.js";
+export { readLatestOrchestrationWidgetSummary, readHarnessReadinessWidgetSummary } from "./src/domains/orchestration/widget-readers.js";
 
 export {
   ADAPTIVE_DELEGATION_DEFAULT_MAX_TOTAL_AGENTS,
@@ -353,18 +353,18 @@ export {
   validateAdaptiveDelegationEvidenceRefs,
   validateAdaptiveDelegationPolicy,
   validateDelegationRequestHardGates,
-} from "./src/orchestration/adaptive-delegation.js";
+} from "./src/domains/orchestration/adaptive-delegation.js";
 
-export { extractLeadPlanWorkerContracts, redactLeadPlanWorkerContractsForPersistence, validateLeadPlanWorkerContracts } from "./src/orchestration/lead-plan.js";
+export { extractLeadPlanWorkerContracts, redactLeadPlanWorkerContractsForPersistence, validateLeadPlanWorkerContracts } from "./src/domains/orchestration/lead-plan.js";
 
-export { writeAdaptiveWorkflowArtifacts, validateAdaptiveWorkflowArtifacts } from "./src/orchestration/adaptive-workflow.js";
-export type { AdaptiveWorkflowArtifactsInput, AdaptiveWorkflowArtifactsResult } from "./src/orchestration/adaptive-workflow.js";
+export { writeAdaptiveWorkflowArtifacts, validateAdaptiveWorkflowArtifacts } from "./src/domains/orchestration/adaptive-workflow.js";
+export type { AdaptiveWorkflowArtifactsInput, AdaptiveWorkflowArtifactsResult } from "./src/domains/orchestration/adaptive-workflow.js";
 
-export { writeOrchestrationRoomArtifacts } from "./src/orchestration/room.js";
+export { writeOrchestrationRoomArtifacts } from "./src/domains/orchestration/room.js";
 
-export { runOrchestrateRun } from "./src/orchestration/run.js";
+export { runOrchestrateRun } from "./src/domains/orchestration/run.js";
 
-export { buildSupervisedReadonlyNoMockFinalGate, buildSupervisedReadonlyRuntimeInvariants, runSupervisedReadonlyOrchestration } from "./src/orchestration/supervised-readonly.js";
+export { buildSupervisedReadonlyNoMockFinalGate, buildSupervisedReadonlyRuntimeInvariants, runSupervisedReadonlyOrchestration } from "./src/domains/orchestration/supervised-readonly.js";
 
 export {
   factoryPhaseSentinelForMode,
@@ -374,17 +374,17 @@ export {
   normalizeFactoryAdaptiveDispatchGate,
   validateFactoryAdaptiveDispatchGate,
   validateFactoryRunInputs,
-} from "./src/factory/validation.js";
+} from "./src/domains/factory/validation.js";
 
-export { buildFactoryAgenticPlan } from "./src/factory/agentic-plan.js";
+export { buildFactoryAgenticPlan } from "./src/domains/factory/agentic-plan.js";
 
-export { buildAgenticFactoryNoMockFinalGate, runFactoryRun } from "./src/factory/run.js";
+export { buildAgenticFactoryNoMockFinalGate, runFactoryRun } from "./src/domains/factory/run.js";
 
 export {
   runFactoryQuarantineReview,
   runFactoryQuarantineActivate,
   runFactoryQuarantineVerifyActivation,
-} from "./src/factory/quarantine.js";
+} from "./src/domains/factory/quarantine.js";
 
 export default function zobHarness(pi: ExtensionAPI): void {
   return zobHarnessRuntime(pi);

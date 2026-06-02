@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { appendGovernedRequestsToGoalRoom, extractGovernedRequestsFromText, governedRequestBodyFreeViolations } from "../governed-requests.js";
-import { GovernedRequestExtractParams } from "../schemas.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { appendGovernedRequestsToGoalRoom, extractGovernedRequestsFromText, governedRequestBodyFreeViolations } from "../domains/governance/governed-requests.js";
+import { GovernedRequestExtractParams } from "./schemas.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 
 export function registerGovernedRequestTools(pi: ExtensionAPI): void {
   pi.registerTool({

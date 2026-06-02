@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { CompactionResult, ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { compact, estimateTokens, findCutPoint } from "@earendil-works/pi-coding-agent";
 
-import { sha256 } from "../utils/hashing.js";
-import { isRecord } from "../utils/records.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { isRecord } from "../core/utils/records.js";
 import { buildZobCompactionInstructions, withZobCompactionDetails, ZOB_COMPACTION_TARGET_TOKENS, type ZobCompactionDetails } from "./compaction-policy.js";
 import type { HarnessRuntimeState } from "./state.js";
 

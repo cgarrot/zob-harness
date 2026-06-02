@@ -12,7 +12,7 @@ import { registerMissionControlTools } from "./tools-mission-control.js";
 import { registerFactoryTools } from "./tools-factory.js";
 import { registerProjectDnaTools } from "./tools-project-dna.js";
 import { registerOrchestrationTools } from "./tools-orchestration.js";
-import { registerGoalRuntimeEvents, registerGoalRuntimeTools } from "../goal-runtime.js";
+import { registerGoalRuntimeEvents, registerGoalRuntimeTools } from "./goal-runtime.js";
 import { registerGoalRoomTools } from "./tools-goal-room.js";
 import { registerGovernedRequestTools } from "./tools-governed-requests.js";
 import { registerWorkspaceClaimTools } from "./tools-workspace-claims.js";

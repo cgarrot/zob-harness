@@ -1,13 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readZobComsV2Policy } from "../coms-v2/policy.js";
-import { readZobLiveRegistrySnapshot } from "../coms-v2/registry.js";
-import { peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../coms-v2/zpeer.js";
-import { buildZobLiveEnvelope } from "../coms-v2/envelope.js";
-import { sendZobLocalEnvelope } from "../coms-v2/local-transport.js";
-import { appendLiveDeliveredStatus, appendLiveErrorStatus, appendLiveSendRequestedRef } from "../coms-v2/ledger-bridge.js";
-import { writeZobComsRedactedCapture } from "../coms-v2/transcript-capture.js";
+import { readZobComsV2Policy } from "../domains/coms/coms-v2/policy.js";
+import { readZobLiveRegistrySnapshot } from "../domains/coms/coms-v2/registry.js";
+import { peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../domains/coms/coms-v2/zpeer.js";
+import { buildZobLiveEnvelope } from "../domains/coms/coms-v2/envelope.js";
+import { sendZobLocalEnvelope } from "../domains/coms/coms-v2/local-transport.js";
+import { appendLiveDeliveredStatus, appendLiveErrorStatus, appendLiveSendRequestedRef } from "../domains/coms/coms-v2/ledger-bridge.js";
+import { writeZobComsRedactedCapture } from "../domains/coms/coms-v2/transcript-capture.js";
 import type { TeamDefinition } from "../types.js";
-import { sha256 } from "../utils/hashing.js";
+import { sha256 } from "../core/utils/hashing.js";
 import {
   ZobComsAckParams,
   ZobComsAwaitParams,
@@ -17,7 +17,7 @@ import {
   ZobComsSendParams,
   ZobComsStatusParams,
   ZpeerAskParams,
-} from "../schemas.js";
+} from "./schemas.js";
 import {
   ackZobComsMessage,
   appendZobComsMessage,
@@ -26,8 +26,8 @@ import {
   listZobComsMessages,
   replyZobComsMessage,
   transitionZobComsStatus,
-} from "../topology/coms.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+} from "../domains/topology/coms.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 import type { HarnessRuntimeState } from "./state.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;

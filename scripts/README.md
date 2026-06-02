@@ -13,7 +13,7 @@ These script families are intended to be part of the normal tracked repo workflo
 - `scripts/model-catalog/` — local model catalog/economy validators.
 - `scripts/package-surface/` — package.json script/file surface validation.
 - `scripts/path-policy/` — path safety smoke checks.
-- `scripts/project-dna/` — ProjectDNA scaffold/scan/query smoke helpers.
+- `scripts/project-dna/` — ProjectDNA scaffold/scan/query smoke helpers; canonical helpers are grouped in subfolders with top-level compatibility CLI shims.
 - `scripts/worker-pool/` — worker-pool metadata/static checks.
 - `scripts/start-pi.sh` — local Pi startup helper.
 

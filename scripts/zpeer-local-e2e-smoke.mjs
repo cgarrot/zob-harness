@@ -96,12 +96,13 @@ async function main() {
   if (existsSync(repoNodeModules)) symlinkSync(repoNodeModules, join(outDir, 'node_modules'), 'dir');
 
   const compiledSrc = join(outDir, '.pi/extensions/zob-harness/src');
-  const zpeer = await import(`${compiledSrc}/coms-v2/zpeer.js`);
-  const zpeerProfile = await import(`${compiledSrc}/coms-v2/zpeer-profile.js`);
+  const compiledComsV2 = `${compiledSrc}/domains/coms/coms-v2`;
+  const zpeer = await import(`${compiledComsV2}/zpeer.js`);
+  const zpeerProfile = await import(`${compiledComsV2}/zpeer-profile.js`);
   const toolsComs = await import(`${compiledSrc}/runtime/tools-coms.js`);
-  const localTransport = await import(`${compiledSrc}/coms-v2/local-transport.js`);
-  const envelope = await import(`${compiledSrc}/coms-v2/envelope.js`);
-  const hashing = await import(`${compiledSrc}/utils/hashing.js`);
+  const localTransport = await import(`${compiledComsV2}/local-transport.js`);
+  const envelope = await import(`${compiledComsV2}/envelope.js`);
+  const hashing = await import(`${compiledSrc}/core/utils/hashing.js`);
 
   process.env.ZOB_ZPEER_PROFILE_ID = 'profile-alpha';
   delete process.env.ZPEER_PROFILE;

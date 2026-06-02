@@ -2,12 +2,12 @@
 import { readFileSync } from "node:fs";
 
 const files = {
-  workerPool: ".pi/extensions/zob-harness/src/worker-pool.ts",
+  workerPool: ".pi/extensions/zob-harness/src/domains/governance/worker-pool.ts",
   runtime: ".pi/extensions/zob-harness/src/runtime/tools-worker-pool.ts",
-  goalRoom: ".pi/extensions/zob-harness/src/goal-room.ts",
-  constants: ".pi/extensions/zob-harness/src/constants.ts",
-  schemas: ".pi/extensions/zob-harness/src/schemas.ts",
-  governedRequests: ".pi/extensions/zob-harness/src/governed-requests.ts",
+  goalRoom: ".pi/extensions/zob-harness/src/domains/goal/goal-room.ts",
+  constants: ".pi/extensions/zob-harness/src/core/constants.ts",
+  schemas: ".pi/extensions/zob-harness/src/runtime/schemas.ts",
+  governedRequests: ".pi/extensions/zob-harness/src/domains/governance/governed-requests.ts",
   governedRuntime: ".pi/extensions/zob-harness/src/runtime/tools-governed-requests.ts",
   registry: ".pi/capabilities/zob-public-runtime-capabilities.json",
 };

@@ -1,13 +1,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-import { MODE_TOOLS } from "../constants.js";
-import { buildDaemonRuntimeState, buildDaemonTickPlan } from "../daemon-runtime.js";
-import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../goal-todos.js";
-import { isRecord } from "../utils/records.js";
+import { MODE_TOOLS } from "../core/constants.js";
+import { buildDaemonRuntimeState, buildDaemonTickPlan } from "../domains/autonomy/daemon-runtime.js";
+import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../domains/goal/goal-todos.js";
+import { isRecord } from "../core/utils/records.js";
 import type { AssistantLikeMessage, ModeName } from "../types.js";
-import { readHarnessReadinessWidgetData } from "../orchestration/widget-readers.js";
-import { buildZpeerPeerRoomSummaries, type ZpeerPeerRoomSummary } from "../coms-v2/zpeer.js";
+import { readHarnessReadinessWidgetData } from "../domains/orchestration/widget-readers.js";
+import { buildZpeerPeerRoomSummaries, type ZpeerPeerRoomSummary } from "../domains/coms/coms-v2/zpeer.js";
 import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import { formatZcompactHudLine } from "./auto-compaction.js";

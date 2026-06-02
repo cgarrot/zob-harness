@@ -2,12 +2,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 const files = [
-  '.pi/extensions/zob-harness/src/zagents.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/zagents.ts',
   '.pi/extensions/zob-harness/src/runtime/commands.ts',
   '.pi/extensions/zob-harness/src/runtime/events.ts',
   '.pi/extensions/zob-harness/src/runtime/state.ts',
   '.pi/extensions/zob-harness/src/runtime/widget.ts',
-  '.pi/extensions/zob-harness/src/coms-v2/zpeer.ts',
+  '.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer.ts',
   '.pi/capabilities/zob-public-runtime-capabilities.json',
   '.pi/skills/zob-zagent-creator/SKILL.md',
 ];
@@ -20,8 +20,8 @@ function requireIncludes(file, needles, label = file) {
   }
 }
 
-const zagents = contents['.pi/extensions/zob-harness/src/zagents.ts'];
-requireIncludes('.pi/extensions/zob-harness/src/zagents.ts', [
+const zagents = contents['.pi/extensions/zob-harness/src/domains/coms/zagents.ts'];
+requireIncludes('.pi/extensions/zob-harness/src/domains/coms/zagents.ts', [
   'const ZAGENTS_DIR = ".pi/zagents"',
   'const ZTEAMS_DIR = ".pi/zteams"',
   'const ZAGENT_PROMPTS_DIR = ".pi/zagents/prompts"',
@@ -104,7 +104,7 @@ requireIncludes('.pi/extensions/zob-harness/src/runtime/state.ts', [
   'zagent: { rooms: [], errors: [] }',
 ], 'state');
 
-requireIncludes('.pi/extensions/zob-harness/src/coms-v2/zpeer.ts', [
+requireIncludes('.pi/extensions/zob-harness/src/domains/coms/coms-v2/zpeer.ts', [
   'import { loadZteamManifest, zteamAllowsZpeerContact } from "../zagents.js"',
   'const zteam = loadZteamManifest(repoRoot, self.team)',
   'zteam fallback blocked',

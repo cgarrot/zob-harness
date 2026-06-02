@@ -4,14 +4,14 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Text } from "@earendil-works/pi-tui";
 
 import type { AgentScope, ChildResult, ChildStopCondition, ChildThinkingLevel, DelegationDetails, DelegationFailureKind } from "../types.js";
-import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "../schemas.js";
-import { discoverAgents, formatAgentList } from "../agents.js";
-import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../goal-todos.js";
-import { isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride } from "../child-runner.js";
-import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../chronicle.js";
-import { validateExplicitModelOverride } from "../model-availability.js";
-import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../output-contracts.js";
-import { captureZcommitChildDirtySnapshot, diffZcommitChildDirtySnapshots, type ZcommitChildChangedPathRef } from "../git-ops.js";
+import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "./schemas.js";
+import { discoverAgents, formatAgentList } from "../domains/delegation/agents.js";
+import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../domains/goal/goal-todos.js";
+import { isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride } from "../domains/delegation/child-runner.js";
+import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../domains/telemetry/chronicle.js";
+import { validateExplicitModelOverride } from "../domains/models/model-availability.js";
+import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../domains/delegation/output-contracts.js";
+import { captureZcommitChildDirtySnapshot, diffZcommitChildDirtySnapshots, type ZcommitChildChangedPathRef } from "../domains/git/git-ops.js";
 import {
   parseToolList,
   resolveChildCwd,
@@ -21,11 +21,11 @@ import {
   validateForbiddenPathPolicy,
   validateSixPartContract,
   validateToolList,
-} from "../safety.js";
-import { usageEmpty, writeDelegationTelemetrySummary } from "../telemetry.js";
-import { capOutput, formatChildResultText } from "../utils/formatting.js";
-import { sha256 } from "../utils/hashing.js";
-import { newRunId } from "../utils/paths.js";
+} from "../domains/governance/safety.js";
+import { usageEmpty, writeDelegationTelemetrySummary } from "../domains/telemetry/telemetry.js";
+import { capOutput, formatChildResultText } from "../core/utils/formatting.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { newRunId } from "../core/utils/paths.js";
 import {
   delegationDurationMs,
   delegationSignalBadge,

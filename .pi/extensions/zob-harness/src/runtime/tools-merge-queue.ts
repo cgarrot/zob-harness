@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { decideMergeCandidate, listMergeQueue, mergeQueueBodyFreeViolations, submitMergeCandidate } from "../merge-queue.js";
-import { MergeCandidateSubmitParams, MergeQueueDecideParams, MergeQueueListParams } from "../schemas.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { decideMergeCandidate, listMergeQueue, mergeQueueBodyFreeViolations, submitMergeCandidate } from "../domains/governance/merge-queue.js";
+import { MergeCandidateSubmitParams, MergeQueueDecideParams, MergeQueueListParams } from "./schemas.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 
 export function registerMergeQueueTools(pi: ExtensionAPI): void {
   pi.registerTool({

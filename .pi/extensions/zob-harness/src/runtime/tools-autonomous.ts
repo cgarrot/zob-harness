@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AutonomousDryRunParams, AutonomousReadOnlySmokeParams, AutonomousValidateRunParams, AutonomousValidateSmokeParams } from "../schemas.js";
-import { validateAutonomousReadOnlySmokeRunArtifacts, validateAutonomousRuntimeDryRunArtifacts, writeAutonomousReadOnlySmokeRunReport, writeAutonomousRuntimeDryRunReport } from "../autonomous-runtime.js";
+import { AutonomousDryRunParams, AutonomousReadOnlySmokeParams, AutonomousValidateRunParams, AutonomousValidateSmokeParams } from "./schemas.js";
+import { validateAutonomousReadOnlySmokeRunArtifacts, validateAutonomousRuntimeDryRunArtifacts, writeAutonomousReadOnlySmokeRunReport, writeAutonomousRuntimeDryRunReport } from "../domains/autonomy/autonomous-runtime.js";
 
 export function registerAutonomousTools(pi: ExtensionAPI): void {
   pi.registerTool({

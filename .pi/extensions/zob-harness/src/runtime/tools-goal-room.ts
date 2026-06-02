@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { appendGoalRoomMessage, listGoalRoomMessages } from "../goal-room.js";
-import { ZobGoalRoomListParams, ZobGoalRoomSendParams } from "../schemas.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+import { appendGoalRoomMessage, listGoalRoomMessages } from "../domains/goal/goal-room.js";
+import { ZobGoalRoomListParams, ZobGoalRoomSendParams } from "./schemas.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 import type { TeamDefinition } from "../types.js";
 
 export function registerGoalRoomTools(pi: ExtensionAPI): void {

@@ -5,7 +5,7 @@ import { Markdown, truncateToWidth, visibleWidth, type MarkdownTheme } from "@ea
 
 import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
 import { sanitizeDelegationText } from "./delegation-markdown.js";
-import { isRecord } from "../utils/records.js";
+import { isRecord } from "../core/utils/records.js";
 
 const FEED_MAX_BYTES = 240_000;
 const FEED_MAX_LINES = 1_200;

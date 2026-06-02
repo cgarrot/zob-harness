@@ -2,7 +2,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } fro
 import { resolve, sep } from "node:path";
 
 import type { ChildResult, DelegationFailureKind } from "../types.js";
-import { isRecord } from "../utils/records.js";
+import { isRecord } from "../core/utils/records.js";
 
 export type DelegationRunSource = "delegate_agent" | "delegate_task";
 export type DelegationRunMode = "single" | "parallel" | "chain";

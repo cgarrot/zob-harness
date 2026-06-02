@@ -3,6 +3,7 @@
 - Ce dossier contient l'extension Pi `zob-harness`, son entrypoint `index.ts` et les modules sidecar du refactor split-only.
 - `index.ts` reste l'entrypoint Pi déclaré dans `package.json` jusqu'à approval explicite d'une bascule finale.
 - Les sous-dossiers `src/**` contiennent uniquement de la logique extraite ou du contexte local; ils ne remplacent pas l'entrypoint sans review.
+- L'architecture cible et les consignes de refactor sont documentées dans `docs/ZOB_HARNESS_ARCHITECTURE.md` et les `AGENTS.md` locaux.
 
 # Invariants
 
@@ -19,6 +20,7 @@
 - `index.ts` peut rester hybride pendant la migration.
 - Aucun fichier `src/**` ne doit importer depuis `index.ts`.
 - Préférer `import type` pour les types.
+- Direction cible des dépendances: `runtime -> domains -> core`; jamais `core -> domains/runtime`.
 
 # Validation locale
 

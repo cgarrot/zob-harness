@@ -35,7 +35,7 @@ See `scripts/README.md` for the script surface map.
 
 These are intentionally local/generated and should not be committed by default:
 
-- `docs/` — legacy/internal docs for now; future curated docs should be recreated intentionally.
+- `docs/` — curated architecture/refactor docs plus local/generated planning docs; classify generated reports separately before commit.
 - `plans/` — captured planning artifacts.
 - `reports/` — generated reports and evidence.
 - `.pi/tmp/`, `.pi/logs/`, `.pi/sessions/`, `.pi/agent-sessions/` — runtime local state.

@@ -1,6 +1,6 @@
 import type { ModeName } from "../types.js";
-import { sha256 } from "../utils/hashing.js";
-import { isRecord } from "../utils/records.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { isRecord } from "../core/utils/records.js";
 
 export type AdaptiveZmodeAlias = "orchestrator";
 

@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { ModeName } from "../types.js";
-import { sha256 } from "../utils/hashing.js";
-import { safeFileStem } from "../utils/paths.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { safeFileStem } from "../core/utils/paths.js";
 import { looksLikeCompletePlanResponse, stripModeIntentMarkup } from "./mode-intent.js";
 
 const PLAN_INDEX_SCHEMA = "zob.plan-index.v1";

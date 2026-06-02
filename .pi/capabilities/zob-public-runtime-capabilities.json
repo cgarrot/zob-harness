@@ -1374,7 +1374,7 @@
       ],
       "docRefs": [
         ".pi/git-policy.json",
-        ".pi/extensions/zob-harness/src/git-ops.ts",
+        ".pi/extensions/zob-harness/src/domains/git/git-ops.ts",
         ".pi/extensions/zob-harness/src/runtime/tools-zcommit.ts"
       ],
       "noShipNotes": "Agent-executable governed zcommit tool for plan|commit|push|commit_and_push. Use when the user explicitly asks the agent to commit/push so the agent does not ask the user to paste /zcommit commands. It reuses the /zcommit engine, supports session_modified/pathspecs/all_safe_dirty scopes, stores body-free ledgers, stages only selected paths via git add --, excludes runtime/secrets/vendor/build paths, and never uses direct git commit/push/tag or git add ./-A/--all."
@@ -1424,7 +1424,7 @@
       "docRefs": [
         "AGENTS.md",
         ".pi/extensions/zob-harness/src/runtime/commands.ts",
-        ".pi/extensions/zob-harness/src/goal-runtime.ts"
+        ".pi/extensions/zob-harness/src/runtime/goal-runtime.ts"
       ],
       "noShipNotes": "Session-local stop command only: aborts foreground work through ctx.abort when busy, aborts active background delegate_task controllers, stops supervised daemon loop, pauses runtime-goal auto-continuation, and appends body-free/hash-only telemetry. It must not shutdown Pi, kill arbitrary processes, or count append-only refs as delivery success."
     },
@@ -1499,7 +1499,7 @@
       ],
       "docRefs": [
         ".pi/git-policy.json",
-        ".pi/extensions/zob-harness/src/git-ops.ts",
+        ".pi/extensions/zob-harness/src/domains/git/git-ops.ts",
         ".pi/extensions/zob-harness/src/runtime/commands.ts"
       ],
       "noShipNotes": "Easy governed explicit-only /zcommit status [paths/globs...]|plan [paths/globs...]|adopt <paths...>|commit [paths/globs...]|push|autocommit on|off|autopush on|off. No aliases. Normal mode selects safe dirty workspace files after forbidden-path filtering, or an explicit safe subset by repo-relative file/directory/glob pathspecs. Adopt remains metadata-only for legacy/strict ownership hints and never stages. Commit uses explicit git add -- selected paths only, never git add . or -A; forbidden staged paths block, forbidden unstaged paths are excluded, advisory validation is recorded in the Conventional Commit body, and push is limited to last /zcommit-created HEAD via allowed remote/branch without force/tags/push-all."
@@ -1711,7 +1711,7 @@
       "docRefs": [
         "AGENTS.md",
         ".pi/autonomy-policy.json",
-        ".pi/extensions/zob-harness/src/daemon-runtime.ts",
+        ".pi/extensions/zob-harness/src/domains/autonomy/daemon-runtime.ts",
         ".pi/extensions/zob-harness/src/runtime/commands.ts"
       ],
       "noShipNotes": "Sets interactive autonomy policy only: open/controlled/adaptive/status/stop plus daemon status|plan-tick|tick|start|stop. Daemon subcommands are scoped to the active goal, session-local, plan-only, bounded when started, no autostart/no cron/no global loop, and no global autonomy or production readiness claim; launch authorization remains in-scope and safety-gated with no secrets, destructive commands, or production apply."

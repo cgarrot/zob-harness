@@ -1,4 +1,4 @@
-import type { ChildChangedPathRef, ModeName } from "./types/core.js";
+import type { ChildChangedPathRef, ModeName } from "./core/types/core.js";
 
 export type {
   AgentScope,
@@ -9,7 +9,7 @@ export type {
   JsonEvent,
   ModeName,
   TextBlock,
-} from "./types/core.js";
+} from "./core/types/core.js";
 
 export interface DamageRule {
   pattern: string;

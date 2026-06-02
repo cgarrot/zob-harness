@@ -1,7 +1,7 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 
-import { formatGoalTodoSummary, summarizeGoalTodos, type GoalTodoNode } from "../goal-todos.js";
+import { formatGoalTodoSummary, summarizeGoalTodos, type GoalTodoNode } from "../domains/goal/goal-todos.js";
 import type { HarnessRuntimeState } from "./state.js";
 
 function padToWidth(text: string, width: number): string {

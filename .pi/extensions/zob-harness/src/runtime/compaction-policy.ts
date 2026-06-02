@@ -1,7 +1,7 @@
 import type { CompactionResult } from "@earendil-works/pi-coding-agent";
 
-import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../goal-todos.js";
-import { sha256 } from "../utils/hashing.js";
+import { goalTodoCompletionDiagnostics, summarizeGoalTodos } from "../domains/goal/goal-todos.js";
+import { sha256 } from "../core/utils/hashing.js";
 import type { HarnessRuntimeState } from "./state.js";
 
 export const ZOB_COMPACTION_ENTRY_TYPE = "zob-compaction";

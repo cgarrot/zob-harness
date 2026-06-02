@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { buildZcommitPlan, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitCommandResult, type ZcommitPlan, type ZcommitPlanOptions } from "../git-ops.js";
-import { ZcommitRunParams } from "../schemas.js";
+import { buildZcommitPlan, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitCommandResult, type ZcommitPlan, type ZcommitPlanOptions } from "../domains/git/git-ops.js";
+import { ZcommitRunParams } from "./schemas.js";
 import type { HarnessRuntimeState } from "./state.js";
-import { sha256 } from "../utils/hashing.js";
+import { sha256 } from "../core/utils/hashing.js";
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort();

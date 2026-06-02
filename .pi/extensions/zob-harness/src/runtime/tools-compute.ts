@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { buildComputePreview, resolveComputeProfile, validateComputeProfileArtifacts, writeComputeProfileReports } from "../compute-profile.js";
-import { buildComputeWorkflowShape } from "../compute-workflow-shape.js";
-import { ComputePlanWorkflowParams, ComputePreviewParams, ComputeResolveProfileParams, ComputeValidateProfileParams, ComputeWriteProfileReportsParams } from "../schemas.js";
+import { buildComputePreview, resolveComputeProfile, validateComputeProfileArtifacts, writeComputeProfileReports } from "../domains/compute/compute-profile.js";
+import { buildComputeWorkflowShape } from "../domains/compute/compute-workflow-shape.js";
+import { ComputePlanWorkflowParams, ComputePreviewParams, ComputeResolveProfileParams, ComputeValidateProfileParams, ComputeWriteProfileReportsParams } from "./schemas.js";
 
 export function registerComputeTools(pi: ExtensionAPI): void {
   pi.registerTool({

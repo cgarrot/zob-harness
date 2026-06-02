@@ -4,14 +4,14 @@ import {
   MissionControlProposeCommandParams,
   MissionControlSnapshotParams,
   ZobComsReadinessParams,
-} from "../schemas.js";
+} from "./schemas.js";
 import type { TeamDefinition } from "../types.js";
 import {
   buildMissionControlSnapshot,
   buildZobCommunicationReadinessAudit,
   writeMissionControlCommandProposal,
-} from "../mission-control.js";
-import { loadTeamDefinition, validateTeamDefinition } from "../topology/teams.js";
+} from "../domains/coms/mission-control.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 
 function loadValidTeam(repoRoot: string, teamName: string | undefined): { definition?: TeamDefinition; errors: string[] } {
   const team = loadTeamDefinition(repoRoot, teamName ?? "zob-core");

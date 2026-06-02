@@ -3,6 +3,7 @@
 - `src/**` reçoit les modules extraits de `.pi/extensions/zob-harness/index.ts`.
 - Chaque module doit correspondre à une tranche claire du playbook de refactor.
 - Ce dossier ne contient pas de nouvelle fonctionnalité produit.
+- Architecture cible: `core/**` pour helpers/types bas niveau, `domains/**` pour logique métier, `runtime/**` pour adapters Pi tools/commands/events/widgets.
 
 # Invariants
 
@@ -17,9 +18,12 @@
 - `import type` pour les types.
 - Interdit: importer depuis `../index.js`, `../../index.js` ou `index.ts`.
 - Les modules bas niveau ne doivent pas dépendre de runtime Pi.
+- Direction cible: `runtime -> domains -> core`; un fichier `domains/**` ne doit dépendre de `runtime/**` que comme compatibilité explicitement temporaire.
 
 # Validation locale
 
+- Lire `docs/ZOB_HARNESS_ARCHITECTURE.md` et les `AGENTS.md` locaux avant toute tranche de déplacement.
 - `npm run check -- --pretty false` après chaque tranche.
 - `npm run smoke:harness` après safety, output-contracts, queue, topology, orchestration, factory, child-runner ou runtime.
+- `npm run pi:check` avant de déclarer un changement runtime complet.
 - Oracle read-only avant de passer à la tranche suivante si une API publique est touchée.

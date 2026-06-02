@@ -1,26 +1,26 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
-import { MODE_PROMPTS } from "../constants.js";
+import { MODE_PROMPTS } from "../core/constants.js";
 import type { ModeName, QueueTickResult } from "../types.js";
-import { discoverAgents, formatAgentList } from "../agents.js";
-import { buildComputePreview, resolveComputeProfile, type ComputeRequestedProfile } from "../compute-profile.js";
-import { buildComputeWorkflowShape } from "../compute-workflow-shape.js";
-import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../daemon-runtime.js";
-import { runQueueDaemonTick } from "../queue.js";
-import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../project-dna.js";
-import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, resolveZagentRuntimeRoomBindings, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../zagents.js";
+import { discoverAgents, formatAgentList } from "../domains/delegation/agents.js";
+import { buildComputePreview, resolveComputeProfile, type ComputeRequestedProfile } from "../domains/compute/compute-profile.js";
+import { buildComputeWorkflowShape } from "../domains/compute/compute-workflow-shape.js";
+import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../domains/autonomy/daemon-runtime.js";
+import { runQueueDaemonTick } from "../domains/telemetry/queue.js";
+import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../domains/project-dna/project-dna.js";
+import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, resolveZagentRuntimeRoomBindings, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../domains/coms/zagents.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { handleZcompactCommand } from "./auto-compaction.js";
-import { sha256 } from "../utils/hashing.js";
-import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../git-ops.js";
-import { clearZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer } from "../coms-v2/zpeer-profile.js";
-import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../coms-v2/zpeer.js";
+import { sha256 } from "../core/utils/hashing.js";
+import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../domains/git/git-ops.js";
+import { clearZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer } from "../domains/coms/coms-v2/zpeer-profile.js";
+import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../domains/coms/coms-v2/zpeer.js";
 import { markZpeerNewHardResetPending } from "./events.js";
-import { parseBillableJobIntake, validateBillableJobIntake } from "../goal.js";
-import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "../goal-runtime.js";
-import { formatRuleResolution, resolveRuleProfile } from "../rules.js";
-import { formatContractTemplate } from "../safety.js";
+import { parseBillableJobIntake, validateBillableJobIntake } from "../domains/goal/goal.js";
+import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "./goal-runtime.js";
+import { formatRuleResolution, resolveRuleProfile } from "../domains/governance/rules.js";
+import { formatContractTemplate } from "../domains/governance/safety.js";
 import { showDelegationOverlay } from "./delegation-overlay.js";
 import { finishDelegationRun } from "./delegation-monitor.js";
 import { showGoalTodoOverlay } from "./goal-todo-overlay.js";
@@ -33,7 +33,7 @@ import {
   scoreMissionReadiness,
   toAutonomyStateLedgerEntry,
   toMissionReadinessLedgerEntry,
-} from "../interactive-autonomy.js";
+} from "../domains/autonomy/interactive-autonomy.js";
 import { applyMode, renderHarnessWidget } from "./widget.js";
 
 const COMPUTE_PROFILES = ["auto", "low", "medium", "high", "xhigh", "max"] as const;
