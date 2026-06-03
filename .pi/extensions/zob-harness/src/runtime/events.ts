@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { compact, generateBranchSummary, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 
-import { MODE_PROMPTS, ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "../core/constants.js";
+import { EXTERNAL_PACKAGE_TOOLS_CONTRACT, MODE_PROMPTS, ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "../core/constants.js";
 import { buildCurrentZobLivePeerCard } from "../domains/coms/coms-v2/identity.js";
 import { buildZobLiveAckEnvelope, buildZobLiveErrorEnvelope, buildZobLivePongEnvelope } from "../domains/coms/coms-v2/envelope.js";
 import { appendLiveCompletedRef } from "../domains/coms/coms-v2/ledger-bridge.js";
@@ -419,7 +419,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
     const server = await bindZobLocalEndpoint(endpoint, async (envelope) => {
       if (envelope.type === "ping") return buildZobLivePongEnvelope(envelope);
       if (envelope.type === "response") {
-        state.zobLive.pendingReplies.complete(envelope.msgId, envelope);
+        const completedActiveWait = state.zobLive.pendingReplies.complete(envelope.msgId, envelope);
         clearPassivePeerWaitForResponse(state, envelope);
         setZpeerLastEvent(state, {
           kind: "reply",
@@ -437,7 +437,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
           display: true,
           details: { kind: "reply", roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: "reply", msgId: envelope.msgId, taskHash: envelope.taskHash, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
         }, { triggerTurn: false });
-        if (envelope.transientResponse) {
+        if (!completedActiveWait && envelope.transientResponse) {
           void pi.sendMessage({
             customType: "zob-zpeer-response",
             content: `ZPeer async reply received from @${envelope.sender ?? "?"} to @${envelope.receiver ?? "?"}. Continue the prior task using this response; do not poll or wait further only for this reply.\n\n${envelope.transientResponse}`,
@@ -960,7 +960,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     if (state.activeMode === "vanilla") {
       return { systemPrompt: `${event.systemPrompt}\n\n${MODE_PROMPTS.vanilla}` };
     }
-    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}`;
+    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${EXTERNAL_PACKAGE_TOOLS_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });
 

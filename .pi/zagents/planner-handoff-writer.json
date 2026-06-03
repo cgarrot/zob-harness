@@ -1,0 +1,20 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "planner-handoff-writer",
+  "team": "agentic-spec-run",
+  "role": "implementation-handoff",
+  "alias": "handoff_writer",
+  "description": "Turns accepted requirements and criteria into implementation workgraph, tasks, validation plan, and agent handoff prompts.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "plan",
+  "defaultRoom": "handoff",
+  "activeRoom": "handoff",
+  "rooms": [{ "id": "spec-control", "alias": "handoff_writer", "role": "member", "active": true }, { "id": "handoff", "alias": "handoff_writer", "role": "planner", "active": true }],
+  "allowedTools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": ["reports/agentic-spec-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control", "handoff"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

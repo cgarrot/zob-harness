@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.agentic-spec.manifest.schema.v1",
+  "type": "object",
+  "required": ["schema", "name", "mission", "sources", "completion_gate"],
+  "properties": {
+    "schema": { "const": "zob.agentic-spec-manifest.v1" },
+    "name": { "type": "string", "minLength": 1 },
+    "mission": { "type": "string", "minLength": 1 },
+    "sources": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string", "minLength": 1 }, "type": { "type": "string" }, "policy": { "enum": ["citation_only", "context_only", "safe_to_copy"] } } } },
+    "human_question_policy": { "type": "object" },
+    "completion_gate": { "type": "object" }
+  }
+}

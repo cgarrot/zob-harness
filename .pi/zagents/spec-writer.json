@@ -1,0 +1,20 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "spec-writer",
+  "team": "agentic-spec-run",
+  "role": "spec-writing",
+  "alias": "spec_writer",
+  "description": "Synthesizes mission spec, feature slices, functional/non-functional requirements, and API/data contracts from traced evidence.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "implement",
+  "defaultRoom": "writing",
+  "activeRoom": "writing",
+  "rooms": [{ "id": "spec-control", "alias": "spec_writer", "role": "member", "active": true }, { "id": "writing", "alias": "spec_writer", "role": "writer", "active": true }],
+  "allowedTools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": ["reports/agentic-spec-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control", "writing"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

@@ -32,6 +32,15 @@ export const ZOB_COMPACTION_CONTINUITY_CONTRACT = [
   "- Preserve blockers/no_ship/next action across compaction; if unclear, inspect live state or block instead of claiming done.",
 ].join("\n");
 
+export const EXTERNAL_PACKAGE_TOOLS_CONTRACT = [
+  "ZOB EXTERNAL PACKAGE TOOLS CONTRACT",
+  "- Non-builtin tools registered by external Pi packages/extensions may be active automatically in governed ZOB modes.",
+  "- Follow each package tool's own promptSnippet/promptGuidelines and never use package tools to bypass ZOB safety gates.",
+  "- Do not send secrets, credentials, private code, proprietary raw data, or sensitive URLs to external/cloud tools.",
+  "- For external facts, cite source URLs or tool evidence and distinguish external facts from repo-local evidence.",
+  "- If a package tool requires private/authenticated data or sensitive payloads, stop and ask for an explicitly gated workflow instead.",
+].join("\n");
+
 export const SUPERVISED_SMOKE_CHILD_TOOLS = ["read", "grep", "find", "ls"] as const;
 export const SUPERVISED_READONLY_CHILD_TOOLS = ["read", "grep", "find", "ls"] as const;
 export const READ_ONLY_CHAIN_TOOLS = ["read", "grep", "find", "ls"] as const;

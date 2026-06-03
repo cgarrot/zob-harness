@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.agentic-spec.final-report.schema.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "status", "no_ship", "verdict"],
+  "properties": {
+    "schema": { "const": "agentic-spec.final-report.v1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["pass", "blocked", "fail", "warn"] },
+    "verdict": { "enum": ["PASS", "WARN", "FAIL"] },
+    "no_ship": { "type": "boolean" },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "blocking_issues": { "type": "array", "items": { "type": "string" } }
+  }
+}

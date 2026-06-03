@@ -427,10 +427,27 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
   });
 }
 
+type PiToolInfo = ReturnType<ExtensionAPI["getAllTools"]>[number];
+
+function isZobInternalTool(tool: PiToolInfo): boolean {
+  const path = tool.sourceInfo.path.replace(/\\/g, "/");
+  return path.includes("/.pi/extensions/zob-harness/") || path.includes("/.pi/extensions/zob-switch/");
+}
+
+function isExternalPackageTool(tool: PiToolInfo): boolean {
+  return tool.sourceInfo.source !== "builtin" && tool.sourceInfo.source !== "sdk" && !isZobInternalTool(tool);
+}
+
+function uniqueToolNames(names: string[]): string[] {
+  return [...new Set(names)];
+}
+
 export function applyMode(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, mode: ModeName, persist = true): void {
   state.activeMode = mode;
-  const available = new Set(pi.getAllTools().map((tool) => tool.name));
-  const activeTools = mode === "vanilla" ? [...available] : MODE_TOOLS[mode].filter((tool) => available.has(tool));
+  const allTools = pi.getAllTools();
+  const available = new Set(allTools.map((tool) => tool.name));
+  const externalPackageTools = allTools.filter(isExternalPackageTool).map((tool) => tool.name);
+  const activeTools = mode === "vanilla" ? [...available] : uniqueToolNames([...MODE_TOOLS[mode].filter((tool) => available.has(tool)), ...externalPackageTools]);
   pi.setActiveTools(activeTools);
   if (persist) pi.appendEntry("zob-mode-state", { mode, timestamp: new Date().toISOString() });
   ctx.ui.setStatus("zob-mode", ctx.ui.theme.fg("accent", `zob:${mode}`));

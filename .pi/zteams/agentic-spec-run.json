@@ -1,0 +1,42 @@
+{
+  "schema": "zob.zteam.v1",
+  "id": "agentic-spec-run",
+  "description": "Temporary run-scoped Agentic Spec Team for turning explicit sources plus mission text into a traceable implementation spec.",
+  "defaultRoom": "spec-control",
+  "activeRoom": "spec-control",
+  "rooms": [
+    { "id": "spec-control", "role": "coordination", "active": true },
+    { "id": "intake", "role": "source-intake", "active": true },
+    { "id": "data", "role": "data-analysis", "active": true },
+    { "id": "domain", "role": "domain-modeling", "active": true },
+    { "id": "ux", "role": "ux-analysis", "active": true },
+    { "id": "writing", "role": "spec-writing", "active": true },
+    { "id": "validation", "role": "acceptance-bdd", "active": true },
+    { "id": "handoff", "role": "implementation-handoff", "active": true },
+    { "id": "oracle", "role": "final-review", "active": true }
+  ],
+  "agents": [
+    { "id": "spec-chief", "alias": "spec_chief", "rooms": [{ "id": "spec-control", "alias": "spec_chief", "role": "lead", "active": true }] },
+    { "id": "source-intake-steward", "alias": "source_intake", "rooms": [{ "id": "spec-control", "alias": "source_intake", "role": "member", "active": true }, { "id": "intake", "alias": "source_intake", "role": "steward", "active": true }] },
+    { "id": "data-profile-analyst", "alias": "data_profile", "rooms": [{ "id": "spec-control", "alias": "data_profile", "role": "member", "active": true }, { "id": "data", "alias": "data_profile", "role": "analyst", "active": true }] },
+    { "id": "domain-modeler", "alias": "domain_modeler", "rooms": [{ "id": "spec-control", "alias": "domain_modeler", "role": "member", "active": true }, { "id": "domain", "alias": "domain_modeler", "role": "modeler", "active": true }] },
+    { "id": "ux-flow-analyst", "alias": "ux_flow", "rooms": [{ "id": "spec-control", "alias": "ux_flow", "role": "member", "active": true }, { "id": "ux", "alias": "ux_flow", "role": "analyst", "active": true }] },
+    { "id": "spec-writer", "alias": "spec_writer", "rooms": [{ "id": "spec-control", "alias": "spec_writer", "role": "member", "active": true }, { "id": "writing", "alias": "spec_writer", "role": "writer", "active": true }] },
+    { "id": "bdd-writer", "alias": "bdd_writer", "rooms": [{ "id": "spec-control", "alias": "bdd_writer", "role": "member", "active": true }, { "id": "validation", "alias": "bdd_writer", "role": "acceptance", "active": true }] },
+    { "id": "planner-handoff-writer", "alias": "handoff_writer", "rooms": [{ "id": "spec-control", "alias": "handoff_writer", "role": "member", "active": true }, { "id": "handoff", "alias": "handoff_writer", "role": "planner", "active": true }] },
+    { "id": "spec-oracle", "alias": "spec_oracle", "rooms": [{ "id": "spec-control", "alias": "spec_oracle", "role": "oracle", "active": true }, { "id": "oracle", "alias": "spec_oracle", "role": "oracle", "active": true }] }
+  ],
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["spec-control", "intake", "data", "domain", "ux", "writing", "validation", "handoff", "oracle"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "metadata": {
+    "entryAgent": "spec-chief",
+    "temporaryRunTeam": true,
+    "humanInterlocutor": "spec-chief",
+    "closePolicy": "close only after final-report/status PASS no_ship=false"
+  }
+}

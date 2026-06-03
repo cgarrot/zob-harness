@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.agentic-spec.source-register.schema.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "sources"],
+  "properties": {
+    "schema": { "const": "agentic-spec.source-register.v1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "sources": { "type": "array", "items": { "type": "object", "required": ["source_id", "path", "exists", "policy"], "properties": { "source_id": { "type": "string" }, "path": { "type": "string" }, "exists": { "type": "boolean" }, "kind": { "type": "string" }, "policy": { "type": "string" }, "sensitivity": { "type": "string" } } } }
+  }
+}

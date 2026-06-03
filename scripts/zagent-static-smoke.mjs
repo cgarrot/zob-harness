@@ -162,6 +162,13 @@ requireIncludes('.pi/skills/zob-zagent-creator/SKILL.md', [
   'never choose `vanilla` by default',
   'Do not add a scaffold slash command',
   'J\'ai besoin d\'une team de trois agents',
+  'metadata.entryAgent',
+  'start [agent]',
+  'attach [agent]',
+  'window <agent>',
+  'list',
+  'resolve_target_agent',
+  'Unknown agent/window',
 ], 'zagent skill');
 
 const scaffoldCommand = ['/zteam', 'scaffold'].join(' ');

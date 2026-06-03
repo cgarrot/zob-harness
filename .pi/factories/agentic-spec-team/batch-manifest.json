@@ -1,0 +1,11 @@
+{
+  "factory": "agentic-spec-team",
+  "mode": "batch",
+  "items": [
+    {
+      "id": "agentic-spec-docs-batch",
+      "path": "docs/",
+      "mission": "Analyze ZOB docs as source material for a detailed agentic spec team operating model."
+    }
+  ]
+}

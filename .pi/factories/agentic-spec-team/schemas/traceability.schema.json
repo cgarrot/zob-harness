@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.agentic-spec.traceability.schema.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "rows"],
+  "properties": {
+    "schema": { "const": "agentic-spec.traceability.v1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "rows": { "type": "array", "items": { "type": "object", "required": ["requirement_id", "support_ref", "acceptance_criteria_refs", "task_refs", "oracle_check_ref"], "properties": { "requirement_id": { "type": "string" }, "support_ref": { "type": "string" }, "acceptance_criteria_refs": { "type": "array", "items": { "type": "string" } }, "task_refs": { "type": "array", "items": { "type": "string" } }, "oracle_check_ref": { "type": "string" } } } }
+  }
+}

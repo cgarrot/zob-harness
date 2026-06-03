@@ -35,9 +35,12 @@ reports/
 
 # Keep internal one-off proof/smoke scripts local. Public script folders are allowlisted below.
 scripts/*.mjs
+!scripts/spec-run.mjs
 !scripts/zpeer-static-smoke.mjs
 !scripts/zpeer-local-e2e-smoke.mjs
 !scripts/zagent-static-smoke.mjs
+!scripts/agentic-spec-team/
+!scripts/agentic-spec-team/**
 !scripts/compute-profile/
 !scripts/compute-profile/**
 !scripts/project-dna/

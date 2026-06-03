@@ -1,0 +1,11 @@
+{
+  "factory": "agentic-spec-team",
+  "mode": "smoke",
+  "items": [
+    {
+      "id": "agentic-spec-skill-smoke",
+      "path": ".pi/skills/zob-agentic-spec-team/SKILL.md",
+      "mission": "Validate that the Agentic Spec Team scaffold describes a safe evidence-first spec workflow."
+    }
+  ]
+}

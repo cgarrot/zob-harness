@@ -1,0 +1,98 @@
+{
+  "name": "agentic-spec-team",
+  "version": "0.1.0",
+  "description": "Evidence-first ZOB workflow for producing detailed implementation specs from missions plus docs/data/mockups through a run-scoped agent team.",
+  "status": "v1-scaffold",
+  "autoPromotion": false,
+  "manualPromotionRequired": true,
+  "defaultMode": "smoke",
+  "agenticModel": {
+    "controlPlane": "spec-chief-led-zteam-plus-deterministic-cli",
+    "runtimeExtensionV1": false,
+    "humanInterlocutor": "spec-chief",
+    "traceabilityRequired": true,
+    "oracleRequired": true
+  },
+  "requiredStages": [
+    "manifest_loaded",
+    "source_registered",
+    "analysis_ready",
+    "clarification_closed",
+    "spec_synthesized",
+    "acceptance_ready",
+    "workgraph_ready",
+    "oracle_passed",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "run-manifest.json",
+    "source-register.json",
+    "source-register.md",
+    "questions.md",
+    "answers.md",
+    "validation/traceability-matrix.json",
+    "validation/traceability-matrix.md",
+    "spec/mission-spec.md",
+    "validation/acceptance-criteria.md",
+    "handoff/workgraph.md",
+    "oracle/final-oracle-review.json",
+    "final-report.json",
+    "status.json"
+  ],
+  "noShipBlockers": [
+    "secret-like source path or sensitive raw data persisted without approval",
+    "blocking human question open",
+    "requirement without source, answer, assumption, or decision support",
+    "acceptance criterion not mapped to requirement",
+    "task not mapped to acceptance criterion",
+    "contradiction hidden without decision",
+    "final oracle missing or no_ship=true",
+    "auto-pilot closes tmux on timeout/WARN/FAIL/no_ship=true"
+  ],
+  "stages": [
+    {
+      "name": "source-intake",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Inventory approved sources, sensitivity, freshness, owners, contradictions, and open questions with citations.",
+      "mustDo": ["Use only explicit sources from run-manifest.json.", "Assign stable source IDs.", "Flag secret-like or sensitive sources.", "Write source quality gaps."],
+      "mustNotDo": ["No broad filesystem scan.", "No secrets.", "No source mutation.", "No external durable writes."],
+      "context": "Agentic Spec Team run {run.id}; source intake stage."
+    },
+    {
+      "name": "specialized-analysis",
+      "type": "map",
+      "agent": "explore",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Produce data/domain/UX analysis artifacts and candidate traceability rows.",
+      "mustDo": ["Cite source refs for each finding.", "Separate facts from assumptions.", "Propose questions to spec-chief when blocked."],
+      "mustNotDo": ["No invented business decisions.", "No direct human questions except through spec-chief.", "No edits outside the run directory."],
+      "context": "Agentic Spec Team run {run.id}; data/domain/UX analysis."
+    },
+    {
+      "name": "spec-synthesis",
+      "type": "reduce",
+      "agent": "specifier",
+      "outputContract": "spec.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Synthesize mission spec, requirements, acceptance criteria, BDD, and workgraph from cited analysis artifacts.",
+      "mustDo": ["Every requirement must be traceable.", "List non-functional requirements and edge cases.", "Map implementation tasks to acceptance criteria."],
+      "mustNotDo": ["No unsupported requirements.", "No hidden contradictions.", "No open blocking questions."],
+      "context": "Agentic Spec Team run {run.id}; spec synthesis."
+    },
+    {
+      "name": "oracle-validation",
+      "type": "validate",
+      "agent": "oracle",
+      "outputContract": "oracle.v1",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "expectedOutcome": "Validate source-to-requirement-to-task traceability, question closure, sensitive data posture, and final no-ship status.",
+      "mustDo": ["Fail if traceability is incomplete.", "Fail if blocking questions remain open.", "Fail if final-report PASS/no_ship=false is unsupported."],
+      "mustNotDo": ["No patches.", "No commits.", "No external writes.", "No approval of unsupported specs."],
+      "context": "Agentic Spec Team run {run.id}; final oracle gate."
+    }
+  ]
+}

@@ -240,7 +240,10 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
       const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";
-      return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
+      const transientReplyText = (result.status === "reply" || result.status === "completed") && result.transientResponse
+        ? `\n\nTransient ZPeer reply (not stored in .pi/coms):\n${result.transientResponse}`
+        : "";
+      return { content: [{ type: "text", text: ok ? `zpeer_ask ${result.status}: @${result.targetAlias ?? targetAlias}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}${transientReplyText}` : `zpeer_ask ${result.status}: ${result.reason ?? "see metadata"}` }], details: { schema: "zob.zpeer-ask-result.v1", mode, ...result } };
     },
   });
 

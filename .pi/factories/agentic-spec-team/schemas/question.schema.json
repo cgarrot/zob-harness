@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.agentic-spec.question.schema.v1",
+  "type": "object",
+  "required": ["schema", "question_id", "status", "blocking", "question"],
+  "properties": {
+    "schema": { "const": "agentic-spec.question.v1" },
+    "question_id": { "type": "string", "pattern": "^Q-[0-9]{3,}$" },
+    "status": { "enum": ["open", "answered", "closed", "withdrawn"] },
+    "blocking": { "type": "boolean" },
+    "origin_agent": { "type": "string" },
+    "concerns": { "type": "array", "items": { "type": "string" } },
+    "source_refs": { "type": "array", "items": { "type": "string" } },
+    "question": { "type": "string", "minLength": 1 },
+    "options": { "type": "array" },
+    "recommended_option": { "type": ["string", "null"] }
+  }
+}

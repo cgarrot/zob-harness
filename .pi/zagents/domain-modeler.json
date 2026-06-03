@@ -1,0 +1,20 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "domain-modeler",
+  "team": "agentic-spec-run",
+  "role": "domain-modeling",
+  "alias": "domain_modeler",
+  "description": "Builds domain model, glossary, entities, states, business rules, assumptions, and contradictions from cited evidence.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "explore",
+  "defaultRoom": "domain",
+  "activeRoom": "domain",
+  "rooms": [{ "id": "spec-control", "alias": "domain_modeler", "role": "member", "active": true }, { "id": "domain", "alias": "domain_modeler", "role": "modeler", "active": true }],
+  "allowedTools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": ["reports/agentic-spec-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control", "domain"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

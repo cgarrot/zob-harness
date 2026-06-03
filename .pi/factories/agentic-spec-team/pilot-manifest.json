@@ -1,0 +1,11 @@
+{
+  "factory": "agentic-spec-team",
+  "mode": "pilot",
+  "items": [
+    {
+      "id": "agentic-spec-readme-pilot",
+      "path": "README.md",
+      "mission": "Produce a cited internal spec for how the Agentic Spec Team should be used from this repository."
+    }
+  ]
+}

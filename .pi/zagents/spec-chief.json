@@ -1,0 +1,21 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "spec-chief",
+  "team": "agentic-spec-run",
+  "role": "orchestrator",
+  "alias": "spec_chief",
+  "description": "Lead for one Agentic Spec Team run; sole human interlocutor and owner of questions, blockers, traceability posture, and final report readiness.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "orchestrator",
+  "defaultRoom": "spec-control",
+  "activeRoom": "spec-control",
+  "rooms": [{ "id": "spec-control", "alias": "spec_chief", "role": "lead", "active": true }],
+  "allowedTools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": ["AGENTS.md", "README.md", "docs/", "specs/", "scripts/spec-run.mjs", "scripts/agentic-spec-team/", "reports/agentic-spec-runs/", ".pi/skills/zob-agentic-spec-team/", ".pi/factories/agentic-spec-team/", ".pi/zagents/", ".pi/zteams/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "approvalGates": { "externalAccess": "human", "externalWrite": "human+oracle", "commitOrPush": "human" },
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

@@ -1,0 +1,19 @@
+{
+  "schema": "zob.agentic-spec-manifest.v1",
+  "name": "billing-redesign",
+  "mission": "Produce a detailed, testable billing redesign implementation spec from approved docs, data exports, mockups, and owner notes.",
+  "sources": [
+    { "path": "docs/billing-brief.md", "type": "doc", "policy": "citation_only" },
+    { "path": "data/billing-export.csv", "type": "data", "policy": "citation_only" },
+    { "path": "mockups/billing-flow/", "type": "mockups", "policy": "context_only" }
+  ],
+  "human_question_policy": {
+    "interlocutor": "spec-chief",
+    "blocking_questions_stop_auto_pilot": true
+  },
+  "completion_gate": {
+    "traceability_required": true,
+    "oracle_required": true,
+    "no_ship_must_be_false": true
+  }
+}

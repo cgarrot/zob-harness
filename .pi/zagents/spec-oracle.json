@@ -1,0 +1,20 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "spec-oracle",
+  "team": "agentic-spec-run",
+  "role": "oracle",
+  "alias": "spec_oracle",
+  "description": "Skeptically validates source traceability, open questions, sensitive data posture, testability, handoff readiness, and no-ship status.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "oracle",
+  "defaultRoom": "oracle",
+  "activeRoom": "oracle",
+  "rooms": [{ "id": "spec-control", "alias": "spec_oracle", "role": "oracle", "active": true }, { "id": "oracle", "alias": "spec_oracle", "role": "oracle", "active": true }],
+  "allowedTools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": ["reports/agentic-spec-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control", "oracle"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

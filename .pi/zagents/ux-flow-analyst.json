@@ -1,0 +1,20 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "ux-flow-analyst",
+  "team": "agentic-spec-run",
+  "role": "ux-analysis",
+  "alias": "ux_flow",
+  "description": "Maps mockups, screens, user journeys, UI states, roles, permissions, and UX edge cases into cited artifacts.",
+  "promptRef": ".pi/zagents/prompts/agentic-spec-run-role.md",
+  "defaultMode": "explore",
+  "defaultRoom": "ux",
+  "activeRoom": "ux",
+  "rooms": [{ "id": "spec-control", "alias": "ux_flow", "role": "member", "active": true }, { "id": "ux", "alias": "ux_flow", "role": "analyst", "active": true }],
+  "allowedTools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": ["reports/agentic-spec-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/coms/"],
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["spec-control", "ux"], "parentVisible": true, "hiddenPeerChat": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}
