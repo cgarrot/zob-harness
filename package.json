@@ -1,6 +1,6 @@
 {
   "name": "zob-harness",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "A governed, human-controlled Pi harness for contract-driven agentic engineering, safety gates, specialist delegation, and software-factory workflows.",
   "license": "MIT",
