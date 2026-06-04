@@ -170,13 +170,13 @@ The exact shape depends on the factory, but the posture is consistent: bounded i
 After the package is published to npm, install the pinned Pi package:
 
 ```bash
-pi install npm:zob-harness@0.3.0
+pi install npm:zob-harness@0.3.1
 ```
 
 Verify Pi can load the package extension set and return a deterministic response:
 
 ```bash
-pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
 ```
 
 Expected result:
@@ -188,13 +188,13 @@ zob-harness-ok
 If `pi install` cannot find the package, confirm the npm release is visible first:
 
 ```bash
-npm view zob-harness@0.3.0 version
+npm view zob-harness@0.3.1 version
 ```
 
 Expected result:
 
 ```text
-0.3.0
+0.3.1
 ```
 
 Pi package discovery on `pi.dev/packages` is based on the npm `pi-package` keyword and may lag behind npm publication.
@@ -322,9 +322,9 @@ npm run demo:pacman                # launch the full Pac-Man Agent Factory demo
 Published package install/check:
 
 ```bash
-pi install npm:zob-harness@0.3.0
-pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
-npm view zob-harness@0.3.0 version
+pi install npm:zob-harness@0.3.1
+pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.3.1 version
 ```
 
 See [scripts/README.md](scripts/README.md) for the script family map.
@@ -403,12 +403,12 @@ For a public npm release, maintainers should additionally run:
 
 ```bash
 npm whoami
-npm view zob-harness@0.3.0 version || true
+npm view zob-harness@0.3.1 version || true
 npm publish --dry-run
 npm publish
-npm view zob-harness@0.3.0 version
-pi install npm:zob-harness@0.3.0
-pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.3.1 version
+pi install npm:zob-harness@0.3.1
+pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
 ```
 
 `npm publish` may require npm two-factor authentication in the browser or a one-time password. Do not paste OTPs, tokens, or secrets into issue reports or agent transcripts.
