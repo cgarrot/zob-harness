@@ -31,6 +31,10 @@ This file is the human-facing map of the tracked source surface. It is intention
 
 See `scripts/README.md` for the script surface map.
 
+## Examples
+
+- `examples/` — documentation examples for safe ZOB patterns, including `agent-factory-tmux-comms/` and the active `agent-factory-pacman-multiplayer/` generative demo brief. These examples must stay inert by default and must not launch agents, tmux, network access, commits, or destructive commands unless a human runs the documented command explicitly.
+
 ## Local/generated areas
 
 These are intentionally local/generated and should not be committed by default:

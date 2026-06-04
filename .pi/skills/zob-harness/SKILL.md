@@ -9,11 +9,25 @@ description: Use when working inside the ZOB Pi harness, designing agentic workf
 Use this skill for any task involving:
 - Pi extensions, prompt templates, skills, or agent definitions.
 - Multi-agent delegation workflows.
+- Agent Factory design: ZAgents, ZTeams, tmux launchers, kickoff files, visible coms, workgraphs, and oracle gates.
 - Safety gates and damage-control policy.
 - Software-factory design from repeated manual workflows.
 - Runtime tool/command routing via `.pi/capabilities/zob-public-runtime-capabilities.json`.
 
 For routing behavior, load `zob-tool-router` before non-trivial or tool-ambiguous work. For compaction/recovery behavior, load `zob-compaction-policy` before changing compaction hooks or resuming from a compacted long-running goal. For domain behavior, load the domain skill named by the registry instead of inlining details here: `zob-goal-todo-tree`, `zob-coms-v2-live`, `zob-coms-safety`, `zob-mission-control-coms`, `zob-autonomous-runtime`, `zob-factory`, `zob-sandbox`, `zob-oracle`, or `zob-spec` as applicable.
+
+## Agent Factory posture
+
+Treat ZOB as a governed Agent Factory when the owner wants persistent local agent roles rather than one transient assistant. An Agent Factory may include:
+
+- ZAgent role definitions and prompts;
+- ZTeam topology, rooms, aliases, entry agent, and communication policy;
+- optional tmux launchers for manual local startup/attach/status/close;
+- startup kickoff files passed as `pi @kickoff.md`, not post-start pane paste as the primary transport;
+- run artifacts such as `run-manifest.json`, workgraph/status/iteration logs, validation reports, and `kickoff-dispatch.json`;
+- oracle/no-ship gates before completion claims.
+
+Communication is a core deliverable. Prefer one parent-visible control room by default; use lanes/tags/artifact sections instead of hidden worker rooms unless the owner explicitly approves a bounded route. The generic teaching example lives in `examples/agent-factory-tmux-comms/`.
 
 ## Operating model
 

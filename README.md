@@ -1,8 +1,8 @@
 # ZOB Harness
 
-**A governed Pi harness for human-controlled agentic engineering.**
+**A governed Pi Agent Factory for human-controlled agentic engineering.**
 
-ZOB Harness turns an open-ended coding-agent chat into a governed engineering loop: clear contracts, specialist agents, mode-aware workflows, safety gates, evidence reports, skeptical oracle review, and repeatable software factories.
+ZOB Harness turns an open-ended coding-agent chat into a governed **Agent Factory**: a repeatable way to design, launch, coordinate, validate, and reuse teams of local agents without losing human control.
 
 It is for developers and evaluators who want agents to help with real repository work without losing the plot, touching secrets, silently committing, or declaring victory without proof.
 
@@ -10,13 +10,29 @@ It is for developers and evaluators who want agents to help with real repository
 Human intent
   -> six-part contract
   -> scoped mode and tools
-  -> specialist agent or local implementation
+  -> ZAgent/ZTeam or specialist delegation
+  -> parent-visible communication
   -> validation evidence
   -> oracle review / no-ship decision
-  -> reusable workflow when the pattern repeats
+  -> reusable factory when the pattern repeats
 ```
 
-ZOB is not an “unleash the agent” project. It is a control plane for making agent work reviewable, bounded, and repeatable.
+ZOB is not an “unleash the agent” project. It is a control plane for making multi-agent work reviewable, bounded, communicative, and repeatable.
+
+## ZOB as an Agent Factory
+
+The top-level product idea is simple: ZOB helps you build a local team of agents the same way an engineering organization builds a delivery team.
+
+- **ZAgents** are full Pi sessions with an identity, role, allowed posture, and local ZPeer presence.
+- **ZTeams** define the topology: rooms, aliases, owner-facing entry agent, and communication policy.
+- **Tmux launchers** are optional local convenience wrappers: one window per agent, manual start/attach/status/close commands, no hidden daemon requirement.
+- **Communication** is first-class: agents ask each other short, async, parent-visible questions with safe evidence refs instead of hidden worker chat.
+- **Artifacts** are the source of truth: run manifests, kickoff files, workgraphs, status files, validation outputs, and oracle reports.
+- **Factories** turn repeated multi-agent workflows into reusable manifests, checkpoints, launchers, and gates.
+
+Start with the small generic playbook in [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) to see how a chief, scout, builder, and oracle can be packaged as a local tmux-backed Agent Factory while keeping communication visible and bounded. That guide is the best place to understand and test the tmux + parent-visible communication pattern before running a full team.
+
+For a fuller runnable demo, use [`examples/agent-factory-pacman-multiplayer/`](examples/agent-factory-pacman-multiplayer/): a source brief plus six-agent ZTeam that generates a local browser-playable Pac-Man-inspired multiplayer game under `reports/agent-factory-pacman-runs/<run_id>/project/` when launched with `npm run demo:pacman`.
 
 ## Why ZOB exists
 
@@ -123,13 +139,13 @@ ProjectDNA scaffolding helps turn approved local code scan artifacts into bounde
 After the package is published to npm, install the pinned Pi package:
 
 ```bash
-pi install npm:zob-harness@0.1.0
+pi install npm:zob-harness@0.3.0
 ```
 
 Then verify that Pi can load the package extension set and return a deterministic response:
 
 ```bash
-pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
 ```
 
 Expected result:
@@ -141,13 +157,13 @@ zob-harness-ok
 If `pi install` cannot find the package, confirm the npm release is visible first:
 
 ```bash
-npm view zob-harness@0.1.0 version
+npm view zob-harness@0.3.0 version
 ```
 
 Expected result:
 
 ```text
-0.1.0
+0.3.0
 ```
 
 Pi package discovery on `pi.dev/packages` is based on the npm `pi-package` keyword and may lag behind npm publication.
@@ -199,6 +215,42 @@ npm run pack:dry-run
 These commands verify the public script surface, core path/child-goal smokes, TypeScript baseline, and npm package surface.
 
 ## Common workflows
+
+### Running a local Agent Factory team
+
+Use an Agent Factory when the job needs multiple persistent roles rather than one transient assistant: for example, a chief, context scout, builder, and oracle. The pattern is:
+
+1. define a ZTeam manifest with parent-visible rooms and `bodyStored=false`;
+2. prepare startup kickoff files so each agent begins with bounded instructions;
+3. launch one Pi session per ZAgent, commonly through a manual tmux launcher;
+4. coordinate with async ZPeer/Goal Room-style messages using `CONTEXT / ASK / EVIDENCE / URGENCY / BLOCKER`;
+5. treat artifacts, validation commands, and oracle review as the completion evidence.
+
+See [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) for the communication/tmux guide: it explains the parent-visible message shape, startup kickoff files, manual status/attach/close commands, and why tmux is only the local launcher. For a real structured demo, run the Pac-Man multiplayer factory:
+
+```bash
+RUN_ID="pacman-demo"
+npm run demo:pacman:prepare -- "$RUN_ID" --force   # write run artifacts only; no tmux/Pi launch and no game generation
+npm run demo:pacman:validate -- "$RUN_ID"          # validate the scaffold/run artifacts
+npm run demo:pacman -- "$RUN_ID" --force           # full auto: may launch 6 Pi sessions in tmux
+```
+
+Observe or stop only this demo tmux session:
+
+```bash
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh status
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh attach agent-factory-pacman-chief
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh close
+```
+
+The game is not prebuilt in source. The team generates it under the run directory. After the agents finish, follow the generated run report, typically:
+
+```bash
+cd reports/agent-factory-pacman-runs/$RUN_ID/project
+npm install
+npm run validate
+npm run dev
+```
 
 ### A safe single-agent implementation loop
 
@@ -265,9 +317,9 @@ npm run pack:dry-run               # npm package dry-run surface check
 Published package install/check:
 
 ```bash
-pi install npm:zob-harness@0.1.0
-pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
-npm view zob-harness@0.1.0 version
+pi install npm:zob-harness@0.3.0
+pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.3.0 version
 ```
 
 See [scripts/README.md](scripts/README.md) for the script family map.
@@ -281,6 +333,7 @@ See [scripts/README.md](scripts/README.md) for the script family map.
 - [SOURCE_INDEX.md](SOURCE_INDEX.md) — tracked source and local/generated area map.
 - [package.json](package.json) — package metadata, Pi wiring, and npm scripts.
 - [scripts/README.md](scripts/README.md) — public script surface guide.
+- [`examples/`](examples/) — Agent Factory examples, including the generic tmux/coms playbook and the runnable Pac-Man multiplayer generative demo.
 - [`.pi/extensions/zob-harness/`](.pi/extensions/zob-harness/) — main Pi extension.
 - [`.pi/extensions/zob-child-safety/`](.pi/extensions/zob-child-safety/) — child-agent safety extension.
 - [`.pi/agents/`](.pi/agents/) — specialist agent definitions.
@@ -330,12 +383,12 @@ For a public npm release, maintainers should additionally run:
 
 ```bash
 npm whoami
-npm view zob-harness@0.1.0 version || true
+npm view zob-harness@0.3.0 version || true
 npm publish --dry-run
 npm publish
-npm view zob-harness@0.1.0 version
-pi install npm:zob-harness@0.1.0
-pi -e npm:zob-harness@0.1.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.3.0 version
+pi install npm:zob-harness@0.3.0
+pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
 ```
 
 `npm publish` may require npm two-factor authentication in the browser or a one-time password. Do not paste OTPs, tokens, or secrets into issue reports or agent transcripts.

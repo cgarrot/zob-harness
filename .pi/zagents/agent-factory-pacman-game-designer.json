@@ -1,0 +1,21 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "agent-factory-pacman-game-designer",
+  "team": "agent-factory-pacman-multiplayer",
+  "role": "game-designer",
+  "alias": "game_designer",
+  "description": "Defines Pac-Man multiplayer gameplay rules, controls, scoring, round flow, and playability acceptance criteria.",
+  "promptRef": ".pi/zagents/prompts/agent-factory-pacman-game-designer.md",
+  "defaultMode": "plan",
+  "defaultRoom": "pacman-factory",
+  "activeRoom": "pacman-factory",
+  "rooms": [{ "id": "pacman-factory", "alias": "game_designer", "role": "game_design", "active": true }],
+  "allowedTools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": ["examples/agent-factory-pacman-multiplayer/", "reports/agent-factory-pacman-runs/"],
+  "forbiddenPaths": [".env", ".env.*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/"],
+  "approvalGates": { "externalAccess": "human", "externalWrite": "human+oracle", "commitOrPush": "human" },
+  "communicationPolicy": { "zpeerContact": true, "allowedRooms": ["pacman-factory"], "parentVisible": true, "hiddenPeerChat": false, "bodyStored": false },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

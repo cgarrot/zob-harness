@@ -2,7 +2,7 @@
   "name": "zob-harness",
   "version": "0.3.0",
   "type": "module",
-  "description": "A governed, human-controlled Pi harness for contract-driven agentic engineering, safety gates, specialist delegation, and software-factory workflows.",
+  "description": "A governed, human-controlled Pi Agent Factory for contract-driven agentic engineering, visible communication, safety gates, specialist delegation, and repeatable workflows.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,6 +18,7 @@
     "coding-agent",
     "pi-extension",
     "software-factory",
+    "agent-factory",
     "safety-gates"
   ],
   "engines": {
@@ -77,6 +78,7 @@
     "scripts/zagent-static-smoke.mjs",
     "scripts/zpeer-local-e2e-smoke.mjs",
     "scripts/start-pi.sh",
+    "examples",
     ".pi/model-catalog.example.json",
     ".pi/model-economy.example.json"
   ],
@@ -114,7 +116,11 @@
     "validate:project-dna-5of5:smoke": "node scripts/project-dna/validate-5of5.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
     "validate:model-catalog": "node scripts/model-catalog/validate.mjs",
     "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs",
-    "smoke:harness-switch": "node scripts/harness-switch/static-smoke.mjs"
+    "smoke:harness-switch": "node scripts/harness-switch/static-smoke.mjs",
+    "demo:pacman": "node .pi/zteams/agent-factory-pacman-multiplayer-runtime.mjs auto",
+    "demo:pacman:prepare": "node .pi/zteams/agent-factory-pacman-multiplayer-runtime.mjs prepare",
+    "demo:pacman:status": "node .pi/zteams/agent-factory-pacman-multiplayer-runtime.mjs status",
+    "demo:pacman:validate": "node .pi/zteams/agent-factory-pacman-multiplayer-runtime.mjs validate"
   },
   "pi": {
     "extensions": [

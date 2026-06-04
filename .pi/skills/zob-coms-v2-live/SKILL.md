@@ -35,6 +35,17 @@ Use this skill when:
 - Do not bypass topology guards.
 - Do not enable network transport without explicit auth/locality policy.
 
+## Tmux/ZAgent communication pattern
+
+For tmux-backed Agent Factory teams:
+
+- Treat each tmux window as a local Pi/ZAgent session with its own identity and room membership.
+- Use tmux only to start, attach, inspect status, or close the local session; do not use pane paste as the primary communication transport.
+- Prefer startup files (`pi @chief-kickoff.md`, `pi @worker-kickoff.md`) for initial instructions so Pi receives one bounded message block.
+- Use async ZPeer/Goal Room-style asks for normal coordination; do not block in polling loops after sending a non-blocking ask.
+- Keep messages short and actionable with `CONTEXT`, `ASK`, `EVIDENCE`, `URGENCY`, and `BLOCKER` fields.
+- When a reply affects scope, ownership, merge readiness, oracle status, or completion, mirror only body-free metadata/artifact refs into durable records.
+
 ## Expected pattern
 
 ```text

@@ -1,0 +1,42 @@
+{
+  "schema": "zob.zteam.v1",
+  "id": "agent-factory-pacman-multiplayer",
+  "description": "Runnable Agent Factory demo team: autonomously generates a local browser-playable Pac-Man-inspired multiplayer game under reports/agent-factory-pacman-runs/<run_id>/project/.",
+  "defaultRoom": "pacman-factory",
+  "activeRoom": "pacman-factory",
+  "rooms": [
+    { "id": "pacman-factory", "role": "parent-visible-coordination", "active": true }
+  ],
+  "members": [
+    { "id": "agent-factory-pacman-chief", "alias": "pacman_chief", "rooms": [{ "id": "pacman-factory", "alias": "pacman_chief", "role": "lead", "active": true }] },
+    { "id": "agent-factory-pacman-game-designer", "alias": "game_designer", "rooms": [{ "id": "pacman-factory", "alias": "game_designer", "role": "game_design", "active": true }] },
+    { "id": "agent-factory-pacman-game-architect", "alias": "game_architect", "rooms": [{ "id": "pacman-factory", "alias": "game_architect", "role": "architecture", "active": true }] },
+    { "id": "agent-factory-pacman-engine-builder", "alias": "engine_builder", "rooms": [{ "id": "pacman-factory", "alias": "engine_builder", "role": "engine", "active": true }] },
+    { "id": "agent-factory-pacman-frontend-builder", "alias": "frontend_builder", "rooms": [{ "id": "pacman-factory", "alias": "frontend_builder", "role": "frontend", "active": true }] },
+    { "id": "agent-factory-pacman-qa-oracle", "alias": "qa_oracle", "rooms": [{ "id": "pacman-factory", "alias": "qa_oracle", "role": "oracle", "active": true }] }
+  ],
+  "communicationPolicy": {
+    "allowedRooms": ["pacman-factory"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false,
+    "requiredLocalLive": false,
+    "goalRoomCanonical": true
+  },
+  "metadata": {
+    "entryAgent": "agent-factory-pacman-chief",
+    "entryRoom": "pacman-factory",
+    "manualReviewCommand": "/zteam launch-plan agent-factory-pacman-multiplayer",
+    "tmuxLauncher": ".pi/zteams/agent-factory-pacman-multiplayer.tmux.sh",
+    "runtimeScript": ".pi/zteams/agent-factory-pacman-multiplayer-runtime.mjs",
+    "runArtifactsDir": "reports/agent-factory-pacman-runs/<run_id>/",
+    "briefPath": "examples/agent-factory-pacman-multiplayer/",
+    "autoLaunchBehavior": "prepare run artifacts, render startup kickoff files, start tmux detached with one Pi session per ZAgent, and print generated-project test commands",
+    "notes": [
+      "Prepare/validate do not generate the game; only the launched ZTeam writes under reports/.../project/.",
+      "The game architect has bounded real architecture authority; builders must coordinate through pacman-factory.",
+      "The generated game must be local-only by default and must not be a dashboard/Mission Control app.",
+      "Full auto can consume model/API budget because it starts six Pi sessions."
+    ]
+  }
+}

@@ -13,7 +13,9 @@ plans/
 # Kept local until the GitHub token has workflow scope.
 .github/workflows/
 
-# Generated runtime/report artifacts: keep locally, never publish/push by default.
+# Generated runtime/report artifacts, including Agent Factory generated projects
+# such as reports/agent-factory-pacman-runs/<run_id>/project/: keep locally,
+# never publish/push by default.
 reports/
 .pi/sessions/
 .pi/agent-sessions/

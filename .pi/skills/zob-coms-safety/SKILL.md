@@ -30,6 +30,17 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - No silent fallback from required live delivery to append-only success.
 - No token/secret logging.
 
+## Tmux Agent Factory safety
+
+For tmux-backed ZAgent teams:
+
+- Tmux is a local launch/observation surface, not the durable source of truth.
+- Startup kickoff files are allowed when they stay bounded and avoid secrets/raw private dumps; post-start pane paste is not reliable proof of delivery.
+- Pane capture may be useful for live diagnosis, but do not persist captured prompt/output bodies into ledgers, reports, Mission Control, or skills.
+- Supervisors/watchdogs must be bounded and local-only; they may detect stale windows or nudge a specific owed-response agent only with hash/body-free durable records.
+- Team communication must remain parent-visible. Prefer one `control` room with lanes/tags/artifact sections unless a bounded owner-approved route exists.
+- Completion still requires artifacts, validation evidence, and oracle/no-ship review when applicable; an active tmux session or chat reply is not completion evidence.
+
 ## Goal Room and owner-pool safety
 
 For parallel owner micro-worker pools:
@@ -48,6 +59,8 @@ No-ship if:
 - live send succeeds while receiver is absent/stale/offline;
 - await treats timeout/stale/offline as success;
 - hidden worker-to-worker free chat works outside a typed parent-visible Goal Room;
+- tmux pane paste/capture is treated as reliable durable communication or completion evidence;
+- a supervisor/watchdog nudges indefinitely, starts broad work, or stores raw pane bodies;
 - a non-owner writes owned paths instead of sending an owner request;
 - a worker applies or merges directly into the main workspace;
 - network starts without explicit auth/locality policy;

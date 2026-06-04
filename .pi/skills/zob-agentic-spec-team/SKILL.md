@@ -8,14 +8,17 @@ description: Use when launching, running, reviewing, or extending the Agentic Sp
 
 Use this skill to run a reusable ZOB-native spec production workflow. It ingests a mission plus explicit source paths, coordinates a run-scoped ZTeam, asks the human only through `spec-chief`, and produces a detailed, testable, traceable implementation spec.
 
-V1 packaging is composite and deliberately **not** a runtime extension:
+V1 packaging is composite and deliberately **not** a runtime extension. It is a specialized Agent Factory pattern:
 
 ```text
 Skill = rules and operating contract
 Factory = repeatable checkpoints, sentinels, validators
 ZTeam/ZAgents = run-scoped human-facing team
 CLI = scriptable entrypoint and tmux automation
+Coms = parent-visible async asks, blockers, evidence refs, and oracle/no-ship routing
 ```
+
+Use the generic `examples/agent-factory-tmux-comms/` pattern for a smaller teaching version of the same shape.
 
 ## Entry points
 

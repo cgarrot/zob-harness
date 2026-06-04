@@ -40,9 +40,17 @@ Generated definitions must stay project-local and are not harness-global:
 
 Never write generated ZAgent, ZTeam, prompt, or tmux launcher artifacts outside those directories unless the owner explicitly provides a different project-local allowed path.
 
+## Documentation examples vs active project teams
+
+When creating documentation-only Agent Factory examples, write them under an explicit example path such as `examples/agent-factory-tmux-comms/` and mark them as inert/example-only. Do not place example manifests under `.pi/zagents/` or `.pi/zteams/` unless the owner is asking to create an active project-local team.
+
+Example files may illustrate a team manifest, manual tmux launcher, and kickoff templates, but they must state that real activation requires owner review and adaptation into `.pi/zagents/`, `.pi/zagents/prompts/`, and `.pi/zteams/`.
+
 ## Optional tmux launcher mode
 
 When the owner starts or qualifies the natural-language request with `tmux`, generate a project-local tmux launcher script alongside the generated ZTeam manifests. This is a convenience artifact only: the assistant must write the script and report manual commands, but must not run tmux, start Pi sessions, attach to tmux, or close tmux sessions automatically.
+
+For Agent Factory launchers, prefer startup kickoff files (`pi @chief-kickoff.md`, `pi @worker-kickoff.md`) over post-start tmux pane paste. Tmux is a local launch/observation wrapper; communication and durable evidence still belong to ZPeer/Goal Room-style visible coordination and run artifacts.
 
 Accepted owner request patterns include:
 
@@ -292,6 +300,7 @@ ZAgent manifest mode shape:
 - When the ask mentions model choice or cost/quality tradeoffs, read the model catalog/routing files and record a justified per-ZAgent `model` plus metadata instead of guessing.
 - Keep definitions minimal, auditable, and project-local.
 - When generating tmux launchers, treat multi-team requests as bundles, deduplicate shared agents by `zagentId`, and document included teams, unique agents, and bridge/shared agents.
+- For Agent Factory teams, include or reference the communication policy: `parentVisible: true`, `hiddenPeerChat: false`, `bodyStored: false`, `networkEnabled: false`, and owner/oracle gates for completion.
 - Preserve existing runtime code and safety policy unless the owner explicitly asks for a separate implementation task.
 - Ask for clarification when authority, launch conditions, write permissions, or external access are ambiguous.
 
@@ -303,6 +312,7 @@ ZAgent manifest mode shape:
 - Do not create manifests, prompts, or tmux launchers outside `.pi/zagents/`, `.pi/zagents/prompts/`, or `.pi/zteams/`.
 - Do not grant broad filesystem, network, browser, secret, commit, push, or destructive-command authority by default.
 - Do not generate tmux launchers that duplicate shared ZAgents per team, use `killall`, broad process kills, install daemons, access credentials, or perform global cleanup.
+- Do not present a tmux launcher or kickoff template as proof that agents launched, communicated, validated, or completed work.
 - Do not enable live/global model routing or store provider credentials/API keys while selecting ZAgent models.
 - Do not choose `vanilla` as a default mode unless the owner explicitly requested vanilla/base Pi/direct unrestricted behavior.
 - Do not treat ZAgent creation as delivery success for live communication or mission execution.

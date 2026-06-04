@@ -1,0 +1,92 @@
+{
+  "schema": "zob.zteam.v1",
+  "id": "simple-agent-factory",
+  "description": "Documentation-only example team for a local tmux-backed Agent Factory with parent-visible communication.",
+  "defaultRoom": "control",
+  "activeRoom": "control",
+  "rooms": [
+    {
+      "id": "control",
+      "role": "parent-visible-coordination",
+      "active": true
+    }
+  ],
+  "agents": [
+    {
+      "id": "factory-chief",
+      "alias": "factory_chief",
+      "rooms": [
+        {
+          "id": "control",
+          "alias": "factory_chief",
+          "role": "lead",
+          "active": true
+        }
+      ]
+    },
+    {
+      "id": "context-scout",
+      "alias": "context_scout",
+      "rooms": [
+        {
+          "id": "control",
+          "alias": "context_scout",
+          "role": "read_only_context",
+          "active": true
+        }
+      ]
+    },
+    {
+      "id": "builder",
+      "alias": "builder",
+      "rooms": [
+        {
+          "id": "control",
+          "alias": "builder",
+          "role": "bounded_worker",
+          "active": true
+        }
+      ]
+    },
+    {
+      "id": "oracle",
+      "alias": "oracle",
+      "rooms": [
+        {
+          "id": "control",
+          "alias": "oracle",
+          "role": "reviewer",
+          "active": true
+        }
+      ]
+    }
+  ],
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["control"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "workerToWorkerDirect": false,
+    "goalRoomCanonical": true,
+    "bodyStored": false
+  },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "metadata": {
+    "exampleOnly": true,
+    "entryAgent": "factory-chief",
+    "entryRoom": "control",
+    "tmuxLauncher": "examples/agent-factory-tmux-comms/simple-agent-factory.tmux.sh",
+    "chiefKickoffTemplate": "examples/agent-factory-tmux-comms/chief-kickoff.template.md",
+    "workerKickoffTemplate": "examples/agent-factory-tmux-comms/worker-kickoff.template.md",
+    "ownerLaunchRequired": true,
+    "manualLaunchPolicy": "This manifest is documentation-only until copied/adapted into .pi/zteams/ and launched by a human.",
+    "notes": [
+      "ZAgents are full Pi sessions tied to ZPeer/local communication, not delegate_task subagents.",
+      "Use one parent-visible control room by default; lanes are roles and artifact sections, not hidden rooms.",
+      "Startup kickoff files are preferred over post-start tmux pane paste.",
+      "Artifacts, validation, and oracle review are required before completion claims."
+    ]
+  }
+}
