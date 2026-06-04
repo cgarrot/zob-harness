@@ -1,130 +1,160 @@
 # ZOB Harness
 
-**A governed Pi Agent Factory for human-controlled agentic engineering.**
+**A governed Agent Factory for Pi.**
 
-ZOB Harness turns an open-ended coding-agent chat into a governed **Agent Factory**: a repeatable way to design, launch, coordinate, validate, and reuse teams of local agents without losing human control.
+Launch teams of agents that communicate, build, validate, and turn repeatable workflows into reusable factories.
 
-It is for developers and evaluators who want agents to help with real repository work without losing the plot, touching secrets, silently committing, or declaring victory without proof.
+ZOB turns Pi from a single coding-agent chat into a supervised factory system: define a team, start a run, watch agent communication, review artifacts, and package successful workflows into factories that can create the next thing.
 
 ```text
 Human intent
-  -> six-part contract
-  -> scoped mode and tools
-  -> ZAgent/ZTeam or specialist delegation
-  -> parent-visible communication
-  -> validation evidence
-  -> oracle review / no-ship decision
-  -> reusable factory when the pattern repeats
+  -> governed Agent Factory
+  -> chief / scout / builder / oracle / custom roles
+  -> visible agent communication
+  -> tmux-backed Pi sessions when useful
+  -> artifacts under reports/<run_id>/
+  -> validation + oracle/no-ship review
+  -> reusable factory for the next run
 ```
 
-ZOB is not an “unleash the agent” project. It is a control plane for making multi-agent work reviewable, bounded, communicative, and repeatable.
+ZOB is not “unleash an agent and hope.” ZOB is “launch a team, keep the work observable, preserve evidence, and reuse the pattern once it works.”
 
-## ZOB as an Agent Factory
+## Why this is different
 
-The top-level product idea is simple: ZOB helps you build a local team of agents the same way an engineering organization builds a delivery team.
+Most agent tools optimize the single assistant session. ZOB optimizes the **agent factory loop**:
 
-- **ZAgents** are full Pi sessions with an identity, role, allowed posture, and local ZPeer presence.
-- **ZTeams** define the topology: rooms, aliases, owner-facing entry agent, and communication policy.
-- **Tmux launchers** are optional local convenience wrappers: one window per agent, manual start/attach/status/close commands, no hidden daemon requirement.
-- **Communication** is first-class: agents ask each other short, async, parent-visible questions with safe evidence refs instead of hidden worker chat.
-- **Artifacts** are the source of truth: run manifests, kickoff files, workgraphs, status files, validation outputs, and oracle reports.
-- **Factories** turn repeated multi-agent workflows into reusable manifests, checkpoints, launchers, and gates.
+- **Teams, not tabs** — model a chief, scouts, builders, reviewers, oracles, and custom roles as ZAgents/ZTeams.
+- **Visible communication** — agents coordinate through parent-visible messages instead of hidden worker chat.
+- **tmux-backed runs** — launch real Pi sessions in local tmux windows when a workflow benefits from persistent roles.
+- **Run artifacts as truth** — manifests, kickoff files, workgraphs, status files, validation output, and oracle reports outlive the chat.
+- **Factories create factories** — a successful workflow can become a reusable manifest, launcher, checkpoint set, and validation ladder.
+- **Governed by default** — scoped tools, path rules, evidence gates, no-ship review, and governed commits keep the owner in control.
 
-Start with the small generic playbook in [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) to see how a chief, scout, builder, and oracle can be packaged as a local tmux-backed Agent Factory while keeping communication visible and bounded. That guide is the best place to understand and test the tmux + parent-visible communication pattern before running a full team.
+## Try the six-agent Pac-Man factory
 
-For a fuller runnable demo, use [`examples/agent-factory-pacman-multiplayer/`](examples/agent-factory-pacman-multiplayer/): a source brief plus six-agent ZTeam that generates a local browser-playable Pac-Man-inspired multiplayer game under `reports/agent-factory-pacman-runs/<run_id>/project/` when launched with `npm run demo:pacman`.
+The fastest way to understand ZOB is to run the demo factory. The repository does **not** contain a prebuilt game. The factory prepares a run, launches a six-agent team, and asks that team to generate a local browser-playable Pac-Man-inspired multiplayer game under `reports/`.
 
-## Why ZOB exists
+Prepare and validate run artifacts only. This does not launch tmux/Pi and does not generate the game:
 
-Normal coding-agent sessions can be impressive and still fail in predictable ways:
+```bash
+RUN_ID="pacman-demo"
+npm run demo:pacman:prepare -- "$RUN_ID" --force
+npm run demo:pacman:validate -- "$RUN_ID"
+```
 
-- The agent drifts from the task or expands scope.
-- Research, planning, implementation, and review blur together.
-- Delegated work comes back without enough evidence.
-- Generated artifacts mix with source files.
-- Safety rules live in prose instead of enforceable gates.
-- “Done” is claimed before commands, diffs, and blockers are visible.
+Launch the full tmux-backed Agent Factory team:
 
-ZOB adds an operating layer around Pi so each step has a job, a boundary, and an audit trail.
+```bash
+RUN_ID="pacman-demo"
+npm run demo:pacman -- "$RUN_ID" --force
+```
 
-## What you get
+Observe or stop only this demo team:
 
-### 1. Contract-first delegation
+```bash
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh status
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh attach agent-factory-pacman-chief
+bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh close
+```
 
-Every delegated task can be expressed as a six-part contract:
+After the agents finish, test the generated project from the reported run directory, typically:
+
+```bash
+cd reports/agent-factory-pacman-runs/$RUN_ID/project
+npm install
+npm run validate
+npm run dev
+```
+
+See [`examples/agent-factory-pacman-multiplayer/`](examples/agent-factory-pacman-multiplayer/) for the demo brief and [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) for the small generic tmux + visible communication playbook.
+
+## Agents communicate visibly
+
+ZOB teams coordinate with short, structured, parent-visible messages. The goal is to keep multi-agent work debuggable without persisting raw hidden chat as the source of truth.
 
 ```text
-1. TASK: [atomic goal]
-2. EXPECTED OUTCOME: [observable deliverable/verdict]
-3. REQUIRED TOOLS: [allowed tools only]
-4. MUST DO: [positive constraints]
-5. MUST NOT DO: [hard stops]
-6. CONTEXT: [paths, prior evidence, downstream use]
+CONTEXT: what changed or what the agent is working on
+ASK: exact answer, review, or action needed
+EVIDENCE: safe file refs, artifact refs, command names, or TODO ids
+URGENCY: low|normal|high|critical
+BLOCKER: yes/no
 ```
 
-This keeps child work bounded and makes review easier: what changed, what was verified, what remains risky, and what should stop shipment.
-
-### 2. Mode-aware engineering loops
-
-ZOB separates the work into explicit modes:
-
-- **Explore** — inspect and map facts without editing.
-- **Plan** — turn evidence into a bounded implementation path.
-- **Implement** — change the smallest safe file set and verify it.
-- **Oracle** — review skeptically and surface no-ship blockers.
-- **Factory** — convert repeatable workflows into manifests, checkpoints, sentinels, and smoke gates.
-- **Orchestrator** — coordinate goals, TODO graphs, and specialist handoffs without bypassing safety.
-
-For non-trivial work, the default loop is:
+Example chief → scout ask:
 
 ```text
-Explore -> Plan -> Implement -> Oracle
+CONTEXT: We are preparing the first implementation slice for the settings workflow.
+ASK: Identify the smallest files needed for a safe plan; return evidence refs only.
+EVIDENCE: README.md, docs/settings.md, TODO SETTINGS-001
+URGENCY: normal
+BLOCKER: no
 ```
 
-### 3. Specialist agents and domain skills
+Example builder → oracle review request:
 
-The repo includes reusable operating assets for focused work:
+```text
+CONTEXT: Builder generated the first game loop under the Pac-Man run project.
+ASK: Review game rules and validation output before the chief calls this done.
+EVIDENCE: reports/agent-factory-pacman-runs/pacman-demo/project/src/game.ts, npm run validate
+URGENCY: normal
+BLOCKER: no
+```
 
-- [`.pi/agents/`](.pi/agents/) — specialist roles for exploration, planning, implementation, QA, oracle review, synthesis, ProjectDNA, and more.
-- [`.pi/skills/`](.pi/skills/) — domain instructions for commits, coms, factories, sandboxing, ProjectDNA, autonomy checks, goal/TODO trees, oracle review, and harness routing.
-- [`.pi/output-contracts/`](.pi/output-contracts/) — structured completion contracts for child results and other governed outputs.
-- [`.pi/capabilities/`](.pi/capabilities/) — runtime capability registry that maps public tools/commands to modes, skills, docs, and no-ship notes.
+Communication is coordination. **Artifacts are the source of truth.**
 
-The goal is not to make prompts longer. The goal is to route the right instructions only when a task needs them.
+## A factory that creates factories
 
-### 4. Evidence-gated completion
+ZOB is designed for the moment when an agent workflow works once and should not remain an ad hoc prompt forever.
 
-A ZOB result should make review straightforward. Agents are expected to report:
+A ZOB factory can define:
 
-- exact files changed;
-- exact commands run;
-- command outcomes;
-- evidence references;
-- unresolved risks and blockers;
-- compliance with forbidden paths, commit policy, and scope.
+- a ZTeam topology and role aliases;
+- role-specific ZAgent prompts and domain skills;
+- tmux launch/status/attach/close scripts;
+- startup kickoff files passed as `pi @file`;
+- run manifests and dispatch metadata;
+- parent-owned workgraphs and TODO trees;
+- validation checkpoints, sentinels, and smoke gates;
+- oracle/no-ship review requirements;
+- generated artifact directories under `reports/<run_id>/`;
+- npm scripts that make the workflow repeatable.
 
-That evidence posture is built into the project instructions in [AGENTS.md](AGENTS.md), the source map in [SOURCE_INDEX.md](SOURCE_INDEX.md), and the validation helpers in [scripts/README.md](scripts/README.md).
+The output of a ZOB run can be another ZOB factory: a reusable manifest, launcher, kickoff set, workgraph, and validation ladder for the next class of work.
 
-### 5. Safety-first local operation
+Existing factory-shaped surfaces include:
 
-ZOB is deliberately conservative around risky actions:
+- [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) — smallest teaching shape for a chief, scout, builder, and oracle.
+- [`examples/agent-factory-pacman-multiplayer/`](examples/agent-factory-pacman-multiplayer/) — runnable generative team demo.
+- [`.pi/factories/`](.pi/factories/) — safe factory scaffolds for repeatable workflows such as ProjectDNA, agentic spec work, budget preflight, code review matrices, and factory forging.
 
-- no `.env`, private key, SSH, AWS, or credential reads;
-- no destructive shell/git operations without explicit approval;
-- no direct commits, pushes, tags, or force pushes by default;
-- governed commits go through `/zcommit` only when explicitly authorized;
-- generated reports, ledgers, sessions, and local coordination state stay local;
-- autonomy checks are supervised evidence, not a claim of unrestricted autonomy.
+## What a ZOB run produces
 
-The safety posture is backed by [`.pi/damage-control-rules.json`](.pi/damage-control-rules.json), [`.pi/git-policy.json`](.pi/git-policy.json), the child-safety extension, and smoke scripts under [`scripts/`](scripts/README.md).
+A serious run should leave reviewable evidence, not just a chat transcript:
 
-### 6. Factories for repeatable work
+```text
+reports/<run_id>/
+  run-manifest.json
+  chief-kickoff.md
+  worker-kickoffs/
+  autonomous-workgraph.md
+  autonomous-status.md
+  iteration-log.md
+  validation-output.*
+  oracle-report.*
+  project/ or generated-artifacts/
+```
 
-When a workflow repeats, ZOB can turn it into a factory-shaped process: manifest, checkpoints, sentinels, smoke/pilot/batch gates, artifacts, and oracle review. The repository includes safe scaffolds under [`.pi/factories/`](.pi/factories/) and validation commands for public, reproducible workflows.
+The exact shape depends on the factory, but the posture is consistent: bounded inputs, visible coordination, durable artifacts, validation commands, and explicit risks/blockers.
 
-### 7. Local code knowledge with ProjectDNA
+## Core concepts
 
-ProjectDNA scaffolding helps turn approved local code scan artifacts into bounded, cited context packs and sample/spec outputs. The public posture is intentionally safe: read-only approved sources, generated artifacts under `reports/`, and no external knowledge-backend import/sync/embed/write unless explicitly approved.
+- **ZAgent** — a full Pi session with identity, role, allowed posture, and optional ZPeer presence.
+- **ZTeam** — topology for rooms, aliases, owner-facing entry points, and communication policy.
+- **Chief / orchestrator** — the parent-facing role that owns the workgraph, status, and final synthesis.
+- **Scout / builder / oracle** — common role pattern for context discovery, artifact production, and skeptical review.
+- **Kickoff file** — bounded startup context passed as `pi @file`, safer than pasting long prompts into live panes.
+- **Goal/TODO graph** — parent-owned work breakdown where child claims are reviewed before acceptance.
+- **No-ship gate** — explicit blocker status that prevents unsupported “done” claims.
 
 ## Quick start
 
@@ -133,6 +163,7 @@ ProjectDNA scaffolding helps turn approved local code scan artifacts into bounde
 - Node.js **22+**; Node 24 is recommended.
 - npm.
 - Pi installed and available on `PATH`.
+- tmux for tmux-backed Agent Factory demos.
 
 ### Install from npm for normal Pi use
 
@@ -142,7 +173,7 @@ After the package is published to npm, install the pinned Pi package:
 pi install npm:zob-harness@0.3.0
 ```
 
-Then verify that Pi can load the package extension set and return a deterministic response:
+Verify Pi can load the package extension set and return a deterministic response:
 
 ```bash
 pi -e npm:zob-harness@0.3.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
@@ -176,6 +207,7 @@ Use this path when developing or validating a release candidate before npm publi
 git clone https://github.com/cgarrot/zob-harness.git
 cd zob-harness
 npm install
+npm run validate:script-surface
 npm run check -- --pretty false
 npm run pi:check
 npm run pack:dry-run
@@ -183,9 +215,10 @@ npm run pack:dry-run
 
 Expected results:
 
-- TypeScript completes with exit code 0 and no diagnostics.
-- Pi loads the local configured ZOB extension offline and replies with `zob-harness-ok`.
-- `npm pack --dry-run --json` lists the Pi manifest, extensions, prompts, skills, agents, and validation scripts in the tarball.
+- script references validate;
+- TypeScript completes with exit code 0 and no diagnostics;
+- Pi loads the local configured ZOB extension offline and replies with `zob-harness-ok`;
+- `npm pack --dry-run --json` lists the Pi manifest, extensions, prompts, skills, agents, examples, and validation scripts in the tarball.
 
 ### Start Pi with the local harness checkout
 
@@ -203,85 +236,54 @@ Inside Pi, try:
 
 You should see ZOB modes, specialist agents, and the six-part delegation contract helper.
 
-### Public smoke baseline
-
-```bash
-npm run validate:script-surface
-npm run smoke:harness
-npm run check -- --pretty false
-npm run pack:dry-run
-```
-
-These commands verify the public script surface, core path/child-goal smokes, TypeScript baseline, and npm package surface.
-
 ## Common workflows
 
-### Running a local Agent Factory team
+### Launch a tmux-backed Agent Factory team
 
-Use an Agent Factory when the job needs multiple persistent roles rather than one transient assistant: for example, a chief, context scout, builder, and oracle. The pattern is:
+Use an Agent Factory when the job needs multiple persistent roles rather than one transient assistant. The pattern is:
 
 1. define a ZTeam manifest with parent-visible rooms and `bodyStored=false`;
 2. prepare startup kickoff files so each agent begins with bounded instructions;
-3. launch one Pi session per ZAgent, commonly through a manual tmux launcher;
+3. launch one Pi session per ZAgent through a tmux launcher when useful;
 4. coordinate with async ZPeer/Goal Room-style messages using `CONTEXT / ASK / EVIDENCE / URGENCY / BLOCKER`;
-5. treat artifacts, validation commands, and oracle review as the completion evidence.
+5. treat artifacts, validation commands, and oracle review as completion evidence.
 
-See [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) for the communication/tmux guide: it explains the parent-visible message shape, startup kickoff files, manual status/attach/close commands, and why tmux is only the local launcher. For a real structured demo, run the Pac-Man multiplayer factory:
+### Turn repeated work into a factory
 
-```bash
-RUN_ID="pacman-demo"
-npm run demo:pacman:prepare -- "$RUN_ID" --force   # write run artifacts only; no tmux/Pi launch and no game generation
-npm run demo:pacman:validate -- "$RUN_ID"          # validate the scaffold/run artifacts
-npm run demo:pacman -- "$RUN_ID" --force           # full auto: may launch 6 Pi sessions in tmux
-```
-
-Observe or stop only this demo tmux session:
-
-```bash
-bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh status
-bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh attach agent-factory-pacman-chief
-bash .pi/zteams/agent-factory-pacman-multiplayer.tmux.sh close
-```
-
-The game is not prebuilt in source. The team generates it under the run directory. After the agents finish, follow the generated run report, typically:
-
-```bash
-cd reports/agent-factory-pacman-runs/$RUN_ID/project
-npm install
-npm run validate
-npm run dev
-```
-
-### A safe single-agent implementation loop
+When a process repeats, stop re-prompting it by hand. Capture the workflow as:
 
 ```text
-1. Ask for Explore: inspect files and state a gap verdict.
-2. Ask for Plan: name the smallest file set and validation ladder.
-3. Ask for Implement: edit only that slice.
-4. Ask for Oracle: verify evidence and decide whether no-ship remains.
+manifest + team topology + kickoff templates + workgraph + checkpoints + validator + oracle gate
 ```
 
-This keeps implementation from starting before the repo facts and stop conditions are clear.
+Then expose it through an npm script or project-local launcher so the next run starts from a known shape.
 
-### Delegating work to a specialist
+### Use a safe single-agent loop
 
-Use `/contract` to create a bounded handoff, then route to an appropriate specialist agent. A good delegated result should come back with changed files, validation commands, evidence refs, risks, and no-ship status for parent/oracle review.
+```text
+Explore -> Plan -> Implement -> Oracle
+```
 
-### Goal-linked TODO work
+- **Explore** — inspect and map facts without editing.
+- **Plan** — turn evidence into a bounded implementation path.
+- **Implement** — change the smallest safe file set and verify it.
+- **Oracle** — review skeptically and surface no-ship blockers.
+
+### Delegate to a specialist
+
+Use `/contract` to create a bounded six-part handoff, then route to the appropriate specialist agent. A good delegated result should return changed files, validation commands, evidence refs, risks, and no-ship status for parent/oracle review.
+
+### Use goal-linked TODOs
 
 Use `/goal`, `/todo`, and `/goal_gate` when work needs a parent-owned TODO graph. Child agents return claims; the parent decides acceptance. This prevents children from marking parent work done without review.
 
-### Governed commits
+### Use ProjectDNA context
 
-ZOB does not encourage invisible git operations. When a user explicitly asks for a commit, agents must use `/zcommit` and follow [`.pi/git-policy.json`](.pi/git-policy.json). Autocommit and autopush are off by default.
+ProjectDNA turns approved local code scan artifacts into bounded, cited context packs and sample/spec outputs. Keep scans approved, artifacts local, and writeback proposal-only unless the parent explicitly authorizes more.
 
-### Repeatable factory runs
+### Use governed commits
 
-For recurring tasks, use factory scaffolds rather than ad hoc repetition. Factories should keep manifests, checkpoints, sentinels, generated artifacts, smoke gates, and oracle evidence visible.
-
-### Bounded ProjectDNA context
-
-Use ProjectDNA commands and scripts when a task needs cited local code context. Keep scans approved, artifacts local, and writeback proposal-only unless the parent explicitly authorizes more.
+ZOB does not encourage invisible git operations. When a user explicitly asks for a commit, agents must use `/zcommit` or the governed `zob_zcommit_run` tool and follow [`.pi/git-policy.json`](.pi/git-policy.json). Autocommit and autopush are off by default.
 
 ## Command cheat sheet
 
@@ -312,6 +314,9 @@ npm run smoke:worker-pool          # worker-pool static smoke
 npm run smoke:zpeer                # static + local ZPeer smoke
 npm run validate:project-dna       # ProjectDNA scaffold validation
 npm run pack:dry-run               # npm package dry-run surface check
+npm run demo:pacman:prepare        # prepare Pac-Man factory run artifacts
+npm run demo:pacman:validate       # validate Pac-Man factory run artifacts
+npm run demo:pacman                # launch the full Pac-Man Agent Factory demo
 ```
 
 Published package install/check:
@@ -346,9 +351,24 @@ See [scripts/README.md](scripts/README.md) for the script family map.
 
 Local/generated areas such as `reports/`, `plans/`, `.pi/sessions/`, `.pi/logs/`, `.pi/tmp/`, coms ledgers, workspace claims, worker pools, and merge queues are not part of the normal source surface. See [SOURCE_INDEX.md](SOURCE_INDEX.md) for the current classification.
 
+## Safety model
+
+ZOB is deliberately conservative around risky actions:
+
+- no `.env`, private key, SSH, AWS, or credential reads;
+- no destructive shell/git operations without explicit approval;
+- no direct commits, pushes, tags, or force pushes by default;
+- governed commits go through `/zcommit` or `zob_zcommit_run` only when explicitly authorized;
+- tmux is a launch/observation layer, not the source of truth;
+- generated reports, ledgers, sessions, and local coordination state stay local;
+- autonomy checks are supervised evidence, not a claim of unrestricted autonomy;
+- completion requires concrete artifacts, validation evidence, and oracle/no-ship review when required.
+
+The safety posture is backed by [AGENTS.md](AGENTS.md), [`.pi/damage-control-rules.json`](.pi/damage-control-rules.json), [`.pi/git-policy.json`](.pi/git-policy.json), the child-safety extension, and smoke scripts under [`scripts/`](scripts/README.md).
+
 ## Current status and limits
 
-ZOB Harness is an early, conservative, governed harness. The public repo is useful for evaluating the operating model, extension wiring, skills, agents, safety posture, and smoke validations. It should not be described as unrestricted autonomy, a production deployment system, or a benchmark-winning agent framework.
+ZOB Harness is an early, conservative, governed harness. The public repo is useful for evaluating the Agent Factory operating model, extension wiring, skills, agents, safety posture, and smoke validations. It should not be described as unrestricted autonomy, a production deployment system, or a benchmark-winning agent framework.
 
 Current limits are intentional:
 

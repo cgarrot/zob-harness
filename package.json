@@ -2,7 +2,7 @@
   "name": "zob-harness",
   "version": "0.3.0",
   "type": "module",
-  "description": "A governed, human-controlled Pi Agent Factory for contract-driven agentic engineering, visible communication, safety gates, specialist delegation, and repeatable workflows.",
+  "description": "A governed Agent Factory for Pi: launch communicating agent teams, run tmux-backed factories, validate artifacts, and package repeatable workflows.",
   "license": "MIT",
   "repository": {
     "type": "git",
