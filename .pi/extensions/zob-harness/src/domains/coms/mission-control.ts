@@ -63,6 +63,7 @@ function summarizeZpeerRooms(peers: Array<Record<string, unknown>>): Array<Recor
   }
   return [...rooms.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([roomId, roomPeers]) => {
     const aliases = roomPeers.map((entry) => entry.alias).filter((alias): alias is string => Boolean(alias)).sort();
+    const onlineAliases = roomPeers.filter((entry) => entry.peer.status === "online").map((entry) => entry.alias).filter((alias): alias is string => Boolean(alias)).sort();
     const sessionHashes = roomPeers.map((entry) => typeof entry.peer.sessionHash === "string" ? entry.peer.sessionHash : undefined).filter((sessionHash): sessionHash is string => Boolean(sessionHash));
     return {
       schema: "zob.zpeer-room-summary.v1",
@@ -73,7 +74,9 @@ function summarizeZpeerRooms(peers: Array<Record<string, unknown>>): Array<Recor
       stale: roomPeers.filter((entry) => entry.peer.status === "stale").length,
       offline: roomPeers.filter((entry) => entry.peer.status === "offline").length,
       aliasHashes: aliases.map((alias) => sha256(alias)),
-      duplicateAliasHashes: aliases.filter((alias, index) => aliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index).map((alias) => sha256(alias)),
+      onlineAliasHashes: onlineAliases.map((alias) => sha256(alias)),
+      duplicateAliasHashes: onlineAliases.filter((alias, index) => onlineAliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index).map((alias) => sha256(alias)),
+      duplicateAliasScope: "online_only",
       localOnly: true,
       networkEnabled: false,
       bodyStored: false,

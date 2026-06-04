@@ -1032,9 +1032,9 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
         });
         emitZpeerEvent({ kind: "status", roomId: summary.roomId, fromAlias: summary.selfAlias, status: `online=${summary.online}/${summary.peerCount}`, reason: `stale=${summary.stale} offline=${summary.offline}` });
         renderHarnessWidget(pi, state, ctx);
-        const availableAliases = summary.aliases.filter((alias) => alias !== summary.selfAlias).map((alias) => `@${alias}`).join(", ") || "none";
+        const availableAliases = summary.onlineAliases.filter((alias) => alias !== summary.selfAlias).map((alias) => `@${alias}`).join(", ") || "none";
         const unavailable = summary.stale + summary.offline;
-        ctx.ui.notify(`zpeer room=${summary.roomId} memberships=${summary.membershipCount ?? zpeerMembershipsForPeer(self).length} self=@${summary.selfAlias ?? "?"} onlinePeers=${Math.max(0, summary.online - 1)} unavailable=${unavailable} peers=${availableAliases} · usage: /zpeer @alias <prompt> | /zpeer in <room> @alias <prompt> · safety: local-only/hash-only/bodyStored=false`, "info");
+        ctx.ui.notify(`zpeer room=${summary.roomId} memberships=${summary.membershipCount ?? zpeerMembershipsForPeer(self).length} self=@${summary.selfAlias ?? "?"} onlinePeers=${Math.max(0, summary.online - 1)} unavailable=${unavailable} livePeers=${availableAliases} · usage: /zpeer @alias <prompt> | /zpeer in <room> @alias <prompt> · safety: local-only/hash-only/bodyStored=false`, "info");
         return;
       }
       const parts = trimmed.split(/\s+/);

@@ -331,6 +331,12 @@ async function main() {
   assert(useShared.ok === true && useShared.peer.zpeerRoomId === 'shared-room' && useShared.peer.zpeerAlias === 'sharedalpha', 'useZpeerRoom must switch active room and alias');
   alpha = zpeer.useZpeerRoom(repoRoot, useShared.peer, 'room-one').peer;
 
+  zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'beta', roomId: 'room-one', endpoint: join(root, 'dead-beta-ghost.sock'), endpointHash: hashing.sha256(join(root, 'dead-beta-ghost.sock')), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'beta');
+  const ghostDuplicateSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
+  assert(ghostDuplicateSummary.aliases.filter((alias) => alias === 'beta').length >= 2, 'ghost duplicate fixture must include stale/offline alias plus live alias');
+  assert(ghostDuplicateSummary.onlineAliases.filter((alias) => alias === 'beta').length === 1, 'only the live beta alias should be listed as online');
+  assert(!ghostDuplicateSummary.duplicateAliases.includes('beta'), 'offline alias ghosts must not be reported as live duplicate aliases');
+
   const directPromptCountBefore = receivedPrompts.length;
   const directResponseCountBefore = receivedResponses.length;
   assert(alpha.team !== beta.team, 'same-room non-worker allowance fixture must cover cross-team peers');

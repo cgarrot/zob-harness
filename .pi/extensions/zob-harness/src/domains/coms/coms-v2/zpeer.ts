@@ -26,6 +26,9 @@ export interface ZpeerRoomSummary {
   stale: number;
   offline: number;
   aliases: string[];
+  onlineAliases: string[];
+  staleAliases: string[];
+  offlineAliases: string[];
   duplicateAliases: string[];
   membershipCount?: number;
   localOnly: true;
@@ -248,9 +251,15 @@ function peersInRoom(repoRoot: string, roomId: string): ZpeerRoomPeer[] {
 
 function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard | undefined, roomId: string, peers: ZpeerRoomPeer[]): ZpeerRoomSummary {
   const counts: Record<ZobLivePeerStatus, number> = { online: 0, stale: 0, offline: 0 };
+  const statusAliases: Record<ZobLivePeerStatus, string[]> = { online: [], stale: [], offline: [] };
   const aliases = peers.map((entry) => entry.membership.alias).sort();
-  for (const entry of peers) counts[zpeerReachableStatus(entry.peer)] += 1;
-  const duplicateAliases = aliases.filter((alias, index) => aliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index);
+  for (const entry of peers) {
+    const status = zpeerReachableStatus(entry.peer);
+    counts[status] += 1;
+    statusAliases[status].push(entry.membership.alias);
+  }
+  const onlineAliases = statusAliases.online.sort();
+  const duplicateAliases = onlineAliases.filter((alias, index) => onlineAliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index);
   return {
     schema: "zob.zpeer-room-summary.v1",
     projectId,
@@ -261,6 +270,9 @@ function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard
     stale: counts.stale,
     offline: counts.offline,
     aliases,
+    onlineAliases,
+    staleAliases: statusAliases.stale.sort(),
+    offlineAliases: statusAliases.offline.sort(),
     duplicateAliases,
     membershipCount: self ? zpeerMembershipsForPeer(self).length : undefined,
     localOnly: true,
@@ -471,8 +483,24 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   const candidates = peersInRoom(repoRoot, roomId).filter((entry) => entry.membership.alias === targetAlias && entry.peer.sessionHash !== self.sessionHash);
   if (targetAlias === senderAlias) return finish("attempt", { status: "blocked", reason: "cannot send to self", targetAlias, taskHash, bodyStored: false });
   if (candidates.length === 0) return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} not found in room '${roomId}'`, targetAlias, taskHash, bodyStored: false }, 0);
-  if (candidates.length > 1) return finish("attempt", { status: "blocked", reason: `duplicate alias @${targetAlias} in room '${roomId}'`, targetAlias, taskHash, bodyStored: false }, candidates.length);
-  const target = candidates[0];
+  let liveCandidates = candidates.filter((entry) => zpeerReachableStatus(entry.peer) === "online");
+  if (liveCandidates.length > 1) {
+    const responsiveCandidates: ZpeerRoomPeer[] = [];
+    for (const entry of liveCandidates) {
+      if (await peerRespondsToAliasPing(entry.peer)) {
+        responsiveCandidates.push(entry);
+      } else {
+        try { writeZobLivePeerCard(repoRoot, { ...entry.peer, heartbeatAt: new Date().toISOString(), status: "offline" }); } catch { /* best-effort ghost alias release */ }
+      }
+    }
+    liveCandidates = responsiveCandidates;
+  }
+  if (liveCandidates.length === 0) {
+    const statuses = [...new Set(candidates.map((entry) => zpeerReachableStatus(entry.peer)))].sort().join("/") || "offline";
+    return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is ${statuses}`, targetAlias, taskHash, bodyStored: false }, candidates.length);
+  }
+  if (liveCandidates.length > 1) return finish("attempt", { status: "blocked", reason: `duplicate live alias @${targetAlias} in room '${roomId}'`, targetAlias, taskHash, bodyStored: false }, liveCandidates.length);
+  const target = liveCandidates[0];
   const targetReachableStatus = zpeerReachableStatus(target.peer);
   if (targetReachableStatus !== "online") return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is ${targetReachableStatus}`, targetAlias, taskHash, bodyStored: false }, 1);
   const topologyBlocker = validateZpeerTopology(repoRoot, self, target.peer, roomId, senderAlias, target.membership.alias);

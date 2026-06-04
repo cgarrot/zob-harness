@@ -353,8 +353,8 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           const marker = summary.active ? "*" : " ";
           const selfAlias = `@${summary.selfAlias ?? "?"}`;
           const peerState = `${summary.online}/${summary.peerCount}${summary.stale > 0 ? ` s${summary.stale}` : ""}${summary.offline > 0 ? ` off${summary.offline}` : ""}`;
-          const peerAliases = summary.aliases.filter((alias) => alias !== summary.selfAlias).slice(0, 2).map((alias) => `@${alias}`);
-          const aliasOverflow = Math.max(0, summary.aliases.length - (summary.selfAlias && summary.aliases.includes(summary.selfAlias) ? 1 : 0) - peerAliases.length);
+          const peerAliases = summary.onlineAliases.filter((alias) => alias !== summary.selfAlias).slice(0, 2).map((alias) => `@${alias}`);
+          const aliasOverflow = Math.max(0, summary.onlineAliases.length - (summary.selfAlias && summary.onlineAliases.includes(summary.selfAlias) ? 1 : 0) - peerAliases.length);
           const aliasText = peerAliases.length > 0 ? `${peerAliases.join(" ")}${aliasOverflow > 0 ? ` +${aliasOverflow}` : ""}` : "no peers";
           return theme.fg("muted", truncateToWidth(`${marker} ${summary.roomId} ${selfAlias} ${peerState} ${aliasText}`, 52, "…"));
         });

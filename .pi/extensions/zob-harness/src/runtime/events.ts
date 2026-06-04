@@ -8,7 +8,7 @@ import { buildZobLiveAckEnvelope, buildZobLiveErrorEnvelope, buildZobLivePongEnv
 import { appendLiveCompletedRef } from "../domains/coms/coms-v2/ledger-bridge.js";
 import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from "../domains/coms/coms-v2/local-transport.js";
 import { readZobComsV2Policy } from "../domains/coms/coms-v2/policy.js";
-import { registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../domains/coms/coms-v2/registry.js";
+import { pruneExpiredZobLivePeers, registerCurrentZobLivePeer, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../domains/coms/coms-v2/registry.js";
 import { clearZpeerNewCarryoverProfile, readZpeerLocalProfile, readZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer, writeZpeerNewCarryoverProfile, zpeerProfileIdIsSharedFallback } from "../domains/coms/coms-v2/zpeer-profile.js";
 import { buildZpeerPeerRoomSummaries, ensureZpeerFields, refreshZpeerSelf } from "../domains/coms/coms-v2/zpeer.js";
 import type { ZpeerRoomMembership } from "../domains/coms/coms-v2/types.js";
@@ -317,16 +317,16 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
   const memberships = (state.zobLive.peerCard.zpeerMemberships?.length ?? summaries.length) || 1;
   const roomLines = summaries.slice(0, 6).map((summary) => {
     const selfAlias = summary.selfAlias ?? "?";
-    const peerAliases = summary.aliases.filter((alias) => alias !== selfAlias).slice(0, 6).map((alias) => `@${alias}`);
+    const peerAliases = summary.onlineAliases.filter((alias) => alias !== selfAlias).slice(0, 6).map((alias) => `@${alias}`);
     const unavailable = summary.stale + summary.offline;
-    const duplicateText = summary.duplicateAliases.length > 0 ? ` duplicates=${summary.duplicateAliases.map((alias) => `@${alias}`).join(",")}` : "";
+    const duplicateText = summary.duplicateAliases.length > 0 ? ` liveDuplicates=${summary.duplicateAliases.map((alias) => `@${alias}`).join(",")}` : "";
     return `  - ${summary.active ? "*" : " "} ${summary.roomId}: self=@${selfAlias}; online=${peerAliases.join(",") || "none"}; unavailable=${unavailable} (stale=${summary.stale}, offline=${summary.offline})${duplicateText}`;
   });
   if (summaries.length > 6) roomLines.push(`  - +${summaries.length - 6} more room${summaries.length - 6 === 1 ? "" : "s"}`);
   const activeSelfAlias = activeSummary?.selfAlias ?? "?";
-  const activePeerAliases = (activeSummary?.aliases ?? []).filter((alias) => alias !== activeSelfAlias).slice(0, 8).map((alias) => `@${alias}`);
+  const activePeerAliases = (activeSummary?.onlineAliases ?? []).filter((alias) => alias !== activeSelfAlias).slice(0, 8).map((alias) => `@${alias}`);
   const activeUnavailable = (activeSummary?.stale ?? 0) + (activeSummary?.offline ?? 0);
-  const activeDuplicateLine = activeSummary && activeSummary.duplicateAliases.length > 0 ? `\n- duplicate aliases: ${activeSummary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
+  const activeDuplicateLine = activeSummary && activeSummary.duplicateAliases.length > 0 ? `\n- duplicate live aliases: ${activeSummary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
   return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
@@ -389,6 +389,7 @@ function handleSameAgentModeIntent(pi: ExtensionAPI, state: HarnessRuntimeState,
 async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext): Promise<void> {
   const repoRoot = ctx.cwd;
   const profileId = zpeerRuntimeProfileId(ctx);
+  try { pruneExpiredZobLivePeers(repoRoot); } catch { /* best-effort ghost peer cleanup; live runtime must remain available */ }
   const policy = readZobComsV2Policy(repoRoot);
   if (policy.mode === "off" || policy.mode === "required_network") {
     safelyUpdateZobLivePeer(repoRoot, state.zobLive.peerCard ? "touch" : "register");

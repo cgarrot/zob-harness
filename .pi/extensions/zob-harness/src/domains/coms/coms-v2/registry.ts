@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -10,6 +10,8 @@ import { readZobComsV2Policy, zobComsRegistryEnabled } from "./policy.js";
 import type { ZobLivePeerCard, ZobLivePeerStatus, ZobLiveRegistrySnapshot } from "./types.js";
 
 const FORBIDDEN_PERSISTED_KEYS = new Set(["body", "task", "prompt", "output", "content", "message", "rationale", "text", "diff", "patch"]);
+const DEFAULT_OFFLINE_PEER_RETENTION_MS = 24 * 60 * 60 * 1000;
+const MIN_OFFLINE_PEER_RETENTION_MS = 5 * 60 * 1000;
 
 function registryRoot(): { path: string; kind: "user_runtime" | "env_override" } {
   const override = process.env.ZOB_COMS_REGISTRY_ROOT;
@@ -54,6 +56,19 @@ function readPeerCardsFromAgentsDir(dir: string, nowMs: number, teamName?: strin
     .map((peer) => ({ ...peer, status: derivePeerStatus(peer, nowMs) }));
 }
 
+function boundedOfflinePeerRetentionMs(value: number | undefined): number {
+  const env = Number.parseInt(process.env.ZOB_COMS_OFFLINE_PEER_RETENTION_MS ?? "", 10);
+  const raw = typeof value === "number" && Number.isFinite(value) ? value : Number.isFinite(env) ? env : DEFAULT_OFFLINE_PEER_RETENTION_MS;
+  return Math.max(MIN_OFFLINE_PEER_RETENTION_MS, Math.floor(raw));
+}
+
+function offlinePeerExpired(peer: ZobLivePeerCard, nowMs: number, retentionMs: number): boolean {
+  if (derivePeerStatus(peer, nowMs) !== "offline") return false;
+  const heartbeatMs = Date.parse(peer.heartbeatAt);
+  if (!Number.isFinite(heartbeatMs)) return true;
+  return nowMs - heartbeatMs >= Math.max(peer.offlineAfterMs, retentionMs);
+}
+
 function allProjectAgentsDirs(): string[] {
   const root = registryRoot();
   const projectsDir = join(root.path, "projects");
@@ -92,6 +107,34 @@ function derivePeerStatus(peer: ZobLivePeerCard, nowMs: number): ZobLivePeerStat
   if (nowMs - heartbeatMs >= peer.offlineAfterMs) return "offline";
   if (nowMs - heartbeatMs >= peer.staleAfterMs) return "stale";
   return "online";
+}
+
+export function pruneExpiredZobLivePeers(repoRoot: string, input: { teamName?: string; nowMs?: number; retentionMs?: number } = {}): { schema: "zob.live-registry-prune.v1"; pruned: number; retained: number; retentionMs: number; bodyStored: false } {
+  const { dir } = projectAgentsDir(repoRoot);
+  const nowMs = input.nowMs ?? Date.now();
+  const retentionMs = boundedOfflinePeerRetentionMs(input.retentionMs);
+  let pruned = 0;
+  let retained = 0;
+  if (!existsSync(dir)) return { schema: "zob.live-registry-prune.v1", pruned, retained, retentionMs, bodyStored: false };
+  for (const entry of readdirSync(dir).filter((name) => name.endsWith(".json"))) {
+    const filePath = join(dir, entry);
+    try {
+      const peer = parsePeerCard(JSON.parse(readFileSync(filePath, "utf8")) as unknown);
+      if (!peer || (input.teamName && peer.team !== input.teamName)) {
+        retained += 1;
+        continue;
+      }
+      if (offlinePeerExpired(peer, nowMs, retentionMs)) {
+        unlinkSync(filePath);
+        pruned += 1;
+      } else {
+        retained += 1;
+      }
+    } catch {
+      retained += 1;
+    }
+  }
+  return { schema: "zob.live-registry-prune.v1", pruned, retained, retentionMs, bodyStored: false };
 }
 
 export function writeZobLivePeerCard(repoRoot: string, peer: ZobLivePeerCard): ZobLivePeerCard {
