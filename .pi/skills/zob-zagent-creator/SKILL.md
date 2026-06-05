@@ -91,6 +91,7 @@ The script must support these manual subcommands:
 ./.pi/zteams/<bundle-id>.tmux.sh list            # list entryAgent and available agent windows
 ./.pi/zteams/<bundle-id>.tmux.sh status          # list bundle windows/session status
 ./.pi/zteams/<bundle-id>.tmux.sh close           # close only this bundle's tmux session
+./.pi/zteams/<bundle-id>.tmux.sh new             # send Pi /new to every existing team agent window without closing tmux
 ```
 
 Script safety requirements:
@@ -101,7 +102,10 @@ Script safety requirements:
 - Choose an entry agent for the bundle. Prefer `team.metadata.entryAgent` when present; otherwise use the first unique ZAgent in the launcher.
 - If `start` sees that the session already exists, attach to the entry agent or requested agent instead of creating duplicate Pi processes.
 - `start [agent]`, `attach [agent]`, and `window <agent>` must validate the target against the launcher `AGENTS` list before passing it to tmux.
-- `close` may call only `tmux kill-session -t "$SESSION_NAME"`; do not use `killall`, broad process kills, destructive shell commands, or global cleanup.
+- `close` may call only `tmux kill-session -t "$SESSION_NAME"`; do not use `killall`, broad process kills, destructive shell commands, global cleanup, or direct registry deletion.
+- `new` must validate the tmux session and every known agent window, then send exactly Pi `/new` to each existing scoped window; it must not close, start, kill, relaunch, clean leases, or create missing windows.
+- Active ZPeer/ZTeam presence is lease-based: runtime owns stable `teamId+agentId` leases, graceful shutdown releases only the matching lease owner, relaunch pings the previous live endpoint before reclaiming, and `/zteam reset` sends Pi `/new` to existing scoped tmux agent windows without closing tmux or cleaning leases directly.
+- Launcher `close` is only tmux lifecycle control, not proof of presence cleanup; cards remain history and active room summaries come from leases.
 - Quote shell values safely. Do not inject raw natural-language text into shell commands.
 - Only include `--model <model>` when the model value passes the same safe pattern expected by `/zteam launch-plan`; otherwise omit it and report the omission.
 - Keep the script local-only and manual; it must not perform network setup, credential access, commits, pushes, or background daemon installation.
@@ -112,6 +116,9 @@ Recommended launcher shape:
 #!/usr/bin/env bash
 set -euo pipefail
 
+TEAM_ID="<primary-team-id>"
+BUNDLE_ID="${ZOB_ZTEAM_BUNDLE_ID:-<bundle-id>}"
+LAUNCH_ID="${ZOB_ZTEAM_LAUNCH_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 SESSION_NAME="zob-<bundle-id>"
 ENTRY_AGENT="planner" # prefer team.metadata.entryAgent; fallback AGENTS[0]
 AGENTS=("planner" "bridge-agent" "oracle")
@@ -123,6 +130,11 @@ require_tmux() {
 
 session_exists() {
   tmux has-session -t "$SESSION_NAME" 2>/dev/null
+}
+
+window_exists() {
+  local window="$1"
+  tmux list-windows -t "$SESSION_NAME" -F '#{window_name}' 2>/dev/null | grep -Fx -- "$window" >/dev/null
 }
 
 safe_window_name() {
@@ -147,6 +159,23 @@ resolve_target_agent() {
     exit 2
   fi
   printf '%s' "$requested"
+}
+
+profile_id_for_agent() {
+  local agent="$1"
+  printf 'zteam-%s-%s' "$(safe_window_name "$BUNDLE_ID")" "$(safe_window_name "$agent")"
+}
+
+launch_command_for_agent() {
+  local agent="$1"
+  local model="$2"
+  local profile_id
+  profile_id="$(profile_id_for_agent "$agent")"
+  if [ -n "$model" ]; then
+    printf 'ZOB_ZTEAM_ID=%q ZOB_ZTEAM_BUNDLE_ID=%q ZOB_ZTEAM_LAUNCH_ID=%q ZOB_ZPEER_PROFILE_ID=%q ZOB_ZAGENT_ID=%q pi --model %q' "$TEAM_ID" "$BUNDLE_ID" "$LAUNCH_ID" "$profile_id" "$agent" "$model"
+  else
+    printf 'ZOB_ZTEAM_ID=%q ZOB_ZTEAM_BUNDLE_ID=%q ZOB_ZTEAM_LAUNCH_ID=%q ZOB_ZPEER_PROFILE_ID=%q ZOB_ZAGENT_ID=%q pi' "$TEAM_ID" "$BUNDLE_ID" "$LAUNCH_ID" "$profile_id" "$agent"
+  fi
 }
 
 attach_to_agent() {
@@ -178,14 +207,25 @@ start_session() {
     model="${MODELS[$i]}"
     window="$(safe_window_name "$agent")"
     if [ "$i" -ne 0 ]; then tmux new-window -t "$SESSION_NAME" -n "$window"; fi
-    if [ -n "$model" ]; then
-      tmux send-keys -t "$SESSION_NAME:$window" "ZOB_ZAGENT_ID=$agent pi --model $model" C-m
-    else
-      tmux send-keys -t "$SESSION_NAME:$window" "ZOB_ZAGENT_ID=$agent pi" C-m
-    fi
+    tmux send-keys -t "$SESSION_NAME:$window" "$(launch_command_for_agent "$agent" "$model")" C-m
   done
   tmux select-window -t "$SESSION_NAME:$target_window"
   tmux attach -t "$SESSION_NAME:$target_window"
+}
+
+send_new_to_agents() {
+  require_tmux
+  if ! session_exists; then echo "session not running: $SESSION_NAME" >&2; exit 1; fi
+  local agent window missing=0
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    if ! window_exists "$window"; then echo "missing agent window: $SESSION_NAME:$window" >&2; missing=1; fi
+  done
+  if [ "$missing" -ne 0 ]; then echo "new aborted: one or more team agent windows are missing" >&2; exit 1; fi
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    tmux send-keys -t "$SESSION_NAME:$window" C-u "/new" C-m
+  done
 }
 
 list_agents() {
@@ -201,11 +241,12 @@ case "${1:-start}" in
   list) list_agents ;;
   status) require_tmux; tmux list-windows -t "$SESSION_NAME" ;;
   close) require_tmux; tmux kill-session -t "$SESSION_NAME" ;;
-  *) echo "Usage: $0 start [agent]|attach [agent]|window <agent>|list|status|close"; exit 2 ;;
+  new) send_new_to_agents ;;
+  *) echo "Usage: $0 start [agent]|attach [agent]|window <agent>|list|status|close|new"; exit 2 ;;
 esac
 ```
 
-When reporting a generated tmux launcher, include the bundle id, session name, scope (`team`, `connected`, or `all`), teams included, unique ZAgents included, shared/bridge ZAgents deduplicated, entry agent/window, whether `metadata.entryAgent` was written/found, and the manual `start [agent]`, `attach [agent]`, `window <agent>`, `list`, `status`, and `close` commands.
+When reporting a generated tmux launcher, include the bundle id, session name, scope (`team`, `connected`, or `all`), teams included, unique ZAgents included, shared/bridge ZAgents deduplicated, entry agent/window, whether `metadata.entryAgent` was written/found, and the manual `start [agent]`, `attach [agent]`, `window <agent>`, `list`, `status`, `close`, and `new` commands.
 
 ## Model catalog selection
 
@@ -275,6 +316,16 @@ ZAgent manifest mode shape:
 
 `/zteam launch-plan <team-id>` prints `defaultMode=<mode>` in the command comment. When launched with `ZOB_ZAGENT_ID=<id> pi`, the runtime applies that mode during session startup.
 
+## Scoped ZTeam Mode Packs and Team Contract Packs
+
+A ZTeam may reference a project-local scoped mode pack through `team.metadata.modePackRef`. The referenced JSON must stay under `.pi/zteams/`, use schema `zob.zteam-modes.v1`, and keep `localOnly: true`, `networkEnabled: false`, and `bodyStored: false`.
+
+Scoped ZTeam modes are team-local overlays on canonical base modes (`explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`, or explicit-owner-approved `vanilla`). They must be narrowing-only: do not add global `ModeName`, `MODE_TOOLS`, or `MODE_PROMPTS`, do not broaden tools/rooms/paths/network/body storage, and do not bypass owner/oracle/no-ship gates. If a mode pack includes defaults, ensure each default is strictly aligned with the ZAgent's existing `defaultMode`/role; otherwise prefer no defaults and explicit manual selection with `ZOB_ZTEAM_MODE_ID=<mode-id>` / `ZOB_ZTEAM_MODE=<mode-id>`.
+
+A Team Contract Pack is the safety contract metadata carried with the team/mode pack: parent-visible coordination, hidden peer chat disabled, local-only transport, body-free durable records, manual launch, spawn-count=0 in launch-plan, and completion only through concrete evidence plus oracle/no-ship review. Tmux launchers remain manual wrappers and never prove launch, delivery, validation, or completion.
+
+`/zteam launch-plan <team-id>` should expose `ZOB_ZTEAM_ID=<team>`, modePackRef, available scoped modes, any effective scoped mode/baseMode, safe `--model` args, and `spawn-count=0`; it must not spawn sessions.
+
 ## Safe workflow
 
 1. Clarify the requested ZAgent purpose, authority, inputs, outputs, allowed tools, and stop conditions from the natural-language ask.
@@ -301,6 +352,7 @@ ZAgent manifest mode shape:
 - Keep definitions minimal, auditable, and project-local.
 - When generating tmux launchers, treat multi-team requests as bundles, deduplicate shared agents by `zagentId`, and document included teams, unique agents, and bridge/shared agents.
 - For Agent Factory teams, include or reference the communication policy: `parentVisible: true`, `hiddenPeerChat: false`, `bodyStored: false`, `networkEnabled: false`, and owner/oracle gates for completion.
+- For Scoped ZTeam Mode Packs, keep schema `zob.zteam-modes.v1` under `.pi/zteams/`, use canonical base modes only, avoid defaults unless strictly aligned/narrowing-only, and document the Team Contract Pack safety posture.
 - Preserve existing runtime code and safety policy unless the owner explicitly asks for a separate implementation task.
 - Ask for clarification when authority, launch conditions, write permissions, or external access are ambiguous.
 
@@ -331,7 +383,8 @@ Before reporting completion, verify:
 - [ ] Human-owner approval gates are explicit for launch, writes, external access, commits, and escalation.
 - [ ] If model preferences/cost/quality were mentioned, the chosen `model` values cite `.pi/model-catalog.json` or `.pi/model-catalog.example.json`, map to valid `.pi/model-routing.json` classes, and avoid oracle/security downgrade.
 - [ ] Each `defaultMode` is valid, role-appropriate, and not `vanilla` unless explicitly requested.
-- [ ] Manual launch instructions mention `/zteam launch-plan <team-id>` and `ZOB_ZAGENT_ID=<id> pi` / `ZOB_ZAGENT_ID=<id> pi --model <model>`, with no automatic process spawn.
+- [ ] Manual launch instructions mention `/zteam launch-plan <team-id>`, `ZOB_ZTEAM_ID=<team> ZOB_ZAGENT_ID=<id> pi` / `ZOB_ZTEAM_ID=<team> ZOB_ZAGENT_ID=<id> pi --model <model>`, and `spawn-count=0`, with no automatic process spawn.
+- [ ] Any Scoped ZTeam Mode Pack is under `.pi/zteams/`, schema `zob.zteam-modes.v1`, local-only/network-disabled/body-free, and narrowing-only with safe defaults or no defaults.
 - [ ] If tmux was requested, the primary ZTeam has `metadata.entryAgent` or the report states the fallback first agent.
 - [ ] If tmux was requested, the report lists bundle id, session name, scope, teams included, unique agents, shared/bridge agents, entry agent/window, and manual `start [agent]`/`attach [agent]`/`window <agent>`/`list`/`status`/`close` commands.
 - [ ] If tmux was requested, shared/bridge ZAgents are deduplicated by `zagentId`, and the script uses only bounded tmux operations for the bundle session.

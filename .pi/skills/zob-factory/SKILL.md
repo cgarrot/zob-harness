@@ -23,12 +23,14 @@ Some factories produce not only code or reports, but a supervised team workflow.
 
 - ZAgent roles, prompts, default modes, and allowed authority;
 - ZTeam topology, aliases, rooms, entry agent, and `parentVisible` communication policy;
+- optional Scoped ZTeam Mode Pack under `.pi/zteams/` with schema `zob.zteam-modes.v1`, canonical base modes only, localOnly true, networkEnabled false, bodyStored false, and no defaults unless strictly aligned/narrowing-only;
+- Team Contract Pack metadata: parent-visible coordination, hidden peer chat disabled, local-only transport, body-free durable records, manual launch, spawn-count=0, and owner/oracle no-ship gates;
 - optional manual tmux launcher with start/attach/status/close only;
 - startup kickoff templates or rendered kickoff files passed as `pi @kickoff.md`;
 - run artifacts such as `run-manifest.json`, workgraph/status/iteration logs, readiness or kickoff-dispatch records;
 - validation and oracle/no-ship gates before completion claims.
 
-Do not treat launching a tmux team as factory success. Success comes from evidence artifacts, validators, and oracle review.
+Do not treat launching a tmux team, printing `/zteam launch-plan`, or receiving ZPeer ACKs as factory success. Success comes from evidence artifacts, validators, and oracle review.
 
 ## Required artifacts
 
@@ -46,4 +48,4 @@ For Agent Factories, also prefer:
 - kickoff templates or rendered startup kickoff files
 - `autonomous-workgraph.md` / `autonomous-status.md` / `iteration-log.md`
 - `kickoff-dispatch.json` or equivalent body-free startup proof
-- communication protocol and no-ship policy
+- communication protocol, Scoped ZTeam Mode Pack/Team Contract Pack posture when used, and no-ship policy
