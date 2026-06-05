@@ -25,6 +25,7 @@ Public root-level helpers currently referenced by `package.json` are exact-file 
 
 - `scripts/zpeer-static-smoke.mjs`
 - `scripts/zpeer-local-e2e-smoke.mjs`
+- `scripts/zagent-static-smoke.mjs`
 
 Deferred/local root helpers (for example, transitional delegation proof scripts) stay out of the public npm script surface until they are intentionally promoted.
 
@@ -48,10 +49,13 @@ Common safe checks:
 
 ```bash
 npm run validate:script-surface
+npm run validate:capability-refs
 npm run check -- --pretty false
 npm run smoke:harness
 ```
 
 Run `npm run validate:script-surface` after changing `package.json` scripts, adding/removing script helper files, or changing `package.json.files`. It verifies package script file references exist, are not ignored, are tracked or visible as pending adds in the current patch, and are included in the package file surface.
+
+Run `npm run validate:capability-refs` after changing `.pi/capabilities/zob-public-runtime-capabilities.json`, skills, docs, or runtime capability references. It verifies registry doc/skill refs resolve to repo-local files.
 
 Run additional domain-specific smokes only when their source files are present and the task requires them.
