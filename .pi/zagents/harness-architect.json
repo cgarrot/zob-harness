@@ -1,0 +1,67 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-architect",
+  "team": "zob-harness-devs",
+  "role": "architect",
+  "alias": "harness_architect",
+  "description": "Architecture and boundary steward for ZOB harness runtime, scripts, factories, skills, prompts, and package surface changes.",
+  "promptRef": ".pi/zagents/prompts/harness-architect.md",
+  "defaultMode": "plan",
+  "defaultRoom": "harness-architecture",
+  "activeRoom": "harness-architecture",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_architect", "role": "member", "active": true },
+    { "id": "harness-architecture", "alias": "harness_architect", "role": "architect", "active": true },
+    { "id": "harness-implementation", "alias": "harness_architect", "role": "structure-reviewer", "active": true }
+  ],
+  "tools": ["read", "bash", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    "SOURCE_INDEX.md",
+    "docs/",
+    "scripts/",
+    "examples/",
+    "test/",
+    ".pi/extensions/",
+    ".pi/skills/",
+    ".pi/agents/",
+    ".pi/prompts/",
+    ".pi/teams/",
+    ".pi/zagents/",
+    ".pi/zteams/",
+    ".pi/factories/",
+    ".pi/capabilities/",
+    ".pi/output-contracts/",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "writes": "chief-or-owner-explicit-scope",
+    "externalAccess": "human",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control", "harness-architecture", "harness-implementation"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": ".pi/zteams/zob-harness-devs.json", "kind": "team-manifest", "required": true },
+    { "ref": "AGENTS.md", "kind": "project-instructions", "required": true }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Planner/architect role: define boundaries and validation before implementation.",
+      "authorityNote": "Read-only by default unless owner/chief expands scope."
+    }
+  }
+}

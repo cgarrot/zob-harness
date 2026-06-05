@@ -1,0 +1,73 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-chief",
+  "team": "zob-harness-devs",
+  "role": "orchestrator",
+  "alias": "harness_chief",
+  "description": "Owner-facing lead for the ZOB harness development team; coordinates lanes, gates, evidence, and oracle review.",
+  "promptRef": ".pi/zagents/prompts/harness-chief.md",
+  "defaultMode": "orchestrator",
+  "defaultRoom": "harness-control",
+  "activeRoom": "harness-control",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_chief", "role": "lead", "active": true }
+  ],
+  "tools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    "SOURCE_INDEX.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "docs/",
+    "scripts/",
+    "examples/",
+    "test/",
+    ".pi/agents/",
+    ".pi/skills/",
+    ".pi/prompts/",
+    ".pi/teams/",
+    ".pi/zagents/",
+    ".pi/zteams/",
+    ".pi/extensions/",
+    ".pi/factories/",
+    ".pi/capabilities/",
+    ".pi/output-contracts/",
+    ".pi/rules/",
+    ".pi/orchestrations/",
+    "reports/",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "launchAgents": "human",
+    "externalAccess": "human",
+    "runtimeWrite": "owner-scoped+validation",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": ".pi/zteams/zob-harness-devs.json", "kind": "team-manifest", "required": true },
+    { "ref": ".pi/skills/zob-zagent-creator/SKILL.md", "kind": "skill", "required": true },
+    { "ref": ".pi/skills/zob-coms-v2-live/SKILL.md", "kind": "skill", "required": false }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Chief coordinates TODOs, lanes, owner decisions, and evidence-gated completion.",
+      "authorityNote": "defaultMode sets initial ZOB posture only and does not expand permissions."
+    },
+    "verification": ["evidence refs for every claim", "npm run check -- --pretty false when code/runtime changes", "harness-oracle PASS/no_ship=false before completion"]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-coms-steward",
+  "team": "zob-harness-devs",
+  "role": "coms-steward",
+  "alias": "harness_coms",
+  "description": "Safety steward for ZPeer, Goal Room, topology guards, hash-only coms ledgers, and Mission Control visibility.",
+  "promptRef": ".pi/zagents/prompts/harness-coms-steward.md",
+  "defaultMode": "oracle",
+  "defaultRoom": "harness-coms",
+  "activeRoom": "harness-coms",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_coms", "role": "member", "active": true },
+    { "id": "harness-coms", "alias": "harness_coms", "role": "coms-steward", "active": true },
+    { "id": "harness-oracle", "alias": "harness_coms", "role": "coms-reviewer", "active": true }
+  ],
+  "tools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    ".pi/extensions/zob-harness/src/domains/coms/",
+    ".pi/extensions/zob-harness/src/topology/",
+    ".pi/extensions/zob-harness/src/runtime/commands.ts",
+    ".pi/skills/zob-coms-v2-live/",
+    ".pi/skills/zob-coms-safety/",
+    ".pi/skills/zob-mission-control-coms/",
+    ".pi/teams/",
+    ".pi/zagents/",
+    ".pi/zteams/",
+    "scripts/zpeer-static-smoke.mjs",
+    "scripts/zpeer-local-e2e-smoke.mjs",
+    "scripts/zagent-static-smoke.mjs",
+    "reports/"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "networkTransport": "human+oracle",
+    "requiredLocalBypass": "forbidden",
+    "rawBodyPersistence": "forbidden",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control", "harness-coms", "harness-oracle"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": ".pi/skills/zob-coms-v2-live/SKILL.md", "kind": "skill", "required": true },
+    { "ref": ".pi/extensions/zob-harness/src/topology/AGENTS.md", "kind": "directory-instructions", "required": true }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Coms/topology role primarily validates safety posture and no-ship conditions.",
+      "authorityNote": "Use implement edits only when an explicit scoped fix is assigned."
+    }
+  }
+}

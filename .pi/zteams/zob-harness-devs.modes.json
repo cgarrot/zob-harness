@@ -1,0 +1,111 @@
+{
+  "schema": "zob.zteam-modes.v1",
+  "teamId": "zob-harness-devs",
+  "defaults": {
+    "byAgent": {
+      "harness-chief": "chief-coordinator"
+    }
+  },
+  "modes": [
+    {
+      "id": "chief-coordinator",
+      "baseMode": "orchestrator",
+      "toolPolicy": {
+        "allowedTools": [
+          "read",
+          "grep",
+          "find",
+          "ls",
+          "get_goal",
+          "get_goal_todos",
+          "add_goal_todo",
+          "add_goal_todos",
+          "update_goal_todo",
+          "resolve_goal_todo",
+          "complete_goal_todo",
+          "block_goal_todo",
+          "split_goal_todo",
+          "validate_goal_todo_claim",
+          "accept_goal_todo_claim",
+          "reject_goal_todo_claim",
+          "import_factory_todos",
+          "import_orchestration_todos",
+          "import_chain_todos",
+          "create_goal",
+          "resume_goal",
+          "propose_goal_completion",
+          "record_goal_oracle",
+          "update_goal",
+          "zob_delegation_catalog",
+          "get_delegation_run",
+          "await_delegation_run",
+          "zob_coms_send",
+          "zob_coms_ack",
+          "zob_coms_status",
+          "zob_coms_reply",
+          "zob_coms_list",
+          "zob_coms_get",
+          "zob_coms_await",
+          "zpeer_ask",
+          "zob_goal_room_send",
+          "zob_goal_room_list",
+          "zob_governed_request_extract",
+          "zob_coms_readiness",
+          "zob_mission_control_snapshot"
+        ]
+      },
+      "metadata": {
+        "purpose": "Scoped harness chief coordination posture; talks, reads, manages goal/TODO metadata, and uses parent-visible coms only.",
+        "authorityNote": "harness-chief auto-activates this narrowing-only profile by default; it keeps baseMode orchestrator but forbids implementation, shell, delegation dispatch, orchestration runs, commits, workspace/merge/pool controls, factory tools, and ProjectDNA proposal/write tools."
+      }
+    },
+    {
+      "id": "architecture-plan",
+      "baseMode": "plan",
+      "metadata": {
+        "purpose": "Scoped architecture/planning posture; uses canonical plan tools only.",
+        "authorityNote": "No defaults are set; this does not broaden tools, rooms, paths, network, or body storage."
+      }
+    },
+    {
+      "id": "bounded-implement",
+      "baseMode": "implement",
+      "metadata": {
+        "purpose": "Scoped bounded implementation posture; uses canonical implement tools only.",
+        "authorityNote": "No defaults are set; owner/oracle gates and forbidden path rules remain authoritative."
+      }
+    },
+    {
+      "id": "factory-workflow",
+      "baseMode": "factory",
+      "metadata": {
+        "purpose": "Scoped factory workflow posture; uses canonical factory tools only.",
+        "authorityNote": "No defaults are set; factories remain validation/oracle gated."
+      }
+    },
+    {
+      "id": "oracle-review",
+      "baseMode": "oracle",
+      "metadata": {
+        "purpose": "Scoped oracle review posture; uses canonical oracle tools only.",
+        "authorityNote": "No defaults are set; no launch-plan or tmux ACK counts as completion evidence."
+      }
+    }
+  ],
+  "metadata": {
+    "modePackType": "Scoped ZTeam Mode Pack",
+    "teamContractPack": {
+      "parentVisible": true,
+      "hiddenPeerChat": false,
+      "networkEnabled": false,
+      "bodyStored": false,
+      "launchIsManual": true,
+      "spawnCountFromLaunchPlan": 0
+    },
+    "defaultsPolicy": "defaults.byAgent.harness-chief auto-activates chief-coordinator; this default is narrowing-only against canonical orchestrator and keeps the chief in coordination/coms/TODO/read-only posture.",
+    "safetyPosture": "localOnly, network disabled, body-free metadata; chief-coordinator defines an explicit allowedTools subset of orchestrator and excludes write/shell/delegation-dispatch/orchestration/commit/workspace/merge/worker-pool/factory/ProjectDNA proposal authority."
+  },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false
+}

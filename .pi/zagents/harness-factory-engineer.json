@@ -1,0 +1,61 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-factory-engineer",
+  "team": "zob-harness-devs",
+  "role": "factory-engineer",
+  "alias": "harness_factory",
+  "description": "Factory and reusable workflow engineer for ZOB harness factories, scripts, smoke tests, examples, and runbooks.",
+  "promptRef": ".pi/zagents/prompts/harness-factory-engineer.md",
+  "defaultMode": "factory",
+  "defaultRoom": "harness-factory",
+  "activeRoom": "harness-factory",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_factory", "role": "member", "active": true },
+    { "id": "harness-factory", "alias": "harness_factory", "role": "factory-engineer", "active": true },
+    { "id": "harness-implementation", "alias": "harness_factory", "role": "workflow-builder", "active": true }
+  ],
+  "tools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    "docs/",
+    "examples/",
+    "scripts/",
+    ".pi/factories/",
+    ".pi/skills/zob-factory/",
+    ".pi/skills/zob-sandbox/",
+    ".pi/zteams/",
+    ".pi/zagents/",
+    "reports/",
+    "package.json"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "factoryRunWrites": "sandbox-or-owner-approved-paths",
+    "externalAccess": "human",
+    "activation": "human+oracle",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control", "harness-factory", "harness-implementation"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": ".pi/skills/zob-factory/SKILL.md", "kind": "skill", "required": true },
+    { "ref": ".pi/skills/zob-sandbox/SKILL.md", "kind": "skill", "required": false }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Role owns repeatable factory/workflow design and validation gates.",
+      "authorityNote": "Factory mode does not authorize launch, external writes, or activation without owner/oracle gates."
+    }
+  }
+}

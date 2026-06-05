@@ -1,0 +1,70 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-oracle",
+  "team": "zob-harness-devs",
+  "role": "oracle",
+  "alias": "harness_oracle",
+  "description": "Skeptical final reviewer for ZOB harness development changes, validation evidence, safety gates, and no-ship decisions.",
+  "promptRef": ".pi/zagents/prompts/harness-oracle.md",
+  "defaultMode": "oracle",
+  "defaultRoom": "harness-oracle",
+  "activeRoom": "harness-oracle",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_oracle", "role": "oracle", "active": true },
+    { "id": "harness-oracle", "alias": "harness_oracle", "role": "oracle", "active": true }
+  ],
+  "tools": ["read", "bash", "write", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    "SOURCE_INDEX.md",
+    "SECURITY.md",
+    "docs/",
+    "scripts/",
+    "examples/",
+    "test/",
+    ".pi/extensions/",
+    ".pi/skills/",
+    ".pi/agents/",
+    ".pi/prompts/",
+    ".pi/teams/",
+    ".pi/zagents/",
+    ".pi/zteams/",
+    ".pi/factories/",
+    ".pi/capabilities/",
+    ".pi/output-contracts/",
+    ".pi/rules/",
+    "reports/",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "writes": "review-artifacts-only-unless-owner-expands",
+    "externalAccess": "human",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control", "harness-oracle"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": "AGENTS.md", "kind": "project-instructions", "required": true },
+    { "ref": ".pi/skills/zob-oracle/SKILL.md", "kind": "skill", "required": false }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Primary job is skeptical validation and no-ship review.",
+      "authorityNote": "Oracle verdict does not bypass owner or root goal completion gates."
+    },
+    "verdictShape": "ORACLE_REVIEW PASS|WARN|FAIL with no_ship boolean, evidence refs, blocking issues, and next action."
+  }
+}

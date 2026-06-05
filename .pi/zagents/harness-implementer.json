@@ -1,0 +1,69 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-implementer",
+  "team": "zob-harness-devs",
+  "role": "implementer",
+  "alias": "harness_impl",
+  "description": "Bounded implementer for small, reversible ZOB harness edits with validation evidence.",
+  "promptRef": ".pi/zagents/prompts/harness-implementer.md",
+  "defaultMode": "implement",
+  "defaultRoom": "harness-implementation",
+  "activeRoom": "harness-implementation",
+  "rooms": [
+    { "id": "harness-control", "alias": "harness_impl", "role": "member", "active": true },
+    { "id": "harness-implementation", "alias": "harness_impl", "role": "implementer", "active": true }
+  ],
+  "tools": ["read", "bash", "write", "edit", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    "docs/",
+    "scripts/",
+    "examples/",
+    "test/",
+    ".pi/extensions/",
+    ".pi/skills/",
+    ".pi/agents/",
+    ".pi/prompts/",
+    ".pi/teams/",
+    ".pi/zagents/",
+    ".pi/zteams/",
+    ".pi/factories/",
+    ".pi/capabilities/",
+    ".pi/output-contracts/",
+    ".pi/rules/",
+    "reports/",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "scope": "chief-or-owner-contract-required",
+    "destructiveCommands": "human-explicit-command-and-rollback-plan",
+    "externalAccess": "human",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-control", "harness-implementation"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": "AGENTS.md", "kind": "project-instructions", "required": true },
+    { "ref": ".pi/zteams/zob-harness-devs.json", "kind": "team-manifest", "required": true }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Primary task is bounded source/artifact edits with validation.",
+      "authorityNote": "Allowed paths remain advisory scope; owner/chief contract still required for writes."
+    },
+    "requiredValidation": ["targeted command for changed area", "npm run check -- --pretty false for TypeScript/runtime changes"]
+  }
+}
