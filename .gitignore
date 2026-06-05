@@ -42,6 +42,7 @@ scripts/*.mjs
 !scripts/zpeer-static-smoke.mjs
 !scripts/zpeer-local-e2e-smoke.mjs
 !scripts/zagent-static-smoke.mjs
+!scripts/zteam-lifecycle-smoke.mjs
 !scripts/agentic-spec-team/
 !scripts/agentic-spec-team/**
 !scripts/compute-profile/
