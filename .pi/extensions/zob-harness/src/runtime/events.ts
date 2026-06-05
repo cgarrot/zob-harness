@@ -4,6 +4,7 @@ import { Text } from "@earendil-works/pi-tui";
 
 import { EXTERNAL_PACKAGE_TOOLS_CONTRACT, MODE_PROMPTS, ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "../core/constants.js";
 import { buildCurrentZobLivePeerCard } from "../domains/coms/coms-v2/identity.js";
+import { buildActiveSearchBackendPromptSnippet } from "../domains/context/context-discovery.js";
 import { buildZobLiveAckEnvelope, buildZobLiveErrorEnvelope, buildZobLivePongEnvelope } from "../domains/coms/coms-v2/envelope.js";
 import { appendLiveCompletedRef } from "../domains/coms/coms-v2/ledger-bridge.js";
 import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from "../domains/coms/coms-v2/local-transport.js";
@@ -979,7 +980,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     }
   });
 
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const goalHint = state.activeGoal
       ? `\n\nZOB GOAL GATE\n- ORIGINAL_USER_ASK: ${state.activeGoal.originalUserAsk}\n- ACTIVE_GOAL: ${state.activeGoal.activeGoal}\n- EXPECTED_OUTPUT: ${state.activeGoal.expectedOutput}\n- CONSTRAINTS: ${state.activeGoal.constraints}\n- VALIDATION_EVIDENCE: ${state.activeGoal.validationEvidence}`
       : "\n\nZOB GOAL GATE\n- No active goal set. If the request is broad or multi-step, use /goal_gate first or restate ORIGINAL_USER_ASK / ACTIVE_GOAL explicitly before delegating.";
@@ -993,10 +994,11 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     const autonomyHint = `\n\n${formatInteractiveAutonomyPromptHint(state.autonomy)}`;
     const zagentHint = formatZagentPromptHint(state);
     const zpeerHint = buildZpeerAwarenessPrompt(state, state.zobLive.inbound?.repoRoot ?? process.cwd());
+    const activeSearchBackendHint = buildActiveSearchBackendPromptSnippet(ctx.cwd);
     if (state.activeMode === "vanilla") {
       return { systemPrompt: `${event.systemPrompt}\n\n${MODE_PROMPTS.vanilla}` };
     }
-    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${EXTERNAL_PACKAGE_TOOLS_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}`;
+    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${EXTERNAL_PACKAGE_TOOLS_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}${activeSearchBackendHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });
 

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "preferredProvider": "colgrep",
+  "fallbackProvider": "grep",
+  "includePaths": [
+    ".pi/extensions",
+    ".pi/skills",
+    ".pi/capabilities",
+    "scripts",
+    "docs",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "excludePaths": [
+    ".env",
+    "**/.env",
+    ".env.*",
+    "**/*secret*",
+    "**/*key*",
+    "*.pem",
+    ".pi/sessions",
+    ".pi/agent-sessions",
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "limits": {
+    "maxResults": 20,
+    "maxContextLines": 2,
+    "maxFileBytes": 1048576
+  },
+  "promptInjection": {
+    "enabled": true,
+    "includeInstallHint": true
+  }
+}

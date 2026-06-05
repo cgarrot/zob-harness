@@ -565,6 +565,15 @@ const ContextReadinessParams = Type.Object({
   runId: Type.Optional(Type.String({ description: "Optional run id for the metadata-only Context/GBrain P0 readiness audit." })),
 });
 
+const ContextSearchParams = Type.Object({
+  query: Type.String({ description: "Bounded repo-local context search query. Required for all modes." }),
+  mode: Type.Optional(StringEnum(["auto", "semantic", "hybrid", "regex", "files"] as const, { description: "Search mode. auto/semantic/hybrid prefer ColGREP when ready; regex/files use deterministic fallback.", default: "auto" })),
+  pattern: Type.Optional(Type.String({ description: "Optional regex pattern used when mode=regex. Defaults to query." })),
+  paths: Type.Optional(Type.Array(Type.String(), { description: "Optional repo-relative search roots. Forbidden/session/vendor/build paths are rejected by the helper." })),
+  max_results: Type.Optional(Type.Number({ description: "Maximum result count. Runtime clamps to safe bounds." })),
+  max_context_lines: Type.Optional(Type.Number({ description: "Context lines around fallback matches. Runtime clamps to safe bounds." })),
+});
+
 const ContextScopeValidateParams = Type.Object({
   runId: Type.String({ description: "Run id requiring a context_scope before lookup/context-pack injection." }),
   scopeId: Type.Optional(Type.String({ description: "Optional deterministic context scope id." })),
@@ -685,6 +694,7 @@ export {
   MissionControlProposeCommandParams,
   MissionControlSnapshotParams,
   ContextReadinessParams,
+  ContextSearchParams,
   ContextScopeValidateParams,
   ContextWritebackProposalParams,
   ProjectDnaReadinessParams,

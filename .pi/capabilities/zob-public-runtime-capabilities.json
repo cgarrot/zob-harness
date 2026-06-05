@@ -1011,6 +1011,28 @@
       "noShipNotes": "Proposal only; no direct command execution."
     },
     {
+      "name": "zob_context_search",
+      "family": "context",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-context-discovery/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "reports/context-discovery/design.md",
+        "README.md",
+        "scripts/README.md"
+      ],
+      "noShipNotes": "Bounded repo-local context discovery only; prefer ColGREP when installed/ready, otherwise use grep/find/read fallback. Never auto-install ColGREP, run installer/network/package-manager commands, read forbidden/secret/session/vendor/build paths, persist raw secret/session bodies, inject stale/global/unbounded prompt context, or treat broad search hits as exact proof without grep/read/file-ref verification. Oracle/no-ship review must check freshness, citation coverage, and forbidden-source violations."
+    },
+    {
       "name": "zob_context_readiness",
       "family": "context",
       "modes": [

@@ -330,9 +330,22 @@ Durable records stay hash-only (`bodyStored=false` with TODO refs, receiver refs
 
 This release adds the handoff runtime/docs and `npm run smoke:goal-todo-handoff` validation. It does not auto-launch teams or auto-complete parent TODOs. Current npm release automation is handled separately by the CI/CD flow below; local agents still must not create tags, publish packages, commit, or push unless explicitly authorized through the governed workflow.
 
-### Use ProjectDNA context
+### Use active context discovery
 
-ProjectDNA turns approved local code scan artifacts into bounded, cited context packs and sample/spec outputs. Keep scans approved, artifacts local, and writeback proposal-only unless the parent explicitly authorizes more.
+ZOB can adapt context search to the active backend. Use `zob_context_search` inside Pi when available: it prefers ColGREP for broad/semantic repo discovery when ColGREP is installed and indexed, and falls back to grep/find/read when it is missing or unavailable. Treat broad search hits as leads and verify exact claims with file refs before editing or reporting readiness.
+
+ColGREP setup is optional and owner-driven; ZOB must not auto-install it or run installer/package-manager commands. Local helpers:
+
+```bash
+npm run zob:context:doctor        # read-only backend/config status and setup guidance
+npm run zob:context:init          # initialize safe ColGREP settings/index only if ColGREP is already installed
+npm run zob:context:query -- "goal todo routing"  # one-shot query with grep fallback
+npm run smoke:context-discovery   # deterministic fallback smoke; passes without ColGREP
+```
+
+Forbidden/secret/session/vendor/build paths remain excluded from discovery. Active-backend prompt injection is bounded and configurable through `.pi/context-discovery.json` (`promptInjection.enabled`); it should never inject stale/global context or raw search results. Oracle/no-ship review for this feature checks context freshness, citation coverage, exact grep/read verification, forbidden-source violations, and no unapproved installer/network behavior.
+
+See [`reports/context-discovery/design.md`](reports/context-discovery/design.md), [`.pi/skills/zob-context-discovery/SKILL.md`](.pi/skills/zob-context-discovery/SKILL.md), and [scripts/README.md](scripts/README.md) for the operating rules and script map.
 
 ### Use governed commits
 
@@ -430,6 +443,7 @@ npm run check -- --pretty false    # TypeScript validation baseline
 npm run check:ci                   # CI-style TypeScript check
 npm run validate:script-surface    # package script/file surface validation
 npm run smoke:harness              # path-policy + child-goal-ref smoke
+npm run smoke:context-discovery    # active context backend smoke with grep fallback
 npm run smoke:goal-todo-handoff    # Goal TODO ZPeer/ZTeam handoff static smoke
 npm run smoke:intent-classifier    # optional model intent-classifier fallback smoke
 npm run smoke:git-ops              # governed commit policy smoke
@@ -437,6 +451,9 @@ npm run smoke:worker-pool          # worker-pool static smoke
 npm run smoke:zpeer                # static + local ZPeer smoke
 npm run validate:project-dna       # ProjectDNA scaffold validation
 npm run pack:dry-run               # npm package dry-run surface check
+npm run zob:context:doctor         # active context backend status/guidance
+npm run zob:context:init           # optional ColGREP init when already installed
+npm run zob:context:query -- "..."  # one-shot active backend query
 npm run demo:pacman:prepare        # prepare Pac-Man factory run artifacts
 npm run demo:pacman:validate       # validate Pac-Man factory run artifacts
 npm run demo:pacman                # launch the full Pac-Man Agent Factory demo

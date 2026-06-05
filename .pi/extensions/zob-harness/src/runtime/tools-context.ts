@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import {
   ContextReadinessParams,
+  ContextSearchParams,
   ContextScopeValidateParams,
   ContextWritebackProposalParams,
 } from "./schemas.js";
@@ -11,6 +12,7 @@ import {
   validateContextScope,
   writeContextWritebackProposal,
 } from "../domains/context/context-gbrain.js";
+import { formatContextSearchResult, runContextSearch } from "../domains/context/context-discovery.js";
 
 export function registerContextTools(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -21,6 +23,24 @@ export function registerContextTools(pi: ExtensionAPI): void {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const audit = buildContextGbrainReadinessAudit(ctx.cwd, { runId: params.runId });
       return { content: [{ type: "text", text: `zob_context_readiness: ${audit.verdict}` }], details: audit };
+    },
+  });
+
+  pi.registerTool({
+    name: "zob_context_search",
+    label: "ZOB Context Search",
+    description: "Search bounded repo-local context through the active context backend. Prefers ColGREP when installed and ready, falls back to safe grep/find-style search, never auto-installs ColGREP, and excludes forbidden/session/vendor/build paths.",
+    promptSnippet: "Use zob_context_search for bounded repo-local discovery before broad grep/read; verify exact proof with grep/read on returned refs.",
+    promptGuidelines: [
+      "Call zob_context_search for codebase/context discovery when semantic or broad search is useful.",
+      "zob_context_search prefers ColGREP when ready and falls back to bounded grep when ColGREP is missing, not ready, or a query fails.",
+      "Never install ColGREP from this tool path; missing ColGREP is not a blocker.",
+      "Use returned refs as leads and verify final claims with exact read/grep evidence.",
+    ],
+    parameters: ContextSearchParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = runContextSearch(ctx.cwd, params);
+      return { content: [{ type: "text", text: formatContextSearchResult(result) }], details: result };
     },
   });
 

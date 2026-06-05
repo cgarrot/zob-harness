@@ -14,7 +14,7 @@ Use this skill for any task involving:
 - Software-factory design from repeated manual workflows.
 - Runtime tool/command routing via `.pi/capabilities/zob-public-runtime-capabilities.json`.
 
-For routing behavior, load `zob-tool-router` before non-trivial or tool-ambiguous work. For compaction/recovery behavior, load `zob-compaction-policy` before changing compaction hooks or resuming from a compacted long-running goal. For domain behavior, load the domain skill named by the registry instead of inlining details here: `zob-goal-todo-tree`, `zob-coms-v2-live`, `zob-coms-safety`, `zob-mission-control-coms`, `zob-autonomous-runtime`, `zob-factory`, `zob-sandbox`, `zob-oracle`, or `zob-spec` as applicable.
+For routing behavior, load `zob-tool-router` before non-trivial or tool-ambiguous work. For compaction/recovery behavior, load `zob-compaction-policy` before changing compaction hooks or resuming from a compacted long-running goal. For active context discovery/search backend behavior, load `zob-context-discovery` and prefer `zob_context_search` when available, with ColGREP as the preferred ready backend and grep/find/read as exact-verification fallback. For domain behavior, load the domain skill named by the registry instead of inlining details here: `zob-goal-todo-tree`, `zob-coms-v2-live`, `zob-coms-safety`, `zob-mission-control-coms`, `zob-autonomous-runtime`, `zob-factory`, `zob-sandbox`, `zob-oracle`, or `zob-spec` as applicable.
 
 ## Agent Factory posture
 
@@ -34,7 +34,7 @@ Communication is a core deliverable. Prefer one parent-visible control room by d
 1. Classify the task as one of: `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`. When `.pi/routing/intent-classifier.json` enables an optional model classifier, treat it as advisory intent routing only; regex fallback and deterministic safety hard-blocks remain authoritative. `autoSwitchIntents` controls which detected intents switch mode directly; this project enables all ZOB modes by default. Use `/intent-classifier status|regex|model-strict|model-fallback|test` (alias `/intent`) to switch/test routing without editing JSON by hand.
 2. For non-trivial or tool-ambiguous work, apply `zob-tool-router`: classify applicable families, then use/delegate/skip each with a reason.
 3. Use `orchestrator` when the task needs Chief Vision coordination, multi-agent decomposition, Lead/Worker routing, goal/TODO graph governance, or parent-owned dispatch; the root should delegate substantive work rather than do it directly.
-4. Check `.pi/capabilities/zob-public-runtime-capabilities.json` for the relevant tool/command family, mode allowlist, skill refs, and no-ship notes.
+4. Check `.pi/capabilities/zob-public-runtime-capabilities.json` for the relevant tool/command family, mode allowlist, skill refs, and no-ship notes. For context tasks, prefer the active backend via `zob_context_search`; use ColGREP when ready, and grep/find/read for fallback plus exact verification.
 5. If broad or risky, use the `delegate_agent` tool before editing.
 6. For delegated work, use the six-part contract:
    - TASK

@@ -8,6 +8,7 @@ These script families are intended to be part of the normal tracked repo workflo
 
 - `scripts/autonomy/` — static/read-only autonomy readiness smokes.
 - `scripts/compute-profile/` — compute profile policy and regression checks.
+- `scripts/context-discovery/` — adaptive active search backend helpers: `npm run zob:context:doctor`, `npm run zob:context:init`, `npm run zob:context:query`, and `npm run smoke:context-discovery`; prefers ColGREP when installed/ready and validates grep fallback when it is absent.
 - `scripts/git-ops/` — governed `/zcommit` policy smokes.
 - `scripts/goal-todo/` — Goal/TODO tree compatibility smokes, including `scripts/goal-todo/handoff-static-smoke.mjs` coverage for the Goal TODO ZPeer/ZTeam handoff script (`npm run smoke:goal-todo-handoff`).
 - `scripts/harness-intake/` — natural-language harness setup/session analyzer that produces quarantined ZOB team/factory proposals plus tmux launch support.
@@ -53,6 +54,7 @@ Common safe checks:
 ```bash
 npm run validate:script-surface
 npm run validate:capability-refs
+npm run smoke:context-discovery
 npm run check -- --pretty false
 npm run smoke:harness
 ```
@@ -62,5 +64,7 @@ Run `npm run validate:script-surface` after changing `package.json` scripts, add
 Run `npm run release:preview` before an authorized `/zcommit push` when you want local visibility into whether the next `main` push should create a `vX.Y.Z` tag and publish to npm after CI passes.
 
 Run `npm run validate:capability-refs` after changing `.pi/capabilities/zob-public-runtime-capabilities.json`, skills, docs, or runtime capability references. It verifies registry doc/skill refs resolve to repo-local files.
+
+Run `npm run smoke:context-discovery` after changing context-discovery docs, skills, config, or helpers. It is expected to pass without ColGREP by proving the grep fallback path.
 
 Run additional domain-specific smokes only when their source files are present and the task requires them.
