@@ -69,6 +69,26 @@ export interface TodoSplitRequest {
   hasFinalMarker: boolean;
 }
 
+export type TodoPeerStatusClaim = "done" | "incomplete" | "blocked";
+
+export interface TodoPeerResultItem {
+  todoId?: string;
+  statusClaim?: TodoPeerStatusClaim;
+  evidenceRefs: string[];
+  validationCommands: string[];
+  risks: string[];
+  acceptanceBlockers: string[];
+  noShip?: boolean;
+  hasFinalMarker: boolean;
+}
+
+export interface TodoPeerResultParseResult {
+  contract?: "TODO_PEER_RESULT.v1" | "TODO_PEER_BUNDLE_RESULT.v1";
+  items: TodoPeerResultItem[];
+  hasFinalMarker: boolean;
+  errors: string[];
+}
+
 export interface GoalTodoDelegationRef {
   runId?: string;
   agent?: string;

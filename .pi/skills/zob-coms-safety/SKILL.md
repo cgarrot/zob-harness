@@ -16,6 +16,7 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - Validate topology before any live or ledger send.
 - Keep Orchestrator -> Lead, Lead -> Worker, Worker -> Lead as the normal topology for direct role-to-role messages.
 - Allow Shared Goal Room messages only when they are parent-visible, typed, metadata/hash-only, and not hidden worker-to-worker free chat.
+- For Goal TODO handoff, treat ZPeer as transient live delivery/clarification only and Goal Room hash-only metadata as canonical for TODO refs, receiver refs, custom-message hashes, result hashes, blockers, and evidence refs.
 - Treat governed requests (`DELEGATION_REQUEST.v1`, `ORACLE_REQUEST.v1`, `CONTEXT_REQUEST.v1`, `OWNER_CHANGE_REQUEST.v1`) as proposals only: parent/governor decides; extraction must not dispatch, mutate TODO state, apply owner changes, or store raw bodies.
 - Treat stale/offline as blockers, not completion evidence.
 - Keep Mission Control commands proposal-only and parent-owned.
@@ -28,6 +29,7 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - No direct worker writes from Mission Control.
 - No network transport without bearer token/locality/TLS policy.
 - No silent fallback from required live delivery to append-only success.
+- No handoff delivery, ACK, chat reply, stale peer, or append-only Goal Room record may count as parent TODO completion; receiver claims still require parent/oracle acceptance.
 - No token/secret logging.
 
 ## Tmux Agent Factory safety
@@ -45,8 +47,8 @@ For tmux-backed ZAgent teams:
 
 For parallel owner micro-worker pools:
 
-- Goal Room is canonical for parent-visible coordination, decisions, owner requests, and evidence refs.
-- ZPeer is transient/live assist only; use it for immediate local questions, then summarize decisions as typed Goal Room metadata when they affect scope, ownership, or merge readiness.
+- Goal Room is canonical for parent-visible coordination, decisions, TODO handoff metadata, owner requests, and evidence refs.
+- ZPeer is transient/live assist only; use it for immediate local questions or explicit Goal TODO handoff delivery, then summarize decisions as typed Goal Room metadata when they affect scope, ownership, merge readiness, or TODO acceptance.
 - Enforce read-across/write-by-owner: workers may read sibling outputs and owner summaries, but only the assigned owner writes its owned paths/leaf. Non-owners send `OWNER_CHANGE_REQUEST.v1`/governed request metadata and wait for owner/parent decision.
 - For `--no-extensions` children, use final-output `OWNER_CHANGE_REQUEST.v1` blocks with `requested_by`, `owner_worker`, `requested_paths`, `body_hash`, `change_hash`, `reason_hash`, optional `validation_plan_hash`, safe refs, and `FINAL_MARKER: OWNER_CHANGE_REQUEST_END`; parent extraction appends Goal Room metadata only.
 - Owner decisions are parent-visible and typed: approve, deny, defer, split, or escalate-to-parent/oracle. Approval is not an apply/merge.

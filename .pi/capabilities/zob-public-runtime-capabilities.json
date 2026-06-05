@@ -185,6 +185,26 @@
       "noShipNotes": "Goal TODO graph update only."
     },
     {
+      "name": "handoff_goal_todo",
+      "family": "goal",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        "docs/ZOB_GOAL_TODO_HANDOFF.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Explicit Goal TODO handoff to an existing live ZPeer/ZTeam member only; requires active team context, existing TODO refs, and maintainer-provided contextual message. Single/batch handoff records hash-only Goal Room metadata and transient ZPeer delivery; it must not auto-launch teams, persist raw bodies, count stale/offline/append-only refs as success, dispatch anonymous subagents, or mark parent TODOs complete. Receiver returns TODO_CHILD_RESULT.v2 or split/blocker claim for parent/oracle acceptance."
+    },
+    {
       "name": "validate_goal_todo_claim",
       "family": "goal",
       "modes": [
@@ -1589,12 +1609,15 @@
         "all"
       ],
       "skillRefs": [
-        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
       ],
       "docRefs": [
-        "AGENTS.md"
+        "AGENTS.md",
+        "docs/ZOB_GOAL_TODO_HANDOFF.md"
       ],
-      "noShipNotes": "Manages active goal/TODO metadata only."
+      "noShipNotes": "Manages active goal/TODO metadata only. `/goal todo handoff` is explicit team-only ZPeer/ZTeam TODO handoff requiring existing TODO refs and a maintainer-provided contextual message; batch handoff is bounded and parent-owned, stores only hash/body-free Goal Room metadata, uses transient ZPeer delivery, and never auto-launches teams or completes TODOs."
     },
     {
       "name": "todo",
@@ -1603,12 +1626,15 @@
         "all"
       ],
       "skillRefs": [
-        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
       ],
       "docRefs": [
-        "AGENTS.md"
+        "AGENTS.md",
+        "docs/ZOB_GOAL_TODO_HANDOFF.md"
       ],
-      "noShipNotes": "Alias for goal TODO metadata only."
+      "noShipNotes": "Alias for goal TODO metadata only. `/todo handoff` follows `/goal todo handoff` semantics: explicit team-only ZPeer/ZTeam handoff, custom contextual maintainer message required, hash-only durable metadata, transient live delivery, receiver claim returns for parent/oracle acceptance, and no auto-completion."
     },
     {
       "name": "todos",

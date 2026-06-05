@@ -16,9 +16,11 @@ import {
   formatGoalTodoTree,
   goalTodoCompletionDiagnostics,
   handleGoalTodoTextCommand,
+  linkGoalTodoDelegation,
   patchGoalTodo,
   recordGoalTodoClaimValidationResult,
   resolveGoalTodo,
+  resolveGoalTodoReference,
   restoreGoalTodosFromBranch,
   splitGoalTodo,
   summarizeGoalTodos,
@@ -33,6 +35,12 @@ import type { GoalState } from "../types.js";
 import type { HarnessRuntimeState } from "./state.js";
 import { sha256 } from "../core/utils/hashing.js";
 import { isRecord } from "../core/utils/records.js";
+import { newRunId, safeFileStem } from "../core/utils/paths.js";
+import { appendGoalRoomMessage } from "../domains/goal/goal-room.js";
+import { readZobLiveRegistrySnapshot } from "../domains/coms/coms-v2/registry.js";
+import { activeZpeerRoomId, peerAliasInRoom, refreshZpeerSelf, safeZpeerRoomId, sendZpeerPrompt, type ZpeerSendResult } from "../domains/coms/coms-v2/zpeer.js";
+import { loadZteamManifest, type ZTeamAgentManifest, type ZTeamMemberManifest } from "../domains/coms/zagents.js";
+import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 import { buildZobCompactionInstructions } from "./compaction-policy.js";
 
 export const ZOB_RUNTIME_GOAL_ENTRY_TYPE = "zob-runtime-goal";
@@ -760,6 +768,21 @@ export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeS
     render();
     return;
   }
+  if (text === "todo handoff" || text.startsWith("todo handoff ")) {
+    const parsed = parseGoalTodoHandoffTextCommand(text === "todo handoff" ? "" : text.slice("todo handoff ".length));
+    if (!parsed.input) {
+      ctx.ui.notify(parsed.error ?? "Invalid TODO handoff command.", "warning");
+      return;
+    }
+    try {
+      const result = await handoffGoalTodos(pi, state, ctx.cwd, parsed.input, "command");
+      render();
+      ctx.ui.notify(`handoff delivered ${result.nodes.length} TODO(s) to ${result.targetType}; run=${result.runId}; instructionHash=${result.instructionHash.slice(0, 12)}; liveDeliveryAttempted=${result.delivery.liveDeliveryAttempted}; deliverySucceeded=${result.delivery.deliverySucceeded}`, "info");
+    } catch (error) {
+      ctx.ui.notify(`TODO handoff blocked: ${error instanceof Error ? error.message : String(error)}`, "warning");
+    }
+    return;
+  }
   if (text === "todo" || text.startsWith("todo ")) {
     const result = handleGoalTodoTextCommand(pi, state, state.runtimeGoal?.goalId, text === "todo" ? "" : text.slice(5).trim(), ctx.cwd);
     render();
@@ -964,6 +987,20 @@ const ValidateGoalTodoClaimParams = Type.Object({
   agent: Type.Optional(Type.String({ description: "Oracle agent name. Default oracle." })),
   auto_accept: Type.Optional(Type.Boolean({ description: "Auto-accept on strict PASS/no_ship=false. Default true." })),
 });
+const HandoffGoalTodoParams = Type.Object({
+  todo_id: Type.Optional(Type.String({ description: "Single Goal TODO id/path ref to hand off." })),
+  todo_ids: Type.Optional(Type.Array(Type.String(), { description: "One or more Goal TODO id/path refs to hand off as a batch. Refs must resolve uniquely and be delegatable." })),
+  todo_refs: Type.Optional(Type.Array(Type.String(), { description: "Alias for todo_ids; supports visible TODO paths such as 1.2." })),
+  target_type: StringEnum(["zpeer", "zteam"] as const, { description: "Explicit handoff target kind." }),
+  target: Type.String({ description: "Explicit target alias/role for zpeer (leading @ optional) or project-local zteam id." }),
+  custom_message: Type.String({ description: "Maintainer-authored transient instruction body. The raw body is hashed and never persisted in Goal Room/coms/TODO state." }),
+  goal_id: Type.Optional(Type.String({ description: "Optional goal id. Defaults to current runtime goal." })),
+  run_id: Type.Optional(Type.String({ description: "Optional handoff run id. Defaults to generated handoff_* id." })),
+  sender: Type.Optional(Type.String({ description: "Goal Room sender role. Defaults to parent." })),
+  goal_room_team: Type.Optional(Type.String({ description: "Team topology used for Goal Room sender validation. Default zob-core." })),
+  target_room: Type.Optional(Type.String({ description: "Optional ZPeer room id precondition for a zpeer target." })),
+  delegation_depth: Type.Optional(Type.Number({ description: "Parent-owned delegation depth metadata. Default 1." })),
+});
 const ImportGoalTodoRunParams = Type.Object({
   run_id: Type.String({ description: "Run id under reports/factory-runs, reports/orchestrations, or reports/chains." }),
   goal_id: Type.Optional(Type.String({ description: "Optional goal id. Defaults to current runtime goal." })),
@@ -973,6 +1010,317 @@ function currentGoalId(state: HarnessRuntimeState, explicit?: string): string {
   const goalId = explicit ?? state.runtimeGoal?.goalId;
   if (!goalId) throw new Error("Goal TODO tools require an active runtime goal or explicit goal_id.");
   return goalId;
+}
+
+type HandoffGoalTodoInput = {
+  todo_id?: string;
+  todo_ids?: string[];
+  todo_refs?: string[];
+  target_type: "zpeer" | "zteam";
+  target: string;
+  custom_message: string;
+  goal_id?: string;
+  run_id?: string;
+  sender?: string;
+  goal_room_team?: string;
+  target_room?: string;
+  delegation_depth?: number;
+};
+
+function collectHandoffTodoRefs(input: HandoffGoalTodoInput): string[] {
+  const refs = [input.todo_id, ...(input.todo_ids ?? []), ...(input.todo_refs ?? [])]
+    .filter((ref): ref is string => typeof ref === "string" && ref.trim().length > 0)
+    .map((ref) => ref.trim());
+  return [...new Set(refs)];
+}
+
+function peerAliases(peer: { zpeerAlias?: string; zpeerMemberships?: Array<{ alias?: string; roomId?: string }> }, roomId?: string): string[] {
+  const aliases = [peer.zpeerAlias, ...(peer.zpeerMemberships ?? []).filter((membership) => !roomId || membership.roomId === roomId).map((membership) => membership.alias)]
+    .filter((alias): alias is string => typeof alias === "string" && alias.trim().length > 0);
+  return [...new Set(aliases)];
+}
+
+function validateHandoffTarget(repoRoot: string, input: HandoffGoalTodoInput): { targetHash: string; deliveryTarget: string; errors: string[]; peerCount: number } {
+  const target = input.target.replace(/^@+/, "").trim();
+  if (!target) return { targetHash: sha256(""), deliveryTarget: "", errors: ["handoff target is required and must be explicit"], peerCount: 0 };
+  const targetHash = sha256(`${input.target_type}:${target}`);
+  const registry = readZobLiveRegistrySnapshot(repoRoot);
+  if (input.target_type === "zpeer") {
+    const matchesTarget = (peer: (typeof registry.peers)[number]): boolean => peer.roleId === target || peerAliases(peer, input.target_room).includes(target);
+    const online = registry.peers.filter((peer) => peer.status === "online" && peer.transport === "local_socket" && !peer.endpoint.startsWith("pending-") && matchesTarget(peer));
+    const unavailable = registry.peers.filter((peer) => peer.status !== "online" && matchesTarget(peer));
+    if (online.length !== 1) {
+      const reason = online.length === 0
+        ? unavailable.length > 0 ? `target zpeer '${target}' is stale/offline` : `target zpeer '${target}' is not registered online`
+        : `target zpeer '${target}' is ambiguous (${online.length} online matches)`;
+      return { targetHash, deliveryTarget: target, errors: [reason], peerCount: online.length };
+    }
+    return { targetHash, deliveryTarget: target, errors: [], peerCount: online.length };
+  }
+
+  const loaded = loadZteamManifest(repoRoot, target);
+  if (loaded.errors.length > 0) return { targetHash, deliveryTarget: target, errors: loaded.errors, peerCount: 0 };
+  const members = [...(loaded.manifest.members ?? []), ...(loaded.manifest.agents ?? [])];
+  const missing: string[] = [];
+  for (const member of members) {
+    const memberId = "zagentId" in member ? member.zagentId : member.id;
+    const alias = typeof member.alias === "string" ? member.alias.replace(/^@+/, "") : undefined;
+    const online = registry.peers.some((peer) => peer.status === "online" && peer.transport === "local_socket" && !peer.endpoint.startsWith("pending-") && (peer.roleId === memberId || peer.agent === memberId || (alias ? peerAliases(peer).includes(alias) : false)));
+    if (!online) missing.push(alias ? `${memberId}/@${alias}` : memberId);
+  }
+  if (missing.length > 0) return { targetHash, deliveryTarget: target, errors: [`zteam '${target}' has stale/offline or unregistered member(s): ${missing.join(", ")}`], peerCount: members.length - missing.length };
+  return { targetHash, deliveryTarget: target, errors: [], peerCount: members.length };
+}
+
+function parseGoalTodoHandoffTextCommand(text: string): { input?: HandoffGoalTodoInput; error?: string } {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === "help" || trimmed === "--help") {
+    return { error: "Usage: /goal todo handoff <todoId|path[,todoId|path...]> --to zpeer:@alias|zteam:<id> --message <maintainer instructions>. Batch refs must be comma-separated to avoid ambiguity." };
+  }
+  const toIndex = trimmed.indexOf(" --to ");
+  const messageIndex = trimmed.indexOf(" --message ");
+  if (toIndex <= 0 || messageIndex <= toIndex) return { error: "Usage: /goal todo handoff <refs> --to zpeer:@alias|zteam:<id> --message <maintainer instructions>" };
+  const refsText = trimmed.slice(0, toIndex).trim();
+  if (/\s/.test(refsText) && !/[;,]/.test(refsText)) return { error: "Ambiguous batch syntax: separate multiple TODO refs with commas or semicolons, e.g. /goal todo handoff 1,2 --to zteam:core --message ..." };
+  const targetText = trimmed.slice(toIndex + " --to ".length, messageIndex).trim();
+  const body = trimmed.slice(messageIndex + " --message ".length).trim();
+  const refs = refsText.split(/[;,]/).map((ref) => ref.trim()).filter(Boolean);
+  if (refs.length === 0) return { error: "handoff requires at least one TODO ref." };
+  if (!body) return { error: "handoff requires --message <maintainer instructions>; raw message is transient and only sha256 is persisted." };
+  const targetMatch = targetText.match(/^(zpeer|zteam):(.+)$/i);
+  if (!targetMatch) return { error: "handoff target must be explicit: --to zpeer:@alias or --to zteam:<id>." };
+  return {
+    input: {
+      todo_refs: refs,
+      target_type: targetMatch[1].toLowerCase() as "zpeer" | "zteam",
+      target: targetMatch[2].trim(),
+      custom_message: body,
+    },
+  };
+}
+
+type HandoffLiveDeliveryTarget = { alias: string; roomId: string; targetHash: string; memberId?: string };
+type HandoffLiveDeliveryAttempt = { targetHash: string; targetAliasHash: string; roomIdHash: string; memberIdHash?: string; attempted: true; status: ZpeerSendResult["status"]; succeeded: boolean; msgId?: string; taskHash?: string; outputHash?: string; reasonHash?: string; bodyStored: false };
+type HandoffLiveDeliveryResult = { liveDeliveryAttempted: true; deliveryPreparedOnly: false; deliverySucceeded: boolean; attempted: number; succeeded: number; failed: number; messageIds: string[]; targetHashes: string[]; attempts: HandoffLiveDeliveryAttempt[]; bodyStored: false };
+
+type HandoffGoalTodoResult = { goalId: string; runId: string; nodes: GoalTodoNode[]; instructionHash: string; goalRoomMessageIds: string[]; targetHash: string; targetType: "zpeer" | "zteam"; delivery: HandoffLiveDeliveryResult; deliveryPreparedOnly: false };
+
+function zteamMemberId(member: ZTeamMemberManifest | ZTeamAgentManifest): string {
+  return "zagentId" in member ? member.zagentId : member.id;
+}
+
+function zteamMemberRoom(member: ZTeamMemberManifest | ZTeamAgentManifest, fallbackRoomId: string): string {
+  return safeZpeerRoomId(member.room) ?? fallbackRoomId;
+}
+
+function resolveZpeerHandoffTarget(repoRoot: string, input: HandoffGoalTodoInput, selfRoomId: string): HandoffLiveDeliveryTarget | undefined {
+  const target = input.target.replace(/^@+/, "").trim();
+  const roomId = safeZpeerRoomId(input.target_room) ?? selfRoomId;
+  const registry = readZobLiveRegistrySnapshot(repoRoot);
+  const match = registry.peers.find((peer) => peer.status === "online" && peer.transport === "local_socket" && !peer.endpoint.startsWith("pending-") && (peer.roleId === target || peerAliases(peer, roomId).includes(target)));
+  const alias = match ? peerAliasInRoom(match, roomId) ?? peerAliases(match, roomId)[0] : undefined;
+  return alias ? { alias, roomId, targetHash: sha256(`zpeer:${target}`) } : undefined;
+}
+
+function resolveZteamHandoffTargets(repoRoot: string, input: HandoffGoalTodoInput, selfRoomId: string): HandoffLiveDeliveryTarget[] {
+  const target = input.target.replace(/^@+/, "").trim();
+  const loaded = loadZteamManifest(repoRoot, target);
+  if (loaded.errors.length > 0) throw new Error(`zteam handoff target blocked:\n- ${loaded.errors.join("\n- ")}`);
+  const registry = readZobLiveRegistrySnapshot(repoRoot);
+  const members = [...(loaded.manifest.members ?? []), ...(loaded.manifest.agents ?? [])];
+  const resolved: HandoffLiveDeliveryTarget[] = [];
+  const blockers: string[] = [];
+  for (const member of members) {
+    const memberId = zteamMemberId(member);
+    const roomId = zteamMemberRoom(member, safeZpeerRoomId(input.target_room) ?? selfRoomId);
+    const explicitAlias = typeof member.alias === "string" ? member.alias.replace(/^@+/, "") : undefined;
+    const peer = registry.peers.find((candidate) => candidate.status === "online" && candidate.transport === "local_socket" && !candidate.endpoint.startsWith("pending-") && (candidate.roleId === memberId || candidate.agent === memberId || (explicitAlias ? peerAliases(candidate, roomId).includes(explicitAlias) : false)));
+    const alias = peer ? explicitAlias ?? peerAliasInRoom(peer, roomId) ?? peerAliases(peer, roomId)[0] : undefined;
+    if (!alias) {
+      blockers.push(explicitAlias ? `${memberId}/@${explicitAlias}` : memberId);
+      continue;
+    }
+    resolved.push({ alias, roomId, memberId, targetHash: sha256(`zteam:${target}:${memberId}:${alias}:${roomId}`) });
+  }
+  if (blockers.length > 0) throw new Error(`zteam '${target}' has no resolvable online local_socket alias for member(s): ${blockers.join(", ")}`);
+  if (resolved.length === 0) throw new Error(`zteam '${target}' has no resolvable live members`);
+  return resolved;
+}
+
+async function deliverHandoffLive(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string, input: HandoffGoalTodoInput, runId: string): Promise<HandoffLiveDeliveryResult> {
+  if (!state.zobLive.peerCard) throw new Error("handoff live delivery blocked: current session has not registered a local ZPeer endpoint");
+  const self = refreshZpeerSelf(repoRoot, state.zobLive.peerCard);
+  state.zobLive.peerCard = self;
+  const selfRoomId = safeZpeerRoomId(input.target_room) ?? activeZpeerRoomId(self);
+  const targets = input.target_type === "zpeer"
+    ? [resolveZpeerHandoffTarget(repoRoot, input, selfRoomId)].filter((target): target is HandoffLiveDeliveryTarget => Boolean(target))
+    : resolveZteamHandoffTargets(repoRoot, input, selfRoomId);
+  if (targets.length === 0) throw new Error(`handoff live delivery blocked: no resolvable live ${input.target_type} target`);
+  const attempts: HandoffLiveDeliveryAttempt[] = [];
+  for (const target of targets) {
+    const result = await sendZpeerPrompt(repoRoot, self, target.alias, input.custom_message, (msgId) => state.zobLive.pendingReplies.wait(msgId, 25), { mode: "async", roomId: target.roomId });
+    const succeeded = result.status === "waiting" || result.status === "delivered" || result.status === "reply" || result.status === "completed";
+    attempts.push({
+      targetHash: target.targetHash,
+      targetAliasHash: sha256(target.alias),
+      roomIdHash: sha256(result.roomId ?? target.roomId),
+      memberIdHash: target.memberId ? sha256(target.memberId) : undefined,
+      attempted: true,
+      status: result.status,
+      succeeded,
+      msgId: result.msgId,
+      taskHash: result.taskHash,
+      outputHash: result.outputHash,
+      reasonHash: result.reason ? sha256(result.reason) : undefined,
+      bodyStored: false,
+    });
+  }
+  const failed = attempts.filter((attempt) => !attempt.succeeded).length;
+  const delivery: HandoffLiveDeliveryResult = {
+    liveDeliveryAttempted: true,
+    deliveryPreparedOnly: false,
+    deliverySucceeded: failed === 0,
+    attempted: attempts.length,
+    succeeded: attempts.length - failed,
+    failed,
+    messageIds: attempts.map((attempt) => attempt.msgId).filter((msgId): msgId is string => typeof msgId === "string"),
+    targetHashes: attempts.map((attempt) => attempt.targetHash),
+    attempts,
+    bodyStored: false,
+  };
+  pi.appendEntry("zob-goal-todo-handoff-delivery", { schema: "zob.goal-todo-handoff-delivery.v1", runId, targetType: input.target_type, instructionHash: sha256(input.custom_message), ...delivery, promptBodiesStored: false, outputBodiesStored: false });
+  if (!delivery.deliverySucceeded) throw new Error(`handoff live delivery failed: ${delivery.failed}/${delivery.attempted} target(s) did not ACK`);
+  return delivery;
+}
+
+async function handoffGoalTodos(pi: ExtensionAPI, state: HarnessRuntimeState, repoRoot: string, input: HandoffGoalTodoInput, source: "tool" | "command"): Promise<HandoffGoalTodoResult> {
+  const goalId = currentGoalId(state, input.goal_id);
+  const refs = collectHandoffTodoRefs(input);
+  if (refs.length === 0) throw new Error("handoff_goal_todo requires todo_id, todo_ids, or todo_refs.");
+  if (!input.custom_message.trim()) throw new Error("handoff_goal_todo requires a maintainer-authored custom_message body; raw body is transient and only its sha256 is persisted.");
+  if ((input as { append_goal_room?: boolean }).append_goal_room === false) throw new Error("handoff_goal_todo requires canonical hash-only Goal Room metadata; append_goal_room=false is not allowed for live TODO handoff.");
+  const runId = input.run_id?.trim() || newRunId("handoff");
+  if (safeFileStem(runId) !== runId) throw new Error(`handoff run_id must be path-safe: ${runId}`);
+  const resolved = refs.map((ref) => {
+    const match = resolveGoalTodoReference(state.goalTodos, goalId, ref, "handoff TODO ref", { requireDelegatable: true });
+    if (!match.node) throw new Error(match.errors.join("\n") || `handoff TODO ref not found: ${ref}`);
+    return match.node;
+  });
+  const nodes = [...new Map(resolved.map((node) => [node.id, node])).values()];
+  const target = validateHandoffTarget(repoRoot, input);
+  if (target.errors.length > 0) throw new Error(`handoff target blocked:\n- ${target.errors.join("\n- ")}`);
+
+  const instructionHash = sha256(input.custom_message);
+  const teamName = input.goal_room_team ?? "zob-core";
+  const team = loadTeamDefinition(repoRoot, teamName);
+  const errors = [...team.errors, ...validateTeamDefinition(repoRoot, team.definition)];
+  if (errors.length > 0 || !team.definition) throw new Error(`Goal Room handoff metadata blocked:\n- ${errors.join("\n- ")}`);
+
+  const goalRoomMessageIds: string[] = [];
+  for (const node of nodes) {
+    const message = appendGoalRoomMessage(repoRoot, team.definition, {
+      goal_id: goalId,
+      run_id: runId,
+      todo_id: node.id,
+      sender: input.sender ?? "parent",
+      audience: input.target_type === "zteam" ? "all" : "worker",
+      kind: "HANDOFF",
+      priority: node.priority,
+      body_hash: instructionHash,
+      task_id: node.id,
+      requires_parent_action: true,
+      metadata: {
+        schema: "zob.goal-todo-handoff.v1",
+        handoffRunId: runId,
+        targetType: input.target_type,
+        targetHash: target.targetHash,
+        targetRoomHash: input.target_room ? sha256(input.target_room) : undefined,
+        todoPath: node.path,
+        batchSize: nodes.length,
+        instructionHash,
+        canonicalGoalRoomPrepared: true,
+        liveDeliveryRequired: true,
+        liveDeliveryAttempted: false,
+        deliveryPreparedOnly: false,
+        bodyStored: false,
+      },
+    });
+    if (typeof message.msgId === "string") goalRoomMessageIds.push(message.msgId);
+  }
+
+  const delegationDepth = Math.max(1, Math.trunc(input.delegation_depth ?? 1));
+  const linked = nodes.map((node) => linkGoalTodoDelegation(pi, state, goalId, node.id, {
+    runId,
+    agent: `${input.target_type}:${target.deliveryTarget}`,
+    requestId: `handoff:${runId}:${node.id}`,
+    delegationDepth,
+    status: "queued",
+  }, source)).filter((node): node is GoalTodoNode => Boolean(node));
+
+  let delivery: HandoffLiveDeliveryResult;
+  try {
+    delivery = await deliverHandoffLive(pi, state, repoRoot, input, runId);
+  } catch (error) {
+    for (const node of linked) {
+      linkGoalTodoDelegation(pi, state, goalId, node.id, {
+        runId,
+        agent: `${input.target_type}:${target.deliveryTarget}`,
+        requestId: `handoff:${runId}:${node.id}`,
+        delegationDepth,
+        status: "failed",
+      }, source);
+    }
+    pi.appendEntry("zob-goal-todo-handoff", {
+      schema: "zob.goal-todo-handoff-result.v1",
+      source,
+      goalId,
+      runId,
+      todoIds: linked.map((node) => node.id),
+      todoPaths: linked.map((node) => node.path),
+      targetType: input.target_type,
+      targetHash: target.targetHash,
+      targetRoomHash: input.target_room ? sha256(input.target_room) : undefined,
+      instructionHash,
+      goalRoomMessageIds,
+      canonicalGoalRoomPrepared: true,
+      liveDeliveryAttempted: true,
+      deliveryPreparedOnly: false,
+      deliverySucceeded: false,
+      bodyStored: false,
+      promptBodiesStored: false,
+      outputBodiesStored: false,
+      failureHash: sha256(error instanceof Error ? error.message : String(error)),
+    });
+    throw error;
+  }
+
+  pi.appendEntry("zob-goal-todo-handoff", {
+    schema: "zob.goal-todo-handoff-result.v1",
+    source,
+    goalId,
+    runId,
+    todoIds: linked.map((node) => node.id),
+    todoPaths: linked.map((node) => node.path),
+    targetType: input.target_type,
+    targetHash: target.targetHash,
+    targetRoomHash: input.target_room ? sha256(input.target_room) : undefined,
+    instructionHash,
+    goalRoomMessageIds,
+    liveDeliveryAttempted: true,
+    deliveryPreparedOnly: false,
+    deliverySucceeded: delivery.deliverySucceeded,
+    deliveryAttempted: delivery.attempted,
+    deliverySucceededCount: delivery.succeeded,
+    deliveryFailed: delivery.failed,
+    deliveryMessageIdHashes: delivery.messageIds.map((msgId) => sha256(msgId)),
+    deliveryTargetHashes: delivery.targetHashes,
+    deliveryAttempts: delivery.attempts,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+  });
+
+  return { goalId, runId, nodes: linked, instructionHash, goalRoomMessageIds, targetHash: target.targetHash, targetType: input.target_type, delivery, deliveryPreparedOnly: false };
 }
 
 function goalTodoStatusIcon(status: GoalTodoStatus): string {
@@ -1056,6 +1404,34 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
       const summary = summarizeGoalTodos(state.goalTodos, goalId);
       const diagnostics = goalTodoCompletionDiagnostics(state.goalTodos, goalId);
       return { content: [{ type: "text", text: formatGoalTodoTree(state.goalTodos, goalId) }], details: { goalId, summary, diagnostics, completion_ready: diagnostics.completionReady, hard_no_ship: diagnostics.hardNoShip, review_no_ship: diagnostics.reviewNoShip, effective_no_ship: diagnostics.effectiveNoShip, completion_blockers: diagnostics.completionBlockers, next_valid_actions: diagnostics.nextValidActions, nodes: state.goalTodos.nodes.filter((node) => node.goalId === goalId), policy: state.goalTodos.policy } };
+    },
+  });
+
+  pi.registerTool({
+    name: "handoff_goal_todo",
+    label: "Handoff Goal TODO",
+    description: "Deliver an explicit single/batch Goal TODO handoff to a live ZPeer or project-local ZTeam through governed local ZPeer transport. Requires a maintainer-authored transient custom_message; persists only hashes/metadata, records mandatory hash-only Goal Room HANDOFF records before live delivery, and marks TODOs delegated/queued without done transition.",
+    promptSnippet: "Use for explicit TODO handoff only after resolving active TODO refs and an explicit online target; raw custom_message is transient and durable records are hash-only.",
+    promptGuidelines: [
+      "Do not use this as completion evidence: it queues/delegates handoff only and never marks TODOs done.",
+      "target_type/target must be explicit; stale/offline/ambiguous targets block.",
+      "custom_message is required and stored only as instructionHash/body_hash in durable metadata.",
+    ],
+    parameters: HandoffGoalTodoParams,
+    renderCall(args, theme) {
+      const count = [args.todo_id, ...(args.todo_ids ?? []), ...(args.todo_refs ?? [])].filter(Boolean).length;
+      return new Text(`${theme.fg("toolTitle", theme.bold("goal_todo"))} ${theme.fg("accent", `handoff ${count || 1} → ${args.target_type}:${args.target}`)}`, 0, 0);
+    },
+    renderResult(result) {
+      return new Text(renderGoalTodoResultText(result), 0, 0);
+    },
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await handoffGoalTodos(pi, state, ctx.cwd, params as HandoffGoalTodoInput, "tool");
+      const summary = summarizeGoalTodos(state.goalTodos, result.goalId);
+      return {
+        content: [{ type: "text", text: formatGoalTodoToolResult(result.goalId, `handoff delivered ${result.nodes.length} goal TODO(s); run=${result.runId}; target=${result.targetType}; instructionHash=${result.instructionHash.slice(0, 12)}; liveDeliveryAttempted=${result.delivery.liveDeliveryAttempted}; deliverySucceeded=${result.delivery.deliverySucceeded}; bodyStored=false`, summary, result.nodes) }],
+        details: { schema: "zob.goal-todo-handoff-result.v1", ...result, summary, liveDeliveryAttempted: true, deliverySucceeded: result.delivery.deliverySucceeded, deliveryPreparedOnly: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false },
+      };
     },
   });
 

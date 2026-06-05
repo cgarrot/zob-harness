@@ -13,6 +13,7 @@ Use this skill when a task involves any of:
 - showing progress in the HUD;
 - linking TODOs to `delegate_task`, `delegate_agent`, `child_goal`, orchestration, chains, or factories;
 - accepting/rejecting subagent completion claims;
+- handing existing Goal TODOs to a live ZPeer/ZTeam member through `handoff_goal_todo`, `/goal todo handoff`, or `/todo handoff`;
 - reviewing whether a goal can move to `ready_for_oracle` or `complete`;
 - designing X-depth TODO/delegation systems.
 
@@ -20,7 +21,7 @@ Canonical design/runtime doc:
 
 - `docs/ZOB_GOAL_TODO_TREE_PLAN.md`
 
-Runtime support now includes `/goal todo ...`, `/todo`, `/todos overlay`, goal TODO tools, delegated claim acceptance/rejection, oracle claim validation, strict PASS/no_ship=false auto-accept, artifact imports, HUD/prompt summaries, and completion blockers.
+Runtime support now includes `/goal todo ...`, `/todo`, `/todos overlay`, goal TODO tools, delegated claim acceptance/rejection, explicit ZPeer/ZTeam TODO handoff metadata, oracle claim validation, strict PASS/no_ship=false auto-accept, artifact imports, HUD/prompt summaries, and completion blockers.
 
 ## Core model
 
@@ -48,8 +49,8 @@ EvidenceGraph = validation commands, reports, checkpoints, sentinels, hashes
 - Recover delegated/recovery leaves only when no active child/run owns the TODO and stale metadata can be safely cleared; otherwise block/review and do not redelegate the same leaf.
 - No same-leaf parallel write workers. If multiple agents or parallel work are needed, split into subtodos first and dispatch one owner per writable leaf.
 - Parallel owner pools use read-across/write-by-owner: sibling workers may read cited outputs/context and Goal Room summaries, but only the leaf owner edits its owned paths, and planned write paths must be within owned paths. Read-across never grants write access; overlap with write paths requires a hash-only justification. Workspace claims are metadata-only; an owner's own active listed write claim can cover write intent while other overlaps remain conflicts. Cross-owner changes require a parent-visible owner request and owner/parent decision, with requested paths covered by the named owner assignment when a plan exists; children without harness extensions may emit a hash/body-free `OWNER_CHANGE_REQUEST.v1` final-output block for parent-side extraction only.
-- Goal Room is canonical for pool coordination, owner requests/decisions, blockers, evidence refs, and oracle-visible history. ZPeer is optional transient live clarification and must be summarized to Goal Room when it changes decisions.
-- A subagent returns a claim; the parent accepts or rejects it.
+- Goal Room is canonical for pool coordination, TODO handoff metadata, owner requests/decisions, blockers, evidence refs, and oracle-visible history. ZPeer is optional transient live delivery/clarification and must be summarized to Goal Room when it changes decisions.
+- A subagent or ZPeer/ZTeam TODO handoff receiver returns a claim; the parent accepts or rejects it.
 - Child-spawns-child is forbidden. Child-proposes-child is allowed only through parent-owned adaptive delegation gates.
 - Children may propose XDEF/deeper splits with `TODO_SPLIT_REQUEST.v1`; only the parent applies `split_goal_todo` and dispatches follow-up agents.
 - Persisted coms/Mission Control/adaptive TODO refs must remain hash-only/body-free.
@@ -106,6 +107,45 @@ blocked        cannot proceed without replan/input/fix
 done           accepted with evidence
 skipped        intentionally skipped with reason
 ```
+
+## Explicit ZPeer/ZTeam TODO handoff
+
+Use `handoff_goal_todo`, `/goal todo handoff ...`, or `/todo handoff ...` only for explicit handoff of existing Goal TODOs to a live ZPeer/ZTeam member.
+
+Handoff preconditions:
+
+- active runtime goal and existing TODO IDs or unambiguous TODO paths are required;
+- an explicit agent team/ZTeam context is required; handoff is not available to anonymous peers or ordinary subagents;
+- the receiver must be a resolvable team peer and live/stale status must be treated according to coms safety gates;
+- the maintainer must provide a custom contextual handoff message for the receiver; do not synthesize a silent generic assignment;
+- handoff must not auto-launch teams, spawn child agents, mutate source files, or mark TODOs complete.
+
+Single and batch behavior:
+
+- A single handoff assigns one bounded TODO leaf or parent-approved bundle to one receiver.
+- A batch handoff may include multiple TODO refs only when they share the same receiver, ownership model, path permissions, and context; otherwise split first.
+- Do not run multiple write-capable receivers on the same leaf. If parallel work is needed, split into subtodos/XDEF leaves first and assign one writable owner per leaf.
+- Record batch membership and per-TODO hashes/refs; do not persist raw handoff messages or raw outputs.
+
+Receiver execution rules:
+
+- The receiver may create local private subtasks for its own execution notes.
+- The receiver must not mutate the parent TODO graph directly, complete the parent TODO, or dispatch child workers unless team policy and parent-owned gates explicitly allow it.
+- If the work is too broad, needs different owners, or requires parallel writable work, the receiver returns `TODO_SPLIT_REQUEST.v1` or a blocker claim rather than forcing completion.
+- If receiver-side delegation is allowed by team policy, returned evidence must still be consolidated into the peer return contract for parent acceptance.
+
+Durable coordination:
+
+- ZPeer is transient live delivery/clarification only.
+- Goal Room hash-only metadata is canonical for TODO handoff records, receiver refs, TODO refs, custom-message hashes, artifact refs, result hashes, blockers, and oracle-visible history.
+- Persisted records must keep `bodyStored=false` and use `taskHash`, `outputHash`, `artifactRefs`, and safe refs instead of raw conversation bodies.
+- ACK, delivery, chat reply, or append-only metadata is not TODO completion evidence by itself.
+
+Return contract:
+
+- Preferred receiver output is `TODO_CHILD_RESULT.v2` with `child_goal_status`, `status_claim`, `evidence_refs`, `validation_commands`, `risks`, `acceptance_blockers`, `target_readiness`, advisory `no_ship`, and `FINAL_MARKER: TODO_CHILD_RESULT_V2_END`.
+- `TODO_SPLIT_REQUEST.v1` is appropriate when the receiver recommends parent-owned splitting/replanning.
+- Parent/oracle review decides acceptance; only parent-owned `resolve_goal_todo`/claim acceptance can transition canonical TODO state.
 
 ## Delegated TODO claims
 
@@ -229,12 +269,13 @@ Use detailed commands/overlay for the full tree.
 
 ## Coms and Mission Control safety
 
-For TODO-linked communication:
+For TODO-linked communication and handoff:
 
 - use `taskId=todoId`;
 - use `taskHash` and `outputHash`;
 - use safe repo-relative `artifactRefs`;
 - keep `bodyStored=false`;
+- for ZPeer/ZTeam TODO handoff, keep raw custom messages transient and persist only message hashes/refs plus typed Goal Room metadata;
 - keep command proposals parent-owned and proposal-only;
 - never target direct worker writes from Mission Control.
 

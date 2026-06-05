@@ -6,7 +6,7 @@ import { Text } from "@earendil-works/pi-tui";
 import type { AgentScope, ChildResult, ChildStopCondition, ChildThinkingLevel, DelegationDetails, DelegationFailureKind } from "../types.js";
 import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "./schemas.js";
 import { discoverAgents, formatAgentList } from "../domains/delegation/agents.js";
-import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../domains/goal/goal-todos.js";
+import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoPeerResultFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../domains/goal/goal-todos.js";
 import { isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride } from "../domains/delegation/child-runner.js";
 import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../domains/telemetry/chronicle.js";
 import { validateExplicitModelOverride } from "../domains/models/model-availability.js";
@@ -357,17 +357,63 @@ function recordTodoClaimFromChildResult(pi: ExtensionAPI, state: HarnessRuntimeS
       return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim: false, node };
     }
   }
+  const peerResult = extractTodoPeerResultFromText(text);
+  if (peerResult.contract) {
+    const peerItem = peerResult.items.find((item) => item.todoId === todoId);
+    const peerBlockers = [
+      ...(!peerResult.hasFinalMarker ? ["missing_final_marker"] : []),
+      ...(peerItem ? [] : [`mismatched_todo_id:${todoId}`]),
+      ...(peerItem?.statusClaim ? [] : ["missing_status_claim"]),
+      ...(peerItem?.statusClaim === "done" && peerItem.evidenceRefs.length === 0 && peerItem.validationCommands.length === 0 ? ["missing_evidence_for_done"] : []),
+      ...(peerItem?.noShip === true ? ["no_ship_true"] : []),
+      ...(peerItem?.acceptanceBlockers ?? []),
+      ...(peerItem?.risks ?? []).map((risk) => `risk:${risk}`),
+    ];
+    const peerStatusClaim = peerItem?.statusClaim ?? "blocked";
+    const validReadyClaim = !isFailed(result)
+      && Boolean(peerItem)
+      && peerResult.hasFinalMarker
+      && peerStatusClaim === "done"
+      && (peerItem!.evidenceRefs.length > 0 || peerItem!.validationCommands.length > 0)
+      && peerItem!.noShip !== true
+      && peerBlockers.length === 0;
+    const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
+      claimText: text || `peer returned no ${peerResult.contract} body`,
+      evidenceRefs: peerItem?.evidenceRefs ?? [],
+      validationCommands: peerItem?.validationCommands ?? [],
+      noShip: validReadyClaim ? false : true,
+      runId: meta.runId,
+      outputHash: meta.outputHash,
+      outputContract: peerResult.contract,
+      gatePassed: result.gatePassed === true && validReadyClaim,
+      childGoalStatus: validReadyClaim ? "ready_for_oracle" : peerStatusClaim === "blocked" ? "blocked" : "incomplete",
+      statusClaim: peerStatusClaim,
+      targetReadiness: validReadyClaim ? "ready_for_parent_acceptance" : peerStatusClaim === "blocked" ? "blocked" : "needs_parent_review",
+      acceptanceBlockers: [...new Set(peerBlockers)],
+      childChangedPaths: result.childChangedPaths ?? [],
+    }, "delegation");
+    return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim, node };
+  }
   const claim = extractTodoClaimFromText(text);
   const validReadyClaim = !isFailed(result)
     && claim.todoId === todoId
     && claim.childGoalStatus === "ready_for_oracle"
     && claim.statusClaim === "done"
-    && claim.hasFinalMarker;
+    && claim.hasFinalMarker
+    && (claim.evidenceRefs.length > 0 || claim.validationCommands.length > 0)
+    && claim.noShip !== true;
+  const childBlockers = [
+    ...(!claim.hasFinalMarker ? ["missing_final_marker"] : []),
+    ...(claim.todoId && claim.todoId !== todoId ? [`mismatched_todo_id:${claim.todoId}`] : []),
+    ...(claim.statusClaim === "done" && claim.evidenceRefs.length === 0 && claim.validationCommands.length === 0 ? ["missing_evidence_for_done"] : []),
+    ...(claim.noShip === true ? ["no_ship_true"] : []),
+    ...claim.acceptanceBlockers,
+  ];
   const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
     claimText: text || "child returned no TODO_CHILD_RESULT.v1/v2 claim",
     evidenceRefs: claim.evidenceRefs,
     validationCommands: claim.validationCommands,
-    noShip: validReadyClaim ? claim.noShip === true : true,
+    noShip: validReadyClaim ? false : true,
     runId: meta.runId,
     outputHash: meta.outputHash,
     outputContract: result.outputContract,
@@ -375,7 +421,7 @@ function recordTodoClaimFromChildResult(pi: ExtensionAPI, state: HarnessRuntimeS
     childGoalStatus: claim.childGoalStatus,
     statusClaim: claim.statusClaim,
     targetReadiness: claim.targetReadiness,
-    acceptanceBlockers: claim.acceptanceBlockers,
+    acceptanceBlockers: [...new Set(childBlockers)],
     childChangedPaths: result.childChangedPaths ?? [],
   }, "delegation");
   return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim, node };

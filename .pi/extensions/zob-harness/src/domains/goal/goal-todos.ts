@@ -30,6 +30,8 @@ import type {
   GoalTodoSummary,
   ResolveGoalTodoAction,
   TodoClaimValidationResult,
+  TodoPeerResultItem,
+  TodoPeerResultParseResult,
   TodoSplitRequest,
 } from "./goal-todo-types.js";
 import { recordZcommitOwnedPaths, type ZcommitChildChangedPathRef } from "../git/git-ops.js";
@@ -67,6 +69,8 @@ export type {
   GoalTodoSummary,
   ResolveGoalTodoAction,
   TodoClaimValidationResult,
+  TodoPeerResultItem,
+  TodoPeerResultParseResult,
   TodoSplitRequest,
   TodoSplitRequestAction,
   TodoSplitRiskLevel,
@@ -395,15 +399,21 @@ function applyEvent(state: GoalTodoState, event: GoalTodoEvent): void {
         childChangedPaths: event.childChangedPaths ?? [],
         returnedAt: event.at,
       };
+      const claimStatus: GoalTodoStatus = event.statusClaim === "blocked"
+        ? "blocked"
+        : event.statusClaim === "incomplete" || event.noShip === true || (event.acceptanceBlockers ?? []).length > 0 || event.targetReadiness === "needs_parent_review" || event.targetReadiness === "blocked"
+          ? "needs_review"
+          : "claim_returned";
       replaceNode(state, applyPatchToNode(existing, {
-        status: "claim_returned",
+        status: claimStatus,
+        owner: claimStatus === "claim_returned" ? existing.owner : "agent",
         evidenceRefs,
         validationCommands,
         delegation: existing.delegation ? { ...existing.delegation, status: "claim_returned" } : undefined,
         claim,
         artifacts: { ...(existing.artifacts ?? {}), outputHash: event.outputHash ?? event.claimHash },
-        blocker: event.noShip === true ? "delegated claim returned advisory no_ship=true; parent review required" : undefined,
-        reviewNoShip: event.noShip === true,
+        blocker: claimStatus === "claim_returned" ? undefined : event.acceptanceBlockers?.[0] ?? (event.noShip === true ? "delegated claim returned advisory no_ship=true; parent review required" : `delegated claim status ${event.statusClaim ?? "needs_review"}; parent review required`),
+        reviewNoShip: claimStatus === "claim_returned" ? undefined : true,
       }));
     }
     return;
@@ -880,7 +890,7 @@ export function splitGoalTodo(pi: ExtensionAPI, state: HarnessRuntimeState, goal
   return children;
 }
 
-export function linkGoalTodoDelegation(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { runId: string; agent?: string; childGoalId?: string; requestId?: string; delegationDepth?: number }, source: GoalTodoEventSource = "delegation"): GoalTodoNode | undefined {
+export function linkGoalTodoDelegation(pi: ExtensionAPI, state: HarnessRuntimeState, goalId: string, todoId: string, input: { runId: string; agent?: string; childGoalId?: string; requestId?: string; delegationDepth?: number; status?: GoalTodoDelegationStatus }, source: GoalTodoEventSource = "delegation"): GoalTodoNode | undefined {
   const existing = state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
   if (!existing) return undefined;
   const delegation: GoalTodoDelegationRef = {
@@ -889,7 +899,7 @@ export function linkGoalTodoDelegation(pi: ExtensionAPI, state: HarnessRuntimeSt
     childGoalId: input.childGoalId,
     requestId: input.requestId,
     delegationDepth: Math.max(0, Math.trunc(input.delegationDepth ?? existing.delegation?.delegationDepth ?? 1)),
-    status: "running",
+    status: input.status ?? "running",
   };
   appendGoalTodoEvent(pi, state, { version: 1, kind: "delegate_link", source, goalId, todoId, runId: input.runId, delegation, at: unixSeconds() });
   return state.goalTodos.nodes.find((node) => node.goalId === goalId && node.id === todoId);
@@ -1248,6 +1258,51 @@ function collectLabeledLines(text: string, label: RegExp): string[] {
 function extractLabeledScalar(text: string, label: string): string | undefined {
   const match = text.match(new RegExp(`^\\s*(?:[-*]\\s*)?${label}\\s*[:=]\\s*(.+)$`, "im"));
   return match?.[1]?.trim();
+}
+
+function normalizePeerStatusClaim(value: string | undefined): TodoPeerResultItem["statusClaim"] {
+  const normalized = value?.trim().toLowerCase().replace(/[ -]/g, "_");
+  return normalized === "done" || normalized === "incomplete" || normalized === "blocked" ? normalized : undefined;
+}
+
+function extractTodoPeerResultItemFromText(text: string, hasFinalMarker: boolean): TodoPeerResultItem {
+  const todoIdMatch = text.match(/todo_id\s*[:=]\s*([^\s]+)/i);
+  const statusRaw = extractLabeledScalar(text, "status_claim") ?? extractLabeledScalar(text, "status");
+  const noShipMatch = text.match(/no_ship\s*[:=]\s*(true|yes|false|no)/i);
+  return {
+    todoId: todoIdMatch?.[1]?.trim(),
+    statusClaim: normalizePeerStatusClaim(statusRaw),
+    evidenceRefs: collectLabeledLines(text, /^\s*(?:[-*]\s*)?evidence_refs\s*[:=]/i),
+    validationCommands: collectLabeledLines(text, /^\s*(?:[-*]\s*)?validation_commands\s*[:=]/i),
+    risks: collectLabeledLines(text, /^\s*(?:[-*]\s*)?risks\s*[:=]/i),
+    acceptanceBlockers: collectLabeledLines(text, /^\s*(?:[-*]\s*)?acceptance_blockers\s*[:=]/i),
+    noShip: noShipMatch ? /^(true|yes)$/i.test(noShipMatch[1]) : undefined,
+    hasFinalMarker,
+  };
+}
+
+export function extractTodoPeerResultFromText(text: string): TodoPeerResultParseResult {
+  const bundle = /TODO_PEER_BUNDLE_RESULT\.v1/i.test(text);
+  const single = /TODO_PEER_RESULT\.v1/i.test(text);
+  const hasBundleMarker = /FINAL_MARKER\s*:\s*TODO_PEER_BUNDLE_RESULT_END|TODO_PEER_BUNDLE_RESULT_END/.test(text);
+  const hasSingleMarker = /FINAL_MARKER\s*:\s*TODO_PEER_RESULT_END|TODO_PEER_RESULT_END/.test(text);
+  const contract = bundle ? "TODO_PEER_BUNDLE_RESULT.v1" : single ? "TODO_PEER_RESULT.v1" : undefined;
+  const hasFinalMarker = bundle ? hasBundleMarker : single ? hasSingleMarker : false;
+  const errors: string[] = [];
+  if (!contract) return { items: [], hasFinalMarker: false, errors };
+  if (!hasFinalMarker) errors.push("missing_final_marker");
+  const itemTexts = bundle
+    ? text.split(/(?=^\s*(?:[-*]\s*)?todo_id\s*[:=])/gim).filter((part) => /todo_id\s*[:=]/i.test(part))
+    : [text];
+  const items = itemTexts.map((part) => extractTodoPeerResultItemFromText(part, hasFinalMarker));
+  if (items.length === 0) errors.push("missing_result_items");
+  for (const item of items) {
+    if (!item.todoId) errors.push("missing_todo_id");
+    if (!item.statusClaim) errors.push(`missing_status_claim:${item.todoId ?? "unknown"}`);
+    if (item.statusClaim === "done" && item.evidenceRefs.length === 0 && item.validationCommands.length === 0) errors.push(`missing_evidence_for_done:${item.todoId ?? "unknown"}`);
+    if (item.noShip === true) errors.push(`no_ship_true:${item.todoId ?? "unknown"}`);
+  }
+  return { contract, items, hasFinalMarker, errors: [...new Set(errors)] };
 }
 
 export function extractTodoClaimValidationFromText(text: string): TodoClaimValidationResult {
