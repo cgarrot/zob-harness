@@ -249,8 +249,8 @@ async function main() {
   let alpha = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'alpha', roomId: 'room-one', endpoint: alphaEndpoint, endpointHash: hashing.sha256(alphaEndpoint), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'alpha');
   let beta = zpeer.ensureZpeerFields(peerRepoRoot, makePeer({ alias: 'beta', roomId: 'room-one', endpoint: betaEndpoint, endpointHash: hashing.sha256(betaEndpoint), sha256: hashing.sha256, team: 'zob-side', heartbeatAt: oldHeartbeatAt }), 'room-one', 'beta');
   zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'gamma', roomId: 'room-two', endpoint: gammaEndpoint, endpointHash: hashing.sha256(gammaEndpoint), sha256: hashing.sha256 }), 'room-two', 'gamma');
-  const workerOne = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workerone', roomId: 'worker-room', endpoint: workerOneEndpoint, endpointHash: hashing.sha256(workerOneEndpoint), sha256: hashing.sha256, roleId: 'explore-worker', roleType: 'worker' }), 'worker-room', 'workerone');
-  zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workertwo', roomId: 'worker-room', endpoint: workerTwoEndpoint, endpointHash: hashing.sha256(workerTwoEndpoint), sha256: hashing.sha256, roleId: 'research-worker', roleType: 'worker' }), 'worker-room', 'workertwo');
+  let workerOne = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workerone', roomId: 'worker-room', endpoint: workerOneEndpoint, endpointHash: hashing.sha256(workerOneEndpoint), sha256: hashing.sha256, roleId: 'explore-worker', roleType: 'worker' }), 'worker-room', 'workerone');
+  let workerTwo = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'workertwo', roomId: 'worker-room', endpoint: workerTwoEndpoint, endpointHash: hashing.sha256(workerTwoEndpoint), sha256: hashing.sha256, roleId: 'research-worker', roleType: 'worker' }), 'worker-room', 'workertwo');
 
   assert(alpha.bodyStored === false && beta.bodyStored === false, 'registered peers must be bodyStored=false');
   const staleSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
@@ -261,6 +261,8 @@ async function main() {
 
   alpha = zpeer.refreshZpeerSelf(repoRoot, alpha);
   beta = zpeer.refreshZpeerSelf(peerRepoRoot, beta);
+  workerOne = zpeer.refreshZpeerSelf(repoRoot, workerOne);
+  workerTwo = zpeer.refreshZpeerSelf(repoRoot, workerTwo);
   const initialSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
   assert(initialSummary.peerCount === 2, `room-one summary expected 2 peers, got ${initialSummary.peerCount}`);
   assert(initialSummary.online === 2, `room-one summary expected 2 online peers after refresh, got ${initialSummary.online}`);
@@ -311,9 +313,9 @@ async function main() {
   const reclaimGhost = await zpeer.changeZpeerAlias(repoRoot, ghostContender, 'ghostname');
   assert(reclaimGhost.ok === true, `non-responsive online registry ghost must not block alias reclaim, got ${reclaimGhost.reason ?? 'not ok'}`);
   const clearGhostRoom = zpeer.clearZpeerRoom(repoRoot, reclaimGhost.peer, 'ghost-room');
-  assert(clearGhostRoom.ok === true && clearGhostRoom.cleared >= 1 && clearGhostRoom.preservedSelf === true, 'clearZpeerRoom must mark other room peers offline while preserving current self');
+  assert(clearGhostRoom.ok === true && clearGhostRoom.preservedSelf === true, 'clearZpeerRoom must preserve current self while ignoring historical card-only ghosts');
   const ghostRoomAfterClear = zpeer.buildZpeerRoomSummary(repoRoot, reclaimGhost.peer, 'ghost-room');
-  assert(ghostRoomAfterClear.aliases.includes('ghostname') && !ghostRoomAfterClear.aliases.includes('ghostcontender'), 'clearZpeerRoom must leave only the current alias visible in the cleared room');
+  assert(!ghostRoomAfterClear.aliases.includes('ghostcontender'), 'clearZpeerRoom must ignore card-only ghosts in lease-backed summaries');
   const crossRoomAlias = await zpeer.joinZpeerRoom(repoRoot, alpha, 'alias-room', 'beta');
   assert(crossRoomAlias.ok === true, 'same alias in a different room must be allowed');
   alpha = crossRoomAlias.peer;
@@ -333,9 +335,9 @@ async function main() {
 
   zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'beta', roomId: 'room-one', endpoint: join(root, 'dead-beta-ghost.sock'), endpointHash: hashing.sha256(join(root, 'dead-beta-ghost.sock')), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'beta');
   const ghostDuplicateSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
-  assert(ghostDuplicateSummary.aliases.filter((alias) => alias === 'beta').length >= 2, 'ghost duplicate fixture must include stale/offline alias plus live alias');
-  assert(ghostDuplicateSummary.onlineAliases.filter((alias) => alias === 'beta').length === 1, 'only the live beta alias should be listed as online');
-  assert(!ghostDuplicateSummary.duplicateAliases.includes('beta'), 'offline alias ghosts must not be reported as live duplicate aliases');
+  assert(ghostDuplicateSummary.aliases.filter((alias) => alias === 'beta').length === 1, 'lease-backed summaries must ignore historical card-only duplicate aliases');
+  assert(ghostDuplicateSummary.onlineAliases.filter((alias) => alias === 'beta').length === 1, 'only the live beta lease alias should be listed as online');
+  assert(!ghostDuplicateSummary.duplicateAliases.includes('beta'), 'card-only alias ghosts must not be reported as live duplicate aliases');
 
   const directPromptCountBefore = receivedPrompts.length;
   const directResponseCountBefore = receivedResponses.length;
