@@ -147,6 +147,10 @@ Return contract:
 - `TODO_SPLIT_REQUEST.v1` is appropriate when the receiver recommends parent-owned splitting/replanning.
 - Parent/oracle review decides acceptance; only parent-owned `resolve_goal_todo`/claim acceptance can transition canonical TODO state.
 
+## Release note — zob-harness 0.4.0
+
+Goal TODO handoff is tracked for ZPeer/ZTeam workflows: `handoff_goal_todo`, `/goal todo handoff`, and `/todo handoff` support single or batch handoff to one live team peer with a maintainer-provided custom message. Durable coordination remains hash-only in Goal Room (`bodyStored=false`, custom-message/task/output hashes and artifact refs only), and ACK/delivery/chat replies never complete work; parent-owned review via returned claims and `resolve_goal_todo` remains the only completion path.
+
 ## Delegated TODO claims
 
 When delegating a TODO, pass TODO metadata via `child_goal` once the runtime supports it:
