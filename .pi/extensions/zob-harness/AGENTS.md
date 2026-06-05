@@ -1,30 +1,30 @@
-# Scope du dossier
+# Directory scope
 
-- Ce dossier contient l'extension Pi `zob-harness`, son entrypoint `index.ts` et les modules sidecar du refactor split-only.
-- `index.ts` reste l'entrypoint Pi déclaré dans `package.json` jusqu'à approval explicite d'une bascule finale.
-- Les sous-dossiers `src/**` contiennent uniquement de la logique extraite ou du contexte local; ils ne remplacent pas l'entrypoint sans review.
-- L'architecture cible et les consignes de refactor sont documentées dans `docs/ZOB_HARNESS_ARCHITECTURE.md` et les `AGENTS.md` locaux.
+- This directory contains the `zob-harness` Pi extension, its `index.ts` entrypoint, and sidecar modules for split-only refactors.
+- `index.ts` remains the Pi entrypoint declared in `package.json` until an explicit final switch is approved.
+- `src/**` subdirectories contain only extracted logic or local context; they do not replace the entrypoint without review.
+- The target architecture and refactor instructions are documented in `docs/ZOB_HARNESS_ARCHITECTURE.md` and local `AGENTS.md` files.
 
 # Invariants
 
-- Split-only: déplacer du code sans changer le comportement observable.
-- Préserver le `default export` `zobHarness(pi)`.
-- Préserver tous les exports publics utilisés par `scripts/harness-smoke.mjs`.
-- Ne pas changer noms de tools, commandes, event handlers, sentinels, artefacts, messages d'erreur, descriptions Typebox, snippets de prompts ou guidelines.
-- Ne pas changer l'ordre des arrays observables ni les defaults runtime.
-- Ne pas convertir les opérations `fs` sync en async.
+- Split-only: move code without changing observable behavior.
+- Preserve the `default export` `zobHarness(pi)`.
+- Preserve every public export used by `scripts/harness-smoke.mjs`.
+- Do not change tool names, commands, event handlers, sentinels, artifacts, error messages, TypeBox descriptions, prompt snippets, or guidelines.
+- Do not change observable array order or runtime defaults.
+- Do not convert synchronous `fs` operations to async.
 
 # Imports
 
-- En NodeNext, utiliser des imports relatifs avec suffixe `.js`.
-- `index.ts` peut rester hybride pendant la migration.
-- Aucun fichier `src/**` ne doit importer depuis `index.ts`.
-- Préférer `import type` pour les types.
-- Direction cible des dépendances: `runtime -> domains -> core`; jamais `core -> domains/runtime`.
+- In NodeNext, use relative imports with a `.js` suffix.
+- `index.ts` may remain hybrid during migration.
+- No `src/**` file may import from `index.ts`.
+- Prefer `import type` for types.
+- Target dependency direction: `runtime -> domains -> core`; never `core -> domains/runtime`.
 
-# Validation locale
+# Local validation
 
-- Baseline avant tranche: `npm run check -- --pretty false`.
-- Après toute tranche code: `npm run check -- --pretty false`.
-- Après tranche domaine/runtime: `npm run smoke:harness`.
-- Avant bascule finale: `npm run check:all` et oracle read-only.
+- Baseline before a slice: `npm run check -- --pretty false`.
+- After any code slice: `npm run check -- --pretty false`.
+- After a domain/runtime slice: `npm run smoke:harness`.
+- Before the final switch: `npm run check:all` and read-only oracle review.

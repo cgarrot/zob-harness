@@ -5,7 +5,7 @@ import { sha256 } from "../../core/utils/hashing.js";
 import { isRecord } from "../../core/utils/records.js";
 import { safeRunId } from "../../core/utils/paths.js";
 
-const STOPWORDS = new Set(["the", "and", "for", "with", "how", "does", "this", "that", "dans", "avec", "pour", "comment", "faire", "using", "use", "project", "style"]);
+const STOPWORDS = new Set(["the", "and", "for", "with", "how", "does", "this", "that", "using", "use", "project", "style"]);
 const DEFAULT_SCAN_DIR = "reports/project-dna-scans/project-dna-factory-smoke";
 const SAFE_SCAN_PREFIXES = ["reports/project-dna-scans/"];
 const MAX_CONTEXT_TOKENS_CAP = 8000;

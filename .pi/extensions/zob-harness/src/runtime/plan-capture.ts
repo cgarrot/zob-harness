@@ -72,7 +72,7 @@ function normalizePlanText(text: string): string {
 
 function userAskedForPlan(text: string | undefined): boolean {
   if (!text) return false;
-  return /\b(plan|planning|roadmap|architecture|strat[eé]gie|sp[eé]cification|spec|conception|design|impl[eé]mentation|ordre de patch|tdd|étapes?|etapes?)\b/i.test(text);
+  return /\b(plan|planning|roadmap|architecture|strategy|specification|spec|design|implementation|patch order|tdd|steps?)\b/i.test(text);
 }
 
 export function shouldCapturePlanResponse(input: PlanCaptureInput): boolean {
@@ -86,10 +86,10 @@ export function shouldCapturePlanResponse(input: PlanCaptureInput): boolean {
   if (looksLikeCompletePlanResponse(text)) return true;
   const structuralSignals = [
     /^\s*#{1,3}\s+.*\bplan\b/im.test(text),
-    /^\s*(?:plan|roadmap|objectif|objectifs|scope|p[eé]rim[eè]tre)\b/im.test(text),
-    (text.match(/^\s*(?:#{1,4}\s*)?(?:phase|patch|étape|etape|step)\s+\d+/gim) ?? []).length >= 1,
+    /^\s*(?:plan|roadmap|objectives?|scope)\b/im.test(text),
+    (text.match(/^\s*(?:#{1,4}\s*)?(?:phase|patch|step)\s+\d+/gim) ?? []).length >= 1,
     (text.match(/^\s*\d+[.)]\s+/gm) ?? []).length >= 3,
-    /\b(validation|tests?|risques?|risks?|fichiers?|files|succ[eè]s|success)\b/i.test(text),
+    /\b(validation|tests?|risks?|files|success)\b/i.test(text),
   ].filter(Boolean).length;
   return userAskedForPlan(input.userText) ? structuralSignals >= 2 : structuralSignals >= 3;
 }

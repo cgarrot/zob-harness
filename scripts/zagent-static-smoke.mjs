@@ -161,7 +161,7 @@ requireIncludes('.pi/skills/zob-zagent-creator/SKILL.md', [
   'defaultMode',
   'never choose `vanilla` by default',
   'Do not add a scaffold slash command',
-  'J\'ai besoin d\'une team de trois agents',
+  'I need a three-agent team',
   'metadata.entryAgent',
   'start [agent]',
   'attach [agent]',

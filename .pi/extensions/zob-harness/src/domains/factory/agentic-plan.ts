@@ -5,7 +5,7 @@ function detectCanonicalPatterns(text: string): string[] {
   if (/TASK\s*:|EXPECTED\s+OUTCOME\s*:|MUST\s+NOT/i.test(text)) patterns.add("delegation.contract.structured");
   if (/delegate_(agent|task)|sub-?agent|oracle|explore/i.test(text)) patterns.add("routing.subagent.specialized");
   if (/PASS|FAIL|WARN|verdict/i.test(text)) patterns.add("verification.verdict_first");
-  if (/evidence|preuve|preuves|sentinel|DONE/i.test(text)) patterns.add("verification.evidence_required");
+  if (/evidence|proof|sentinel|DONE/i.test(text)) patterns.add("verification.evidence_required");
   if (/factory_run|software factory|factory|manifest|checkpoint/i.test(text)) patterns.add("factory.workflow.manifest_checkpoint");
   if (/damage-control|destructive|secret|zero-access|sandbox/i.test(text)) patterns.add("safety.damage_control");
   if (/truncat|output cut|silent response/i.test(text)) patterns.add("failure.output.truncation");

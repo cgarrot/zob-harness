@@ -18,9 +18,9 @@ This factory packages a natural-language-first workflow for analyzing another ag
 ## Safe entrypoints
 
 ```bash
-npm run harness:intake -- "Analyse ../repo-x comme setup Claude Code et propose une team"
+npm run harness:intake -- "Analyze ../repo-x as a Claude Code setup and propose a ZOB team"
 npm run harness:intake:smoke
-npm run harness:intake:tmux -- start "Analyse ../repo-x avec sessions autorisées"
+npm run harness:intake:tmux -- start "Analyze ../repo-x with authorized sessions"
 npm run harness:intake:validate -- <run_id>
 ```
 
@@ -66,7 +66,7 @@ Sessions are valuable because they show real usage, but they are sensitive.
 Tmux mode is for visible, long-running team supervision:
 
 ```bash
-npm run harness:intake:tmux -- start "Analyse ../repo-x comme setup Claude Code"
+npm run harness:intake:tmux -- start "Analyze ../repo-x as a Claude Code setup"
 npm run harness:intake:tmux -- status <run_id>
 npm run harness:intake:tmux -- attach <run_id> harness-intake-orchestrator
 npm run harness:intake:tmux -- stop <run_id>

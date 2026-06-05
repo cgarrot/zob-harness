@@ -1,22 +1,22 @@
-# Scope du dossier
+# Directory scope
 
-- Teams, orchestration profiles, chains et coms locales `.pi/coms`.
-- Ce dossier gère les guards de topology et les messages hash-only.
+- Teams, orchestration profiles, chains, and local `.pi/coms` communication.
+- This directory owns topology guards and hash-only messages.
 
 # Invariants
 
-- Préserver le topology guard et le blocage worker-to-worker.
-- `chain_run` reste plan-only et read-only.
-- Les coms restent hash-only: ne pas stocker les bodies de prompts ou outputs.
-- Conserver la logique de status dérivé et le timeout max 5000ms pour await.
+- Preserve the topology guard and worker-to-worker blocking.
+- `chain_run` remains plan-only and read-only.
+- Communication records remain hash-only: do not store prompt or output bodies.
+- Preserve derived status logic and the 5000 ms max timeout for await.
 
 # Imports
 
-- Peut importer types/constants/utils nécessaires depuis `src/**` avec suffixe `.js`.
-- Interdit: importer depuis `index.ts`.
-- Éviter dépendances runtime Pi directes; les tools runtime appellent ce domaine.
+- May import required types/constants/utils from `src/**` with a `.js` suffix.
+- Forbidden: importing from `index.ts`.
+- Avoid direct Pi runtime dependencies; runtime tools call this domain.
 
-# Validation locale
+# Local validation
 
 - `npm run check -- --pretty false`.
-- `npm run smoke:harness` après tout changement chains/coms/topology.
+- `npm run smoke:harness` after any chains/coms/topology change.

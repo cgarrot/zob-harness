@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const repoRoot = process.cwd();
-const STOPWORDS = new Set(["the", "and", "for", "with", "how", "does", "this", "that", "dans", "avec", "pour", "comment", "faire", "using", "use", "project", "style"]);
+const STOPWORDS = new Set(["the", "and", "for", "with", "how", "does", "this", "that", "using", "use", "project", "style"]);
 
 function usage() {
   console.error(`Usage:

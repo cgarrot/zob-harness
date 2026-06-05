@@ -89,7 +89,7 @@ export function evaluateBudgetPreflightDryRun(input: BudgetPreflightDryRunInput)
 
 function outputHasEvidenceMarker(output: string | undefined): boolean {
   if (!output) return false;
-  return /(?:<evidence>[\s\S]*?<\/evidence>|<evidence>|\bevidence\b|preuve|preuves)/i.test(output);
+  return /(?:<evidence>[\s\S]*?<\/evidence>|<evidence>|\bevidence\b|proof)/i.test(output);
 }
 
 export function detectOracleFail(output: string | undefined): { oracleFailed: boolean; noShip: boolean; stopCondition: ChildStopCondition } {

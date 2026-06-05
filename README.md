@@ -135,19 +135,19 @@ Use Harness Intake when you want to analyze another agent harness — Claude Cod
 Natural-language quick start:
 
 ```bash
-npm run harness:intake -- "Analyse ../repo-x comme setup Claude Code et propose une team ZOB réutilisable"
+npm run harness:intake -- "Analyze ../repo-x as a Claude Code setup and propose a reusable ZOB team"
 ```
 
 With explicit session/conversation authorization:
 
 ```bash
-npm run harness:intake -- --target ../repo-x --harness claude-code --allow-sessions "Tu peux lire les sessions; comprends les workflows récurrents et propose une factory"
+npm run harness:intake -- --target ../repo-x --harness claude-code --allow-sessions "You may read the sessions; identify recurring workflows and propose a factory"
 ```
 
 Prepare a visible tmux team run without launching completion claims:
 
 ```bash
-npm run harness:intake:tmux -- prepare --target ../repo-x "Prépare une team tmux visible pour analyser ce harness"
+npm run harness:intake:tmux -- prepare --target ../repo-x "Prepare a visible tmux team to analyze this harness"
 ```
 
 Outputs are written under:

@@ -6,7 +6,7 @@
     {
       "id": "local-agentic-spec-team-pilot",
       "path": ".pi/factories/agentic-spec-team",
-      "request": "Analyse .pi/factories/agentic-spec-team comme setup ZOB Agent Factory et propose les teams/factories réutilisables.",
+      "request": "Analyze .pi/factories/agentic-spec-team as a ZOB Agent Factory setup and propose reusable teams/factories.",
       "harness_hint": "pi-zob",
       "include_sessions": false
     }

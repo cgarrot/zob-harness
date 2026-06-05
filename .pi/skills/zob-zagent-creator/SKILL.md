@@ -16,7 +16,7 @@ This skill is for an owner who describes the desired team or agents in natural l
 
 Example owner asks:
 
-- "J'ai besoin d'une team de trois agents: un planificateur, un implementer et un oracle pour refactorer ce repo."
+- "I need a three-agent team: one planner, one implementer, and one oracle to refactor this repo."
 - "Create a research ZAgent and a reviewer ZAgent that coordinate in one team, but keep all writes owner-approved."
 - "I need a product-spec team that reads this repository, drafts prompts, and tells me how to launch each session manually."
 
@@ -24,7 +24,7 @@ The assistant should:
 
 1. Parse the owner’s natural-language team/agent description into candidate ZAgent roles, ZTeam membership, rooms, authority, allowed tools, allowed paths, forbidden paths, default ZOB mode, and verification expectations.
 2. Analyze the current repo and any owner-provided reference context before writing, staying within allowed paths and avoiding secrets.
-3. If the owner mentions model choice, cost, “moins cher”, speed, quality, reasoning, context length, oracle/security strength, or any concrete model/provider, read the project-local model catalog before choosing: prefer `.pi/model-catalog.json` when present, otherwise use `.pi/model-catalog.example.json` as a fallback; also read `.pi/model-routing.json` for valid model classes.
+3. If the owner mentions model choice, cost, “cheaper”, speed, quality, reasoning, context length, oracle/security strength, or any concrete model/provider, read the project-local model catalog before choosing: prefer `.pi/model-catalog.json` when present, otherwise use `.pi/model-catalog.example.json` as a fallback; also read `.pi/model-routing.json` for valid model classes.
 4. Write only project-local artifacts: `.pi/zagents/*.json`, `.pi/zagents/prompts/*.md`, `.pi/zteams/*.json`, and, only when the owner explicitly requests `tmux`, `.pi/zteams/*.tmux.sh`.
 5. Report the generated files, model choices, model-catalog evidence, tmux bundle details when applicable, and the manual launch instructions; do not automatically spawn processes.
 6. Tell the user to inspect `/zteam launch-plan <team-id>` and launch each full Pi session manually with `ZOB_ZAGENT_ID=<id> pi` or, when a ZAgent manifest sets `model`, the launch-plan-provided `ZOB_ZAGENT_ID=<id> pi --model <model>` command. If a manifest sets `defaultMode`, that launched ZAgent session applies the mode on startup. When a tmux launcher was generated, tell the user it is a manual convenience wrapper around those commands, not proof that agents were launched.
@@ -209,7 +209,7 @@ When reporting a generated tmux launcher, include the bundle id, session name, s
 
 ## Model catalog selection
 
-When the natural-language ask includes model, provider, budget, cheap/expensive, “moins cher”, speed, quality, reasoning, long context, oracle, reviewer, security, or fallback preferences, treat model choice as part of the ZAgent design.
+When the natural-language ask includes model, provider, budget, cheap/expensive, “cheaper”, speed, quality, reasoning, long context, oracle, reviewer, security, or fallback preferences, treat model choice as part of the ZAgent design.
 
 Required read order:
 

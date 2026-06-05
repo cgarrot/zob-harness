@@ -22,15 +22,15 @@ The user should not have to hand-write JSON. Treat natural language as the input
 Good user requests:
 
 ```text
-Analyse ce setup Claude Code dans ../repo-x et propose une team ZOB réutilisable.
+Analyze the Claude Code setup in ../repo-x and propose a reusable ZOB team.
 ```
 
 ```text
-Tu peux lire les sessions de ../repo-x; comprends les workflows récurrents et propose une factory d'agents.
+You may read the sessions in ../repo-x; identify recurring workflows and propose an agent factory.
 ```
 
 ```text
-Lance une team tmux visible pour analyser ce harness Codex.
+Launch a visible tmux team to analyze this Codex harness.
 ```
 
 ## Entry points
@@ -38,9 +38,9 @@ Lance une team tmux visible pour analyser ce harness Codex.
 Preferred CLI/script entry points:
 
 ```bash
-npm run harness:intake -- "Analyse ../repo-x comme setup Claude Code et propose une team"
+npm run harness:intake -- "Analyze ../repo-x as a Claude Code setup and propose a ZOB team"
 npm run harness:intake:smoke
-npm run harness:intake:tmux -- start "Analyse ../repo-x avec sessions autorisées"
+npm run harness:intake:tmux -- start "Analyze ../repo-x with authorized sessions"
 npm run harness:intake:validate -- <run_id>
 ```
 

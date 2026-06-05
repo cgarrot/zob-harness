@@ -126,13 +126,13 @@ RESULT CONTRACT:
 Owner writes:
 
 ```text
-Je veux que plusieurs workers analysent notre workflow ProjectDNA et me sortent un plan clair, sans modifier le code.
+I want several workers to analyze our ProjectDNA workflow and return a clear plan without modifying code.
 ```
 
 Generated prompt:
 
 ```text
-ORIGINAL_OWNER_ASK: Je veux que plusieurs workers analysent notre workflow ProjectDNA et me sortent un plan clair, sans modifier le code.
+ORIGINAL_OWNER_ASK: I want several workers to analyze our ProjectDNA workflow and return a clear plan without modifying code.
 
 1. TASK: Run a bounded ZOB parallel owner micro-worker pool drill to analyze the ProjectDNA workflow and produce a clear reports-only improvement plan.
 2. EXPECTED OUTCOME: Report artifacts with workflow map, improvement plan, oracle review, validation evidence, and no source changes.
@@ -183,13 +183,13 @@ RESULT CONTRACT:
 Owner writes:
 
 ```text
-Je veux que les workers préparent une petite correction dans le runtime, mais je veux valider avant que ça touche le repo.
+I want the workers to prepare a small runtime correction, but I want to review it before it touches the repo.
 ```
 
 Generated prompt:
 
 ```text
-ORIGINAL_OWNER_ASK: Je veux que les workers préparent une petite correction dans le runtime, mais je veux valider avant que ça touche le repo.
+ORIGINAL_OWNER_ASK: I want the workers to prepare a small runtime correction, but I want to review it before it touches the repo.
 
 1. TASK: Run a bounded ZOB parallel owner micro-worker pool drill to prepare a gated sandbox source-write correction plan for the specified runtime issue.
 2. EXPECTED OUTCOME: Sandbox diff candidate plus validation and oracle reports; no main-workspace apply unless the owner later approves through explicit merge gates.

@@ -1,22 +1,22 @@
-# Scope du dossier
+# Directory scope
 
-- Helpers purs et réutilisables: records, paths, JSON, hashing, formatting.
-- Ce dossier ne doit pas contenir de logique Pi runtime, tools, commands, factories ou orchestration.
+- Pure reusable helpers: records, paths, JSON, hashing, and formatting.
+- This directory must not contain Pi runtime, tools, commands, factories, or orchestration logic.
 
 # Invariants
 
-- Préserver les messages d'erreur, règles de sanitization, hashing et path matching.
-- Ne pas modifier `pathMatches`, `safeRunId`, `safeFileStem`, ou la logique de bornage d'output.
-- Garder les helpers déterministes sauf si la source ne l'était pas.
+- Preserve error messages, sanitization rules, hashing, and path matching.
+- Do not modify `pathMatches`, `safeRunId`, `safeFileStem`, or output-bounding logic unless the task explicitly requires it.
+- Keep helpers deterministic unless the source behavior was already nondeterministic.
 
 # Imports
 
-- Autorisé: modules Node minimaux nécessaires (`node:fs`, `node:path`, `node:crypto`, `node:os`) selon le helper.
-- Interdit: `ExtensionAPI`, runtime Pi, tools, commands, factories, orchestration.
-- Interdit: importer depuis `index.ts`.
-- Utiliser `.js` pour les imports relatifs.
+- Allowed: minimal required Node modules (`node:fs`, `node:path`, `node:crypto`, `node:os`) as needed by the helper.
+- Forbidden: `ExtensionAPI`, Pi runtime, tools, commands, factories, orchestration.
+- Forbidden: importing from `index.ts`.
+- Use `.js` for relative imports.
 
-# Validation locale
+# Local validation
 
 - `npm run check -- --pretty false`.
-- Si `pathMatches` ou formatting child output bouge: `npm run smoke:harness`.
+- If `pathMatches` or child-output formatting changes: `npm run smoke:harness`.

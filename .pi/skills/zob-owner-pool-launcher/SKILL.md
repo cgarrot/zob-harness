@@ -234,28 +234,28 @@ Refuse or stop when:
 - Persisted metadata would require raw prompt/output/body/diff/patch content.
 - Worker count 10/20 is requested without the required owner approval and budget/compute gates.
 
-## Minimal French usage
+## Minimal usage
 
 ```text
-/skill:zob-owner-pool-launcher Analyse ce workflow et lance un petit pool de workers pour me sortir un plan clair, sans modifier le code.
+/skill:zob-owner-pool-launcher Analyze this workflow and launch a small worker pool that returns a clear plan without modifying code.
 ```
 
 ```text
-/skill:zob-owner-pool-launcher Je veux 3 workers: un qui mappe les fichiers, un qui prépare une proposition, un oracle qui vérifie. Reports-only.
+/skill:zob-owner-pool-launcher I want 3 workers: one to map files, one to prepare a proposal, and one oracle to verify it. Reports-only.
 ```
 
 ```text
-/skill:zob-owner-pool-launcher Prépare une correction sandboxée sur ces chemins précis, avec validation et oracle, mais n'applique rien sans mon accord.
+/skill:zob-owner-pool-launcher Prepare a sandboxed correction for these exact paths, with validation and oracle review, but do not apply anything without my approval.
 ```
 
-Tu peux aussi écrire naturellement:
+You can also write naturally:
 
 ```text
-Lance un pool supervisé pour auditer cette partie, choisis 2 à 5 workers selon le besoin, et reviens avec les preuves.
+Launch a supervised pool to audit this area, choose 2 to 5 workers as needed, and return with evidence.
 ```
 
 For 10 or 20 workers, the owner must say it explicitly and accept the compute/budget/safety gates, for example:
 
 ```text
-/skill:zob-owner-pool-launcher Je veux envisager 10 workers pour cette analyse reports-only; demande-moi les validations nécessaires avant de lancer.
+/skill:zob-owner-pool-launcher I want to consider 10 workers for this reports-only analysis; ask me for the required validations before launching.
 ```

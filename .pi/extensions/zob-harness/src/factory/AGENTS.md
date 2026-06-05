@@ -1,24 +1,24 @@
-# Scope du dossier
+# Directory scope
 
-- Validation factory, plan agentic, exécution factory et quarantine review/activate/verify.
-- Ce dossier ne doit pas enregistrer de Pi tools directement; le runtime délègue ici.
+- Factory validation, agentic plans, factory execution, and quarantine review/activate/verify.
+- This directory must not register Pi tools directly; runtime delegates here.
 
 # Invariants
 
-- Préserver `SMOKE_PASSED.sentinel`, `PILOT_PASSED.sentinel`, `BATCH_PASSED.sentinel`, `DONE.sentinel`.
-- `plan_only` ne crée pas de sentinels de complétion.
-- Pilot exige une review oracle persistée et un manifest multi-item.
-- Factory-forge quarantine ne s'auto-active jamais.
-- Activation refuse overwrite et exige phrase exacte.
-- Ne pas changer noms d'artefacts, statuts ou validations.
+- Preserve `SMOKE_PASSED.sentinel`, `PILOT_PASSED.sentinel`, `BATCH_PASSED.sentinel`, and `DONE.sentinel`.
+- `plan_only` does not create completion sentinels.
+- Pilot requires a persisted oracle review and a multi-item manifest.
+- Factory-forge quarantine never self-activates.
+- Activation refuses overwrite and requires the exact phrase.
+- Do not change artifact names, statuses, or validations.
 
 # Imports
 
-- Peut importer utils/safety/output-contracts/telemetry/child-runner selon besoin.
-- Interdit: importer depuis `index.ts`.
-- Imports relatifs runtime avec suffixe `.js`.
+- May import utils/safety/output-contracts/telemetry/child-runner as needed.
+- Forbidden: importing from `index.ts`.
+- Use runtime-relative imports with a `.js` suffix.
 
-# Validation locale
+# Local validation
 
 - `npm run check -- --pretty false`.
-- `npm run smoke:harness` après toute tranche factory/quarantine.
+- `npm run smoke:harness` after any factory/quarantine slice.

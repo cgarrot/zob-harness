@@ -6,8 +6,8 @@ function help() {
   return {
     schema: "zob.harness-intake.infer-run-spec.help.v1",
     usage: [
-      "node scripts/harness-intake/infer-run-spec.mjs \"Analyse ../repo-x comme setup Claude Code\"",
-      "node scripts/harness-intake/infer-run-spec.mjs --target ../repo-x --run-id my-run --write \"Propose une team\"",
+      "node scripts/harness-intake/infer-run-spec.mjs \"Analyze ../repo-x as a Claude Code setup\"",
+      "node scripts/harness-intake/infer-run-spec.mjs --target ../repo-x --run-id my-run --write \"Propose a team\"",
     ],
     no_ship: false,
   };

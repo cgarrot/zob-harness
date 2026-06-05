@@ -5,8 +5,8 @@ function help() {
   return {
     schema: "zob.harness-intake.tmux.help.v1",
     usage: [
-      "node scripts/harness-intake/tmux-launch.mjs start \"Analyse ../repo-x comme setup Claude Code\"",
-      "node scripts/harness-intake/tmux-launch.mjs start --target ../repo-x --allow-sessions \"Tu peux lire les sessions\"",
+      "node scripts/harness-intake/tmux-launch.mjs start \"Analyze ../repo-x as a Claude Code setup\"",
+      "node scripts/harness-intake/tmux-launch.mjs start --target ../repo-x --allow-sessions \"You may read the sessions\"",
       "node scripts/harness-intake/tmux-launch.mjs status <run_id>",
       "node scripts/harness-intake/tmux-launch.mjs attach <run_id> [agent]",
       "node scripts/harness-intake/tmux-launch.mjs stop <run_id>",

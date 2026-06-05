@@ -1,26 +1,26 @@
-# Scope du dossier
+# Directory scope
 
-- Registrations Pi: commands, tools, events, widget, runtime state et `zobHarness`.
-- Runtime est extrait en dernier, après types/constants/helpers/domaines.
+- Pi registrations: commands, tools, events, widget, runtime state, and `zobHarness`.
+- Runtime is extracted last, after types/constants/helpers/domains.
 
 # Invariants
 
-- Préserver la compatibilité publique des tools/commandes enregistrés; vérifier les comptes et références via `.pi/capabilities/zob-public-runtime-capabilities.json` et `npm run audit:prompt-context` plutôt que des nombres hardcodés.
-- Préserver les event handlers existants sauf preuve smoke ciblée.
-- Préserver defaults: `activeMode = "explore"`, `currentRules = DEFAULT_RULES`, `activeGoal = undefined`, `goalRequired = false`.
-- Préserver snippets/guidelines de modes, messages bloquants, schemas Typebox et descriptions.
-- Ne pas changer la fermeture d'état runtime sans preuve smoke.
+- Preserve public compatibility for registered tools/commands; verify counts and references through `.pi/capabilities/zob-public-runtime-capabilities.json` and `npm run audit:prompt-context` rather than hardcoded counts.
+- Preserve existing event handlers unless targeted smoke evidence proves the change.
+- Preserve defaults: `activeMode = "explore"`, `currentRules = DEFAULT_RULES`, `activeGoal = undefined`, `goalRequired = false`.
+- Preserve mode snippets/guidelines, blocking messages, TypeBox schemas, and descriptions.
+- Do not change runtime-state closure without smoke evidence.
 
 # Imports
 
-- Peut importer domaines `src/**` avec suffixe `.js`.
-- Interdit: importer depuis `index.ts`.
-- Garder `ExtensionAPI` dans runtime uniquement lorsque nécessaire.
+- May import domains from `src/**` with a `.js` suffix.
+- Forbidden: importing from `index.ts`.
+- Keep `ExtensionAPI` in runtime only when necessary.
 
-# Validation locale
+# Local validation
 
-- `npm run audit:prompt-context` pour détecter les tools/commandes manquants, refs invalides et vieux contextes hardcodés.
+- `npm run audit:prompt-context` to detect missing tools/commands, invalid refs, and stale hardcoded contexts.
 - `npm run check -- --pretty false`.
 - `npm run smoke:harness`.
 - `npm run pi:check`.
-- Avant close runtime: `npm run check:all`.
+- Before runtime closeout: `npm run check:all`.

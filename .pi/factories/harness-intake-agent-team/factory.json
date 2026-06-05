@@ -15,9 +15,9 @@
     "quarantineOnly": true
   },
   "safeEntrypoints": [
-    "npm run harness:intake -- \"Analyse ../repo-x comme setup Claude Code et propose une team\"",
+    "npm run harness:intake -- \"Analyze ../repo-x as a Claude Code setup and propose a ZOB team\"",
     "npm run harness:intake:smoke",
-    "npm run harness:intake:tmux -- start \"Analyse ../repo-x avec sessions autorisées\"",
+    "npm run harness:intake:tmux -- start \"Analyze ../repo-x with authorized sessions\"",
     "npm run harness:intake:validate -- <run_id>"
   ],
   "requiredStages": [

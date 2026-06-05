@@ -1,29 +1,29 @@
-# Scope du dossier
+# Directory scope
 
-- `src/**` reçoit les modules extraits de `.pi/extensions/zob-harness/index.ts`.
-- Chaque module doit correspondre à une tranche claire du playbook de refactor.
-- Ce dossier ne contient pas de nouvelle fonctionnalité produit.
-- Architecture cible: `core/**` pour helpers/types bas niveau, `domains/**` pour logique métier, `runtime/**` pour adapters Pi tools/commands/events/widgets.
+- `src/**` receives modules extracted from `.pi/extensions/zob-harness/index.ts`.
+- Each module must correspond to a clear slice of the refactor playbook.
+- This directory does not contain new product functionality.
+- Target architecture: `core/**` for low-level helpers/types, `domains/**` for business logic, and `runtime/**` for Pi tool/command/event/widget adapters.
 
 # Invariants
 
-- Move-only: conserver logique, strings, validations, defaults et ordre observable.
-- Les exports publics doivent rester disponibles depuis `index.ts` jusqu'à la bascule finale.
-- Éviter les cycles; isoler types, constantes et utils avant runtime.
-- Ne pas stocker de prompt/output bodies dans telemetry/coms.
+- Move-only: preserve logic, strings, validations, defaults, and observable order.
+- Public exports must remain available from `index.ts` until the final switch.
+- Avoid cycles; isolate types, constants, and utils before runtime.
+- Do not store prompt/output bodies in telemetry/coms.
 
 # Imports
 
-- Imports relatifs NodeNext avec suffixe `.js` pour les imports runtime.
-- `import type` pour les types.
-- Interdit: importer depuis `../index.js`, `../../index.js` ou `index.ts`.
-- Les modules bas niveau ne doivent pas dépendre de runtime Pi.
-- Direction cible: `runtime -> domains -> core`; un fichier `domains/**` ne doit dépendre de `runtime/**` que comme compatibilité explicitement temporaire.
+- Use NodeNext relative imports with a `.js` suffix for runtime imports.
+- Use `import type` for types.
+- Forbidden: importing from `../index.js`, `../../index.js`, or `index.ts`.
+- Low-level modules must not depend on Pi runtime.
+- Target direction: `runtime -> domains -> core`; a `domains/**` file may depend on `runtime/**` only as explicitly temporary compatibility.
 
-# Validation locale
+# Local validation
 
-- Lire `docs/ZOB_HARNESS_ARCHITECTURE.md` et les `AGENTS.md` locaux avant toute tranche de déplacement.
-- `npm run check -- --pretty false` après chaque tranche.
-- `npm run smoke:harness` après safety, output-contracts, queue, topology, orchestration, factory, child-runner ou runtime.
-- `npm run pi:check` avant de déclarer un changement runtime complet.
-- Oracle read-only avant de passer à la tranche suivante si une API publique est touchée.
+- Read `docs/ZOB_HARNESS_ARCHITECTURE.md` and local `AGENTS.md` files before any move slice.
+- `npm run check -- --pretty false` after each slice.
+- `npm run smoke:harness` after safety, output-contracts, queue, topology, orchestration, factory, child-runner, or runtime changes.
+- `npm run pi:check` before declaring a complete runtime change.
+- Read-only oracle review before moving to the next slice when a public API is touched.

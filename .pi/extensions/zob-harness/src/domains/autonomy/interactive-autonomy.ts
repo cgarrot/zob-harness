@@ -249,10 +249,10 @@ function patternMatchesAny(text: string, patterns: string[]): boolean {
   });
 }
 
-const SECRET_ACCESS_VERB_PATTERN = /\b(read|cat|open|inspect|print|show|copy|extract|use|lire|ouvrir|affiche|imprime|copie|extrais|utilise)\b/i;
-const SECRET_ACCESS_CONTEXT_PATTERN = /\b(secret|token|api[_ -]?key|private\s+key|ssh\s+key|credential|identifiant)\b.{0,80}\b(read|show|print|copy|use|lire|affiche|copie|utilise)\b/i;
-const NEGATIVE_SAFETY_DIRECTIVE_PATTERN = /\b(do not|don't|dont|never|must not|mustn't|avoid|forbidden|denylist|deny list|blocked|without|no\s+secrets?|ne\s+pas|ne\s+jamais|n'ouvre\s+pas|ne\s+lis\s+pas|interdit|sans)\b/i;
-const CONTRAST_OR_EXCEPTION_PATTERN = /\b(but|however|except|unless|sauf|mais|pourtant)\b/i;
+const SECRET_ACCESS_VERB_PATTERN = /\b(read|cat|open|inspect|print|show|copy|extract|use)\b/i;
+const SECRET_ACCESS_CONTEXT_PATTERN = /\b(secret|token|api[_ -]?key|private\s+key|ssh\s+key|credential|identifier)\b.{0,80}\b(read|show|print|copy|use)\b/i;
+const NEGATIVE_SAFETY_DIRECTIVE_PATTERN = /\b(do not|don't|dont|never|must not|mustn't|avoid|forbidden|denylist|deny list|blocked|without|no\s+secrets?)\b/i;
+const CONTRAST_OR_EXCEPTION_PATTERN = /\b(but|however|except|unless)\b/i;
 
 function isNegativeSecretSafetyLine(line: string, policy: InteractiveAutonomyPolicy): boolean {
   const trimmed = line.trim();
@@ -278,8 +278,8 @@ function secretAccessRequested(text: string, policy: InteractiveAutonomyPolicy):
 }
 
 function productionApplyRequested(text: string): boolean {
-  return /\b(deploy|release|ship|apply|write|push|publish|déploie|deploie|publie|livre|applique)\b.{0,80}\b(prod|production|live)\b/i.test(text)
-    || /\b(prod|production|live)\b.{0,80}\b(deploy|release|ship|apply|write|push|publish|déploie|deploie|publie|livre|applique)\b/i.test(text);
+  return /\b(deploy|release|ship|apply|write|push|publish)\b.{0,80}\b(prod|production|live)\b/i.test(text)
+    || /\b(prod|production|live)\b.{0,80}\b(deploy|release|ship|apply|write|push|publish)\b/i.test(text);
 }
 
 function extractTargetPaths(text: string): string[] {
@@ -360,14 +360,14 @@ export function scoreMissionReadiness(text: string, options: { mode: Interactive
   const clarificationCodes: string[] = [];
   const safetyGateCodes = ["no_secrets", "no_destructive_commands", "no_production_apply", "no_global_production_claim", "validation_required"];
 
-  const hasActionVerb = /\b(implement|impl[eé]mente|build|cr[eé]e|create|add|ajoute|fix|corrige|modify|modifie|change|update|mets?|refactor|refactorise|wire|branche|brancher|validate|test|smoke|audit|review|documente|write|edit|fais|make)\b/i.test(raw);
-  const hasAcceptanceLanguage = /\b(acceptance|criteria|crit[eè]res?|must|must not|doit|ne doit pas|validation|validate|test|smoke|preuve|evidence|oracle|done when|definition of done)\b/i.test(raw);
-  const hasTestabilityLanguage = /\b(test|tests|smoke|npm run|check|typecheck|validation|validate|oracle|proof|preuve|assert|v[eé]rifie|verify)\b/i.test(raw);
-  const asksClarificationOnly = /\b(explain|explique|pourquoi|question|aide|help|status|statut|montre|show)\b/i.test(raw) && !hasActionVerb;
+  const hasActionVerb = /\b(implement|build|create|add|fix|modify|change|update|refactor|wire|validate|test|smoke|audit|review|document|write|edit|make)\b/i.test(raw);
+  const hasAcceptanceLanguage = /\b(acceptance|criteria|must|must not|validation|validate|test|smoke|proof|evidence|oracle|done when|definition of done)\b/i.test(raw);
+  const hasTestabilityLanguage = /\b(test|tests|smoke|npm run|check|typecheck|validation|validate|oracle|proof|assert|verify)\b/i.test(raw);
+  const asksClarificationOnly = /\b(explain|why|question|help|status|show)\b/i.test(raw) && !hasActionVerb;
   const destructiveRequested = policy.safety.blockDestructiveCommands && patternMatchesAny(raw, policy.safety.destructivePatterns);
   const secretRequested = policy.safety.blockSecretAccess && secretAccessRequested(raw, policy);
   const productionRequested = policy.safety.blockProductionApply && productionApplyRequested(raw);
-  const globalClaimRequested = /\b(100%|global|production[- ]?wide|full production|prod)\b.{0,80}\b(claim|declare|prouve|prove|certifie|certify|ready|autonomous|autonomie)\b/i.test(raw);
+  const globalClaimRequested = /\b(100%|global|production[- ]?wide|full production|prod)\b.{0,80}\b(claim|declare|prove|certify|ready|autonomous|autonomy)\b/i.test(raw);
 
   if (!raw) blockerCodes.push("user_input_missing");
   if (destructiveRequested) blockerCodes.push("destructive_action_requested");
@@ -376,9 +376,9 @@ export function scoreMissionReadiness(text: string, options: { mode: Interactive
   if (globalClaimRequested) clarificationCodes.push("global_production_claim_requires_fresh_oracle_proof");
 
   const clarity = raw.length >= 80 && hasActionVerb ? 0.9 : raw.length >= 35 && hasActionVerb ? 0.72 : hasActionVerb ? 0.55 : asksClarificationOnly ? 0.35 : raw.length > 0 ? 0.25 : 0;
-  const acceptanceCriteria = hasAcceptanceLanguage ? 0.8 : /\b(done|fini|termin[eé]|livrable|deliverable)\b/i.test(raw) ? 0.5 : 0.15;
-  const targetPaths = targetPathRefs.length > 0 ? 0.85 : /\b(repo|project|harness|pi|extension|codebase|projet)\b/i.test(raw) ? 0.45 : 0.15;
-  const testability = hasTestabilityLanguage ? 0.85 : /\b(works|fonctionne|ready|ok)\b/i.test(raw) ? 0.35 : 0.15;
+  const acceptanceCriteria = hasAcceptanceLanguage ? 0.8 : /\b(done|complete|finished|deliverable)\b/i.test(raw) ? 0.5 : 0.15;
+  const targetPaths = targetPathRefs.length > 0 ? 0.85 : /\b(repo|project|harness|pi|extension|codebase)\b/i.test(raw) ? 0.45 : 0.15;
+  const testability = hasTestabilityLanguage ? 0.85 : /\b(works|ready|ok)\b/i.test(raw) ? 0.35 : 0.15;
   const risk: MissionRiskLevel = blockerCodes.length > 0 || productionRequested ? "high" : /\b(network|browser|cloud|api|deploy|publish|commit|database|db|payment|auth)\b/i.test(normalized) ? "medium" : "low";
   const safety = risk === "high" ? 0 : risk === "medium" ? 0.55 : 1;
   const signals: MissionReadinessSignals = {

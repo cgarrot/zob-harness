@@ -6,7 +6,7 @@
     {
       "id": "tmux-example-harness-intake-smoke",
       "path": "examples/agent-factory-tmux-comms",
-      "request": "Analyse examples/agent-factory-tmux-comms comme setup Agent Factory tmux et propose une team ZOB réutilisable.",
+      "request": "Analyze examples/agent-factory-tmux-comms as an Agent Factory tmux setup and propose a reusable ZOB team.",
       "harness_hint": "pi-zob",
       "include_sessions": false
     }

@@ -76,11 +76,11 @@ export function looksLikeCompletePlanResponse(text: string): boolean {
   const sample = visible.slice(0, 2_400);
   let score = 0;
   if (/^\s*#{1,3}\s+.*\bplan\b/im.test(sample) || /^\s*(?:plan|planning|roadmap)\b/im.test(sample)) score += 2;
-  if ((sample.match(/^\s*(?:#{1,4}\s*)?(?:phase|patch|étape|etape|step)\s+\d+/gim) ?? []).length >= 1) score += 1;
+  if ((sample.match(/^\s*(?:#{1,4}\s*)?(?:phase|patch|step)\s+\d+/gim) ?? []).length >= 1) score += 1;
   if ((sample.match(/^\s*\d+[.)]\s+/gm) ?? []).length >= 3) score += 1;
   if ((sample.match(/^\s*[-*]\s+/gm) ?? []).length >= 4) score += 1;
-  if (/\b(validation|tests?|risques?|risks?|fichiers?|files|scope|p[eé]rim[eè]tre|objectifs?|success looks like|r[eé]sultat attendu)\b/i.test(sample)) score += 1;
-  if (/\b(impl[eé]mentation|patch|tdd|ordre recommandé|roadmap|architecture|phases?)\b/i.test(sample)) score += 1;
+  if (/\b(validation|tests?|risks?|files|scope|objectives?|success looks like|expected result)\b/i.test(sample)) score += 1;
+  if (/\b(implementation|patch|tdd|recommended order|roadmap|architecture|phases?)\b/i.test(sample)) score += 1;
   if (/<answer>|<files>|<next_steps>/i.test(sample)) score += 1;
   return score >= 3;
 }
@@ -88,7 +88,7 @@ export function looksLikeCompletePlanResponse(text: string): boolean {
 const DESTRUCTIVE_COMMAND_PATTERN = /\b(rm\s+-rf|git\s+reset\s+--hard|git\s+clean\b|shutdown\b|reboot\b|mkfs\b)\b/i;
 const SECRET_REF_PATTERN = /(?:\.env\b|~\/\.ssh|~\/\.aws|\bssh\b|\baws\b|\b(?:api[_-]?key|private key|secret key|keys?|credentials?|secrets?)\b)/i;
 const SECRET_TOUCH_ACTION_PATTERN = /\b(read|open|cat|print|show|copy|upload|exfiltrate|inspect|touch|modify|edit|write|access|use|load|source|dump|list)\b/i;
-const NEGATIVE_SAFETY_INSTRUCTION_PATTERN = /\b(?:do not|don't|must not|never|avoid|without|forbidden_paths?|forbidden|deny(?:list)?|no secrets?|ne pas|n['’]?(?:ouvre|ouvre pas|acc[eè]de|acc[eè]de pas|lis|lis pas)|interdit|sans)\b/i;
+const NEGATIVE_SAFETY_INSTRUCTION_PATTERN = /\b(?:do not|don't|must not|never|avoid|without|forbidden_paths?|forbidden|deny(?:list)?|no secrets?)\b/i;
 const PROMPT_INJECTION_NEGATIVE_PATTERN = /\b(?:do not|don't|must not|never)\s+(?:ignore|obey|follow|respect|comply|listen|refuse|decline)\b/i;
 const NEGATIVE_SECRET_CLAUSE_SPLIT_PATTERN = /\b(?:but|however|except|unless|then|also|or|and)\b|[:,]/i;
 
@@ -115,13 +115,13 @@ function looksDestructive(text: string): boolean {
 }
 
 function hasModeEvidence(mode: ModeName, text: string): boolean {
-  if (mode === "orchestrator") return /\b(orchestrator|orchestrat(?:e|ion|or)|orchestrer|multi[- ]?agent|lead(?:s)?|worker(?:s)?|chief vision|coordonn(?:e|er|ation)|d[eé]l[eè]gu(?:e|er|ation)|delegat(?:e|ion)|sub[- ]?agents?|subtasks?|work graph|todo graph|graphe de travail|graphe todo)\b/i.test(text);
+  if (mode === "orchestrator") return /\b(orchestrator|orchestrat(?:e|ion|or)|multi[- ]?agent|lead(?:s)?|worker(?:s)?|chief vision|delegat(?:e|ion)|sub[- ]?agents?|subtasks?|work graph|todo graph)\b/i.test(text);
   if (mode === "factory") return /\b(factory|factory_run|pilot|batch|sentinel|manifest|quarantine|software factory)\b/i.test(text);
-  if (mode === "implement") return /\b(update|modify|modifier|change|changer|fix|patch|implement|impl[eé]mente|edit|write|[eé]cris|ajoute|add|create|cr[eé]e|refactor|refactorise|remplace|am[eé]lior(?:e|er)|appliqu(?:e|er)|mets?|mettre|rends?|rendre|fais\s+en\s+sorte)\b/i.test(text);
-  if (mode === "vanilla") return /\b(vanilla|vania|pi\s+base|agent\s+pi\s+de\s+base|base\s+pi|codex|external\s+(?:command|tool|agent)|commande\s+externe|outil\s+externe|unrestricted|arbitrary\s+command|n['’]?importe\s+quelle\s+commande|sans\s+r[eé]glementation|sans\s+garde[- ]?fous|no\s+guardrails?)\b/i.test(text);
-  if (mode === "oracle") return /\b(review|validate|validation|oracle|no[_-]?ship|v[eé]rifie|audit|qa|risks?|blocker)\b/i.test(text);
-  if (mode === "plan") return /\b(plan|design|architecture|propose|roadmap|spec|sp[eé]cifie|comment|how would|strat[eé]gie)\b/i.test(text);
-  return /\b(read|explore|inspect|analy[sz]e|cherche|comprends?|trouve|diagnostic)\b/i.test(text);
+  if (mode === "implement") return /\b(update|modify|change|fix|patch|implement|edit|write|add|create|refactor)\b/i.test(text);
+  if (mode === "vanilla") return /\b(vanilla|vania|pi\s+base|base\s+pi|codex|external\s+(?:command|tool|agent)|unrestricted|arbitrary\s+command|no\s+guardrails?)\b/i.test(text);
+  if (mode === "oracle") return /\b(review|validate|validation|oracle|no[_-]?ship|verify|audit|qa|risks?|blocker)\b/i.test(text);
+  if (mode === "plan") return /\b(plan|design|architecture|propose|roadmap|specify|how would|strategy)\b/i.test(text);
+  return /\b(read|explore|inspect|analy[sz]e|understand|find|diagnostic)\b/i.test(text);
 }
 
 export function validateModeIntent(intent: ZobModeIntent | undefined, currentMode: ModeName, lastUserText = "", assistantText = ""): ZobModeIntentValidation {

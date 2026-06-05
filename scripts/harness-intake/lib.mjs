@@ -158,11 +158,11 @@ export function inferRunSpecFromRequest(request, opts = {}) {
   const target = resolveTargetPath(targetInput, { allowRepoRoot: Boolean(opts.allowRepoRoot || opts.self) });
   const requestLower = rawRequest.toLowerCase();
   const harnessHint = opts.harness || inferHarnessHint(rawRequest, targetInput);
-  const sessionMentioned = /\b(session|sessions|conversation|conversations|transcript|transcripts|history|historique)\b/i.test(rawRequest) || opts.sessionPath?.length > 0;
+  const sessionMentioned = /\b(session|sessions|conversation|conversations|transcript|transcripts|history)\b/i.test(rawRequest) || opts.sessionPath?.length > 0;
   const explicitAllowSessions = Boolean(
     opts.allowSessions ||
-      ["yes", "true", "allow", "allowed", "autorise", "authorized"].includes(String(opts.sessions || "").toLowerCase()) ||
-      /\b(tu peux lire|je t'autorise|j'autorise|sessions? autoris[ée]es?|allow sessions|read sessions)\b/i.test(rawRequest)
+      ["yes", "true", "allow", "allowed", "authorized"].includes(String(opts.sessions || "").toLowerCase()) ||
+      /\b(you may read|authorized sessions?|allow sessions|read sessions)\b/i.test(rawRequest)
   );
   const sessionMode = explicitAllowSessions ? "authorized" : sessionMentioned ? "needs_authorization" : "disabled";
   const sessionPaths = explicitAllowSessions ? resolveSessionPaths(target, opts.sessionPath ?? []) : [];
@@ -211,14 +211,14 @@ function inferMode(request) {
   const lower = request.toLowerCase();
   if (/\bbatch\b/.test(lower)) return "batch";
   if (/\bpilot\b/.test(lower)) return "pilot";
-  if (/\bdeep|complet|complete|profond|xhigh|max\b/.test(lower)) return "smoke-deep";
+  if (/\bdeep|complete|xhigh|max\b/.test(lower)) return "smoke-deep";
   return "smoke";
 }
 
 function inferGoal(request) {
   const lower = request.toLowerCase();
   if (/factory|factories|factor/i.test(lower)) return "propose-zob-team-and-factory";
-  if (/team|agents? team|équipe|equipe/i.test(lower)) return "propose-zob-team";
+  if (/team|agents? team/i.test(lower)) return "propose-zob-team";
   return "analyze-harness";
 }
 
@@ -234,7 +234,7 @@ function inferHarnessHint(request, targetInput) {
 
 function extractPathLike(request) {
   const tokens = String(request || "").match(/(?:\.\.?|~|\/)?[A-Za-z0-9_./@:-]+/g) ?? [];
-  const stop = new Set(["analyse", "analyze", "setup", "claude", "codex", "cursor", "aider", "team", "factory", "sessions", "avec", "comme", "dans", "projet"]);
+  const stop = new Set(["analyze", "setup", "claude", "codex", "cursor", "aider", "team", "factory", "sessions", "project"]);
   for (const token of tokens) {
     if (stop.has(token.toLowerCase())) continue;
     if (token.includes("/") || token.startsWith(".") || token.startsWith("~")) return token.replace(/[,.]$/u, "");

@@ -1,23 +1,23 @@
-# Scope du dossier
+# Directory scope
 
-- Orchestration plan-only, supervised smoke/read-only, room artifacts et widget readers.
-- Ce dossier ne contient pas de registrations Pi; le runtime expose les tools.
+- Orchestration plan-only, supervised smoke/read-only, room artifacts, and widget readers.
+- This directory does not contain Pi registrations; runtime exposes the tools.
 
 # Invariants
 
-- `plan_only` ne doit jamais écrire `DONE.sentinel`.
-- `supervised_smoke` ne lance aucun child live.
-- `supervised_readonly` reste parent-owned et read-only.
-- Les plans redacted et mirror `.pi/coms` doivent rester identiques.
-- Préserver noms d'artefacts, statuts et messages d'erreur.
+- `plan_only` must never write `DONE.sentinel`.
+- `supervised_smoke` launches no live child.
+- `supervised_readonly` remains parent-owned and read-only.
+- Redacted plans and `.pi/coms` mirrors must remain identical.
+- Preserve artifact names, statuses, and error messages.
 
 # Imports
 
-- Peut importer topology, safety, output-contracts, telemetry, child-runner selon besoin.
-- Interdit: importer depuis `index.ts`.
-- Imports relatifs runtime avec suffixe `.js`.
+- May import topology, safety, output-contracts, telemetry, and child-runner as needed.
+- Forbidden: importing from `index.ts`.
+- Use runtime-relative imports with a `.js` suffix.
 
-# Validation locale
+# Local validation
 
 - `npm run check -- --pretty false`.
-- `npm run smoke:harness` après toute tranche orchestration.
+- `npm run smoke:harness` after any orchestration slice.

@@ -5,10 +5,10 @@ function help() {
   return {
     schema: "zob.harness-intake.help.v1",
     usage: [
-      "node scripts/harness-intake/launch.mjs \"Analyse ../repo-x comme setup Claude Code\"",
-      "node scripts/harness-intake/launch.mjs --target ../repo-x --harness claude-code --allow-sessions \"Lis les sessions et propose une team\"",
+      "node scripts/harness-intake/launch.mjs \"Analyze ../repo-x as a Claude Code setup\"",
+      "node scripts/harness-intake/launch.mjs --target ../repo-x --harness claude-code --allow-sessions \"Read the sessions and propose a team\"",
       "node scripts/harness-intake/launch.mjs --demo --mode smoke",
-      "node scripts/harness-intake/launch.mjs --prepare-only --target ../repo-x \"Prépare une run tmux\"",
+      "node scripts/harness-intake/launch.mjs --prepare-only --target ../repo-x \"Prepare a tmux run\"",
     ],
     output: "json",
     no_ship: false,
