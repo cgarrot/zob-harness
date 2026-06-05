@@ -1626,7 +1626,7 @@
         "AGENTS.md",
         ".pi/skills/zob-zagent-creator/SKILL.md"
       ],
-      "noShipNotes": "Project-local ZTeam bundle UX for .pi/zteams/ only. ZTeam members are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan is plan/metadata only and must not spawn processes. Persisted command metadata must remain hash/body-free."
+      "noShipNotes": "Project-local ZTeam bundle UX for .pi/zteams/ only. ZTeam members are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan is plan/metadata only and must not spawn processes; reset sends Pi /new to existing scoped tmux agent windows without close/start. Persisted command metadata must remain hash/body-free."
     },
     {
       "name": "rules_status",

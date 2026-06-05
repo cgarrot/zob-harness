@@ -114,6 +114,46 @@ export interface ZobLivePeerCard {
   bodyStored: false;
 }
 
+export interface ZobLiveTeamAgentLease {
+  schema: "zob.live-team-agent-lease.v1";
+  projectId: string;
+  teamId: string;
+  agentId: string;
+  roleId: string;
+  roleType: ZobLiveRoleType;
+  leadId?: string;
+  agent: string;
+  sessionId: string;
+  sessionHash: string;
+  leaseOwnerId: string;
+  leaseOwnerHash: string;
+  transport: ZobLiveTransportKind;
+  endpoint: string;
+  endpointHash: string;
+  cwdHash: string;
+  pid?: number;
+  startedAt: string;
+  heartbeatAt: string;
+  leasedAt: string;
+  renewedAt: string;
+  expiresAt: string;
+  contextUsedPct: number;
+  queueDepth: number;
+  status: ZobLivePeerStatus;
+  zpeerRoomId?: string;
+  zpeerAlias?: string;
+  zpeerActiveRoomId?: string;
+  zpeerMemberships?: ZpeerRoomMembership[];
+  zpeerLocalOnly?: true;
+  staleAfterMs: number;
+  offlineAfterMs: number;
+  stableLease: true;
+  exclusiveBy: "teamId+agentId";
+  localOnly: true;
+  networkEnabled: false;
+  bodyStored: false;
+}
+
 export interface ZobLiveRegistrySnapshot {
   schema: "zob.live-registry-snapshot.v1";
   projectId: string;

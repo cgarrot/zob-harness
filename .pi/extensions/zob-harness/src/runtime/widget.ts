@@ -359,11 +359,14 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
           return theme.fg("muted", truncateToWidth(`${marker} ${summary.roomId} ${selfAlias} ${peerState} ${aliasText}`, 52, "…"));
         });
         if (zpeerRoomSummaries.length > zpeerRoomCap) zpeerRoomLines.push(theme.fg("dim", `+${zpeerRoomSummaries.length - zpeerRoomCap} rooms`));
+        const scopedMode = (state.zagent as { scopedMode?: { active?: boolean; label?: string; blockers?: string[] } }).scopedMode;
+        const scopedModeText = scopedMode?.active && scopedMode.label ? `mode=${scopedMode.label}` : scopedMode && scopedMode.blockers && scopedMode.blockers.length > 0 ? `mode=blocked(${scopedMode.blockers.length})` : undefined;
         const zagentLine = state.zagent.id
           ? `${theme.fg("accent", "ZAgent")} ${theme.fg("muted", truncateToWidth([
             state.zagent.alias ? `@${state.zagent.alias}` : state.zagent.id,
             state.zagent.team ? `team=${state.zagent.team}` : undefined,
             state.zagent.activeRoom ? `room=${state.zagent.activeRoom}` : undefined,
+            scopedModeText,
           ].filter(Boolean).join(" · "), 52, "…"))}`
           : undefined;
         const zpeerLines = state.zobLive.peerCard
@@ -442,15 +445,45 @@ function uniqueToolNames(names: string[]): string[] {
   return [...new Set(names)];
 }
 
+type ActiveScopedModeForTools = {
+  active?: boolean;
+  label?: string;
+  baseMode?: ModeName;
+  blockers?: string[];
+  toolPolicy?: {
+    allowedTools?: string[];
+    allowedToolsExplicit?: boolean;
+  };
+};
+
+function activeScopedModeForBase(state: HarnessRuntimeState, baseMode: ModeName): ActiveScopedModeForTools | undefined {
+  const scopedMode = (state.zagent as { scopedMode?: ActiveScopedModeForTools }).scopedMode;
+  if (!scopedMode?.active || scopedMode.baseMode !== baseMode || (scopedMode.blockers?.length ?? 0) > 0) return undefined;
+  return scopedMode;
+}
+
+function activeScopedModeLabel(state: HarnessRuntimeState, baseMode: ModeName): string | undefined {
+  return activeScopedModeForBase(state, baseMode)?.label;
+}
+
+function activeScopedModeAllowedTools(state: HarnessRuntimeState, baseMode: ModeName): string[] | undefined {
+  const scopedMode = activeScopedModeForBase(state, baseMode);
+  if (scopedMode?.toolPolicy?.allowedToolsExplicit !== true) return undefined;
+  return uniqueToolNames(scopedMode.toolPolicy.allowedTools ?? []);
+}
+
 export function applyMode(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, mode: ModeName, persist = true): void {
   state.activeMode = mode;
   const allTools = pi.getAllTools();
   const available = new Set(allTools.map((tool) => tool.name));
   const externalPackageTools = allTools.filter(isExternalPackageTool).map((tool) => tool.name);
-  const activeTools = mode === "vanilla" ? [...available] : uniqueToolNames([...MODE_TOOLS[mode].filter((tool) => available.has(tool)), ...externalPackageTools]);
+  const scopedAllowedTools = activeScopedModeAllowedTools(state, mode);
+  const activeTools = scopedAllowedTools !== undefined
+    ? scopedAllowedTools.filter((tool) => available.has(tool))
+    : mode === "vanilla" ? [...available] : uniqueToolNames([...MODE_TOOLS[mode].filter((tool) => available.has(tool)), ...externalPackageTools]);
   pi.setActiveTools(activeTools);
   if (persist) pi.appendEntry("zob-mode-state", { mode, timestamp: new Date().toISOString() });
-  ctx.ui.setStatus("zob-mode", ctx.ui.theme.fg("accent", `zob:${mode}`));
+  ctx.ui.setStatus("zob-mode", ctx.ui.theme.fg("accent", activeScopedModeLabel(state, mode) ?? `zob:${mode}`));
   renderHarnessWidget(pi, state, ctx);
   ctx.ui.notify(`ZOB mode: ${mode}`, "info");
 }

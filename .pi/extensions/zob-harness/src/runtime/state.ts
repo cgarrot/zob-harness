@@ -74,6 +74,9 @@ export interface ZobLiveRuntimeState {
   inbound?: { envelope: ZobLiveEnvelope; receivedAt: string; responseSent: boolean; repoRoot: string };
   lastEvent?: ZobLiveLastEvent;
   passivePeerWait?: ZobPassivePeerWaitState;
+  leaseOwned?: boolean;
+  leaseStatus?: "owned" | "blocked" | "unavailable";
+  leaseBlockReason?: "not_found" | "owner_mismatch" | "expired" | "blocked_live_owner";
   zpeerAskGuard?: { windowStartedMs: number; count: number; lastRoomId?: string; lastTargetAlias?: string; lastMessageHash?: string };
   heartbeatTimer?: ReturnType<typeof setTimeout>;
   lastHeartbeatMs?: number;
@@ -87,6 +90,23 @@ export interface DaemonHarnessRuntimeState {
   loopTimer?: ReturnType<typeof setTimeout>;
   lastQueueTick?: QueueTickResult;
   updatedAt?: string;
+}
+
+export interface ZagentScopedModeRuntimeState {
+  active: boolean;
+  label?: string;
+  teamId?: string;
+  modeId?: string;
+  baseMode?: ModeName;
+  source: string;
+  promptRef?: string;
+  prompt?: string;
+  toolPolicy?: {
+    allowedTools?: string[];
+    allowedToolsExplicit?: boolean;
+  };
+  errors: string[];
+  blockers: string[];
 }
 
 export interface ZagentRuntimeState {
@@ -104,6 +124,8 @@ export interface ZagentRuntimeState {
   path?: string;
   errors: string[];
   loadedAt?: string;
+  communicationPolicy?: Record<string, unknown>;
+  scopedMode?: ZagentScopedModeRuntimeState;
 }
 
 export interface BackgroundDelegationRuntimeRun {

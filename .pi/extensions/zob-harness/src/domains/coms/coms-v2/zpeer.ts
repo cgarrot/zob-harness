@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { buildZobComsProjectId } from "./identity.js";
 import { buildZobLiveEnvelope } from "./envelope.js";
 import { sendZobLocalEnvelope } from "./local-transport.js";
-import { readZobLiveRegistryAllProjectsSnapshot, writeZobLivePeerCard, writeZobLivePeerCardToProjectId } from "./registry.js";
+import { ownsZobLiveTeamAgentLease, readZobLiveRegistryAllProjectsSnapshot, writeZobLivePeerCard, writeZobLivePeerCardToProjectId, writeZobLiveTeamAgentLease } from "./registry.js";
 import type { ZobLivePeerCard, ZobLivePeerStatus, ZpeerRoomMembership, ZpeerRoomMembershipRole } from "./types.js";
 import { validateZobComsEdge } from "../../topology/coms.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../../topology/teams.js";
@@ -233,7 +233,9 @@ export function ensureZpeerFields(repoRoot: string, peer: ZobLivePeerCard, roomI
 export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId?: string, alias?: string, restoredMemberships?: ZpeerRoomMembership[]): ZobLivePeerCard {
   const ensured = ensureZpeerFields(repoRoot, peer, roomId, alias, restoredMemberships);
   if (!hasLocalSocketEndpointEvidence(ensured)) return ensured;
-  return writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
+  const refreshed = writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
+  writeZobLiveTeamAgentLease(repoRoot, refreshed, { reason: "zpeer_refresh" });
+  return refreshed;
 }
 
 type ZobLiveRegistrySnapshotValue = ReturnType<typeof readZobLiveRegistryAllProjectsSnapshot>;
@@ -477,6 +479,8 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   };
 
   if (!selfMembership) return finish("attempt", { status: "blocked", reason: `current peer is not a member of room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
+  const leaseOwnership = ownsZobLiveTeamAgentLease(repoRoot, self);
+  if (!leaseOwnership.owned) return finish("attempt", { status: "blocked", reason: `current peer does not own stable team-agent lease (${leaseOwnership.reason})`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
   if (selfMembership.role === "observer") return finish("attempt", { status: "blocked", reason: `current peer is observer-only in room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
   if (!targetAlias) return finish("attempt", { status: "blocked", reason: "invalid target alias", bodyStored: false });
   if (!transientPrompt.trim()) return finish("attempt", { status: "blocked", reason: "empty peer prompt", targetAlias, bodyStored: false });

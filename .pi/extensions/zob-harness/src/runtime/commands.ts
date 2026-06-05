@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
+import { spawnSync } from "node:child_process";
+
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
@@ -10,14 +14,14 @@ import { buildComputeWorkflowShape } from "../domains/compute/compute-workflow-s
 import { buildDaemonRuntimeState, buildDaemonTickPlan, type DaemonRuntimeState, type DaemonTickPlan } from "../domains/autonomy/daemon-runtime.js";
 import { runQueueDaemonTick } from "../domains/telemetry/queue.js";
 import { buildProjectDnaAgenticPlan, buildProjectDnaQueryResult, buildProjectDnaReadinessAudit } from "../domains/project-dna/project-dna.js";
-import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, normalizeZagentRoomBindings, readZagentPrompt, resolveZagentRuntimeRoomBindings, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../domains/coms/zagents.js";
+import { formatZagentList, formatZteamList, listZagentManifests, listZteamManifests, loadZagentManifest, loadZteamManifest, loadZteamModePack, normalizeZagentRoomBindings, readZagentPrompt, resolveZagentRuntimeRoomBindings, resolveZteamScopedMode, safeZagentId, type ZAgentManifest, type ZAgentRoomBinding, type ZTeamAgentManifest, type ZTeamManifest, type ZTeamMemberManifest } from "../domains/coms/zagents.js";
 import { resolveAdaptiveZmodeEntrypoint, renderAdaptiveZmodeTemplate } from "./adaptive-zmode.js";
 import { handleZcompactCommand } from "./auto-compaction.js";
 import { sha256 } from "../core/utils/hashing.js";
 import { buildZcommitPlan, formatZcommitPlan, formatZcommitStatus, readZcommitPolicy, runGovernedZcommitAdopt, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitAdoptResult, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitToggleState } from "../domains/git/git-ops.js";
 import { clearZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer } from "../domains/coms/coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../domains/coms/coms-v2/zpeer.js";
-import { markZpeerNewHardResetPending } from "./events.js";
+import { loadActiveZagentScopedMode, markZpeerNewHardResetPending } from "./events.js";
 import { parseBillableJobIntake, validateBillableJobIntake } from "../domains/goal/goal.js";
 import { handleGoalCommand, handleGoalGateCommand, pauseRuntimeGoalForStop } from "./goal-runtime.js";
 import { formatRuleResolution, resolveRuleProfile } from "../domains/governance/rules.js";
@@ -560,6 +564,9 @@ function zteamArgumentCompletions(prefix: string): AutocompleteItem[] | null {
     ...ids.flatMap((id) => [
       { value: `show ${id}`, label: `show ${id}`, description: "show team manifest metadata" },
       { value: `launch-plan ${id}`, label: `launch-plan ${id}`, description: "print full-session launch commands" },
+      { value: `reset ${id}`, label: `reset ${id}`, description: "send Pi /new to every existing team tmux agent window" },
+      { value: `reset ${id} --dry-run`, label: `reset ${id} --dry-run`, description: "preview the /new fanout plan without tmux/spawn" },
+      { value: `reset-plan ${id}`, label: `reset-plan ${id}`, description: "alias for reset --dry-run" },
     ]),
   ];
   const filtered = query
@@ -674,36 +681,240 @@ function safeLaunchPlanModel(value: string | undefined): string | undefined {
   return /^[a-zA-Z0-9._:/+@-]+$/.test(trimmed) ? trimmed : undefined;
 }
 
-function zteamLaunchPlanText(repoRoot: string, team: ZTeamManifest): { text: string; roomIds: string[]; agentIds: string[]; modelIds: string[]; defaultModes: string[] } {
+function zteamModePackModes(modePack: unknown): Array<{ id: string; baseMode: string }> {
+  if (!modePack || typeof modePack !== "object") return [];
+  const modes = (modePack as { modes?: unknown }).modes;
+  if (!Array.isArray(modes)) return [];
+  return modes.flatMap((mode) => {
+    if (!mode || typeof mode !== "object") return [];
+    const candidate = mode as { id?: unknown; baseMode?: unknown };
+    return typeof candidate.id === "string" && typeof candidate.baseMode === "string" ? [{ id: candidate.id, baseMode: candidate.baseMode }] : [];
+  });
+}
+
+function zteamLaunchPlanText(repoRoot: string, team: ZTeamManifest): { text: string; roomIds: string[]; agentIds: string[]; modelIds: string[]; defaultModes: string[]; scopedModeIds: string[]; modePackRef?: string } {
   const teamRooms = normalizeZagentRoomBindings(team.rooms, team.defaultRoom, team.activeRoom).map((room) => room.id);
   const members = zteamMembers(team);
   const roomIds = [...new Set([...teamRooms, ...members.flatMap((member) => (member.rooms ?? []).map((room) => room.id))])];
   const agentIds = members.map((member) => member.id);
   const loadedAgents = members.map((member) => ({ member, loaded: loadZagentManifest(repoRoot, member.id) }));
+  const loadedModePack = loadZteamModePack(repoRoot, team);
+  const scopedModes = zteamModePackModes(loadedModePack.modePack);
+  const scopedModeIds = scopedModes.map((mode) => mode.id);
   const modelIds = [...new Set(loadedAgents.map(({ loaded }) => safeLaunchPlanModel(loaded.manifest.model)).filter((model): model is string => Boolean(model)))];
   const defaultModes = [...new Set(loadedAgents.map(({ loaded }) => loaded.manifest.defaultMode).filter((mode): mode is ModeName => Boolean(mode)))];
   const lines = [
     `# ZTeam launch-plan: ${team.id}`,
-    "No processes spawned. Copy/paste each command in a separate terminal when approved.",
+    "No processes spawned. spawn-count=0. Copy/paste each command in a separate terminal when approved.",
+    `Team env: ZOB_ZTEAM_ID=${team.id}`,
+    loadedModePack.ref ? `Mode pack: modePackRef=${loadedModePack.ref}${loadedModePack.errors.length ? ` blocked_errors=${loadedModePack.errors.length}` : ""}` : "Mode pack: none",
+    scopedModes.length ? `Scoped modes available: ${scopedModes.map((mode) => `${mode.id}->baseMode=${mode.baseMode}`).join(", ")}` : "Scoped modes available: none",
+    scopedModes.length ? "Scoped mode selection: set ZOB_ZTEAM_MODE_ID=<mode-id> or ZOB_ZTEAM_MODE=<mode-id> before manual launch; no sessions are spawned by this plan." : undefined,
     "",
     ...loadedAgents.map(({ member, loaded }) => {
       const rawModel = loaded.manifest.model;
       const model = safeLaunchPlanModel(rawModel);
       const defaultMode = loaded.manifest.defaultMode;
+      const scoped = resolveZteamScopedMode({ repoRoot, zagent: loaded.manifest, team, modePack: loadedModePack.modePack });
+      const effectiveScoped = scoped.teamId && scoped.modeId && scoped.baseMode ? `${scoped.modeId}@${scoped.teamId}` : "none";
+      const effectiveBaseMode = scoped.baseMode ?? defaultMode;
       const rooms = (member.rooms ?? []).map((room) => `${room.id}${room.active ? "*" : ""}`).join(", ") || teamRooms.join(", ") || "default";
       const alias = member.alias ? ` alias=@${member.alias}` : "";
       const modelArg = model ? ` --model ${model}` : "";
       const modelNote = rawModel ? (model ? ` model=${model}` : " model=invalid_omitted") : "";
       const modeNote = defaultMode ? ` defaultMode=${defaultMode}` : "";
-      return `ZOB_ZAGENT_ID=${member.id} pi${modelArg}    # expected_rooms=${rooms}${alias}${modelNote}${modeNote}`;
+      const scopedNote = ` scopedMode=${effectiveScoped} baseMode=${effectiveBaseMode ?? "current"}`;
+      return `ZOB_ZTEAM_ID=${team.id} ZOB_ZAGENT_ID=${member.id} pi${modelArg}    # expected_rooms=${rooms}${alias}${modelNote}${modeNote}${scopedNote}`;
     }),
     "",
     `Expected rooms: ${roomIds.join(", ") || "default"}`,
     modelIds.length ? `Models: ${modelIds.join(", ")}` : "Models: default Pi model unless each ZAgent manifest sets a safe model",
     defaultModes.length ? `Default modes: ${defaultModes.join(", ")}` : "Default modes: restored/current ZOB mode unless each ZAgent manifest sets defaultMode",
+    loadedModePack.errors.length ? `Mode pack blockers:\n- ${loadedModePack.errors.join("\n- ")}` : undefined,
     "After each session starts, run /zagent use <id> to bind its ZPeer alias/rooms.",
+  ].filter((line): line is string => Boolean(line));
+  return { text: lines.join("\n"), roomIds, agentIds, modelIds, defaultModes, scopedModeIds, modePackRef: loadedModePack.ref };
+}
+
+type ZteamResetPlan = {
+  teamId: string;
+  launcherRef?: string;
+  launcherPath?: string;
+  session?: string;
+  entryAgent?: string;
+  agentIds: string[];
+  roomIds: string[];
+  errors: string[];
+  execute: boolean;
+  confirmMatched: boolean;
+  spawnCount: number;
+  closePlanned: boolean;
+  leaseCleanupPlanned: boolean;
+  leaseCleanupAgentIds: string[];
+  startPlanned: boolean;
+  startAction?: "start-detached" | "start";
+  newPlanned: boolean;
+  resetAction?: "new";
+};
+
+type ZteamResetOptions = { execute: boolean; confirm?: string };
+
+function parseZteamResetArgs(parts: string[]): { id?: string; options: ZteamResetOptions; errors: string[] } {
+  const errors: string[] = [];
+  const id = parts[1];
+  let execute = true;
+  let confirm: string | undefined;
+  for (let index = 2; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === "--dry-run" || part === "--plan") {
+      execute = false;
+      continue;
+    }
+    if (part === "--execute") {
+      execute = true;
+      continue;
+    }
+    if (part === "--confirm") {
+      const value = parts[index + 1];
+      if (!value || value.startsWith("--")) errors.push("--confirm requires the exact team id when provided");
+      else {
+        confirm = value;
+        index += 1;
+      }
+      continue;
+    }
+    errors.push(`unknown reset option: ${part}`);
+  }
+  return { id, options: { execute, confirm }, errors };
+}
+
+function safeZteamLauncher(repoRoot: string, team: ZTeamManifest): { ref?: string; path?: string; errors: string[] } {
+  const raw = team.metadata?.tmuxLauncher;
+  const errors: string[] = [];
+  if (typeof raw !== "string" || !raw.trim()) return { errors: ["zteam.metadata.tmuxLauncher is required for reset"] };
+  const ref = raw.trim();
+  if (!ref.startsWith(".pi/zteams/") || !ref.endsWith(".tmux.sh")) errors.push("tmuxLauncher must be a project-local .pi/zteams/*.tmux.sh path");
+  if (ref.includes("..") || /[\0\n\r]/.test(ref) || /(?:^|[\/])\.env(?:[\/]|$)|secret|key/i.test(ref)) errors.push("tmuxLauncher path is not safe");
+  const zteamsDir = resolve(repoRoot, ".pi/zteams");
+  const launcherPath = resolve(repoRoot, ref);
+  if (!(launcherPath.startsWith(`${zteamsDir}${sep}`) && launcherPath.endsWith(".tmux.sh"))) errors.push("tmuxLauncher must resolve under .pi/zteams");
+  if (!existsSync(launcherPath)) errors.push("tmuxLauncher file is missing");
+  return { ref, path: launcherPath, errors };
+}
+
+function buildZteamResetPlan(repoRoot: string, team: ZTeamManifest, options: ZteamResetOptions, manifestErrors: string[] = []): ZteamResetPlan {
+  const teamRooms = normalizeZagentRoomBindings(team.rooms, team.defaultRoom, team.activeRoom).map((room) => room.id);
+  const members = zteamMembers(team);
+  const agentIds = members.map((member) => member.id);
+  const roomIds = [...new Set([...teamRooms, ...members.flatMap((member) => (member.rooms ?? []).map((room) => room.id))])];
+  const launcher = safeZteamLauncher(repoRoot, team);
+  const safeTeamId = safeZagentId(team.id) === team.id;
+  const confirmMatched = options.confirm === undefined || options.confirm === team.id;
+  const launcherBody = launcher.path && existsSync(launcher.path) ? readFileSync(launcher.path, "utf8") : "";
+  const hasNewAction = /(^|\n)\s*new\)/.test(launcherBody) || launcherBody.includes("send_new_to_agents");
+  const resetAction = hasNewAction ? "new" : undefined;
+  const errors = [
+    ...manifestErrors,
+    ...(safeTeamId ? [] : [`invalid zteam id: ${team.id}`]),
+    ...launcher.errors,
+    ...(options.confirm !== undefined && !confirmMatched ? [`execute blocked: optional --confirm must exactly match ${team.id}`] : []),
+    ...(options.execute && !resetAction ? ["execute blocked: launcher does not expose non-attaching new reset action"] : []),
   ];
-  return { text: lines.join("\n"), roomIds, agentIds, modelIds, defaultModes };
+  return {
+    teamId: team.id,
+    launcherRef: launcher.ref,
+    launcherPath: launcher.path,
+    session: typeof team.metadata?.tmuxSession === "string" ? team.metadata.tmuxSession : undefined,
+    entryAgent: typeof team.metadata?.entryAgent === "string" ? team.metadata.entryAgent : agentIds[0],
+    agentIds,
+    roomIds,
+    errors,
+    execute: options.execute,
+    confirmMatched,
+    spawnCount: 0,
+    closePlanned: false,
+    leaseCleanupPlanned: false,
+    leaseCleanupAgentIds: [],
+    startPlanned: false,
+    startAction: undefined,
+    newPlanned: true,
+    resetAction,
+  };
+}
+
+function formatZteamResetPlan(plan: ZteamResetPlan): string {
+  return [
+    `# ZTeam reset plan: ${plan.teamId}`,
+    `execute=${String(plan.execute)}`,
+    `confirmMatched=${String(plan.confirmMatched)}`,
+    `spawn-count=${plan.spawnCount}`,
+    `team id: ${plan.teamId}`,
+    `launcher: ${plan.launcherRef ?? "missing"}`,
+    `session: ${plan.session ?? "not specified"}`,
+    `entry agent: ${plan.entryAgent ?? "none"}`,
+    `agents: ${plan.agentIds.join(", ") || "none"}`,
+    `rooms: ${plan.roomIds.join(", ") || "default"}`,
+    `close planned: ${String(plan.closePlanned)}`,
+    `lease cleanup planned: ${String(plan.leaseCleanupPlanned)} (/new session lifecycle owns graceful release/reclaim)`,
+    `start planned: ${String(plan.startPlanned)}${plan.startAction ? ` (${plan.startAction})` : ""}`,
+    `new planned: ${String(plan.newPlanned)}${plan.resetAction ? ` (${plan.resetAction})` : ""}`,
+    plan.execute ? "actions: status -> new (/new in each existing team tmux window)" : "dry-run only: no tmux and no /new sent",
+    plan.errors.length ? `blocked/errors:\n- ${plan.errors.join("\n- ")}` : "status: ready",
+    "safety: scoped launcher only; no tmux close/start, no lease cleanup, no global cleanup; reset is not completion evidence",
+  ].join("\n");
+}
+
+function zteamResetLedgerEntry(action: string, plan: ZteamResetPlan, status: "ok" | "blocked", extraErrors: string[] = []): Record<string, unknown> {
+  return {
+    schema: "zob.zteam-reset-command.v1",
+    action,
+    status,
+    teamIdHash: sha256(plan.teamId),
+    launcherHash: plan.launcherRef ? sha256(plan.launcherRef) : undefined,
+    sessionHash: plan.session ? sha256(plan.session) : undefined,
+    entryAgentHash: plan.entryAgent ? sha256(plan.entryAgent) : undefined,
+    agentIdHashes: plan.agentIds.map((agentId) => sha256(agentId)),
+    roomIdHashes: plan.roomIds.map((roomId) => sha256(roomId)),
+    dryRun: !plan.execute,
+    execute: plan.execute,
+    confirmMatched: plan.confirmMatched,
+    spawnCount: plan.spawnCount,
+    closePlanned: plan.closePlanned,
+    leaseCleanupPlanned: plan.leaseCleanupPlanned,
+    leaseCleanupAgentHashes: plan.leaseCleanupAgentIds.map((agentId) => sha256(agentId)),
+    startPlanned: plan.startPlanned,
+    startActionHash: plan.startAction ? sha256(plan.startAction) : undefined,
+    newPlanned: plan.newPlanned,
+    resetActionHash: plan.resetAction ? sha256(plan.resetAction) : undefined,
+    errorHashes: [...plan.errors, ...extraErrors].map((error) => sha256(error)),
+    localOnly: true,
+    networkEnabled: false,
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+async function executeZteamResetPlan(_repoRoot: string, plan: ZteamResetPlan): Promise<{ ok: boolean; errors: string[]; actionStatuses: string[] }> {
+  if (!plan.launcherPath) return { ok: false, errors: ["launcher path unavailable"], actionStatuses: [] };
+  if (!plan.resetAction) return { ok: false, errors: ["new reset action unavailable"], actionStatuses: [] };
+  const errors: string[] = [];
+  const actionStatuses: string[] = [];
+
+  const statusResult = spawnSync("bash", [plan.launcherPath, "status"], { encoding: "utf8", timeout: 30_000, maxBuffer: 64_000 });
+  actionStatuses.push(`status:${statusResult.status ?? "signal"}`);
+  if (statusResult.error) errors.push(`status failed: ${statusResult.error.message}`);
+  if (typeof statusResult.status === "number" && statusResult.status !== 0) errors.push(`status exited ${statusResult.status}`);
+  if (statusResult.signal) errors.push(`status signaled ${statusResult.signal}`);
+  if (errors.length > 0) return { ok: false, errors, actionStatuses };
+
+  const newResult = spawnSync("bash", [plan.launcherPath, plan.resetAction], { encoding: "utf8", timeout: 30_000, maxBuffer: 64_000 });
+  actionStatuses.push(`${plan.resetAction}:${newResult.status ?? "signal"}`);
+  if (newResult.error) errors.push(`${plan.resetAction} failed: ${newResult.error.message}`);
+  if (typeof newResult.status === "number" && newResult.status !== 0) errors.push(`${plan.resetAction} exited ${newResult.status}`);
+  if (newResult.signal) errors.push(`${plan.resetAction} signaled ${newResult.signal}`);
+  return { ok: errors.length === 0, errors, actionStatuses };
 }
 
 function delegationArgumentCompletions(state: HarnessRuntimeState, prefix: string): AutocompleteItem[] | null {
@@ -1293,17 +1504,32 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
           description: loaded.manifest.description,
           rooms,
           activeRoom: rooms.find((room) => room.active)?.id ?? loaded.manifest.activeRoom ?? loaded.manifest.defaultRoom,
+          defaultMode: loaded.manifest.defaultMode,
           prompt: prompt.body,
           promptRef: loaded.manifest.promptRef,
           path: loaded.path,
           errors,
           loadedAt: new Date().toISOString(),
+          communicationPolicy: loaded.manifest.communicationPolicy as Record<string, unknown> | undefined,
         };
         if (errors.length > 0) {
           pi.appendEntry("zob-zagent", zagentLedgerEntry("use_blocked", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body, errors }));
           renderHarnessWidget(pi, state, ctx);
           ctx.ui.notify(`/zagent use ${id} blocked: ${errors[0]}`, "warning");
           return;
+        }
+        loadActiveZagentScopedMode(state, ctx.cwd);
+        const scopedMode = state.zagent.scopedMode;
+        if ((scopedMode?.blockers.length ?? 0) > 0) {
+          const scopedErrors = state.zagent.errors.length > 0 ? state.zagent.errors : scopedMode?.blockers ?? [];
+          pi.appendEntry("zob-zagent", zagentLedgerEntry("use_blocked", { id: loaded.manifest.id, teamId: loaded.manifest.team, status: "blocked", roomIds: rooms.map((room) => room.id), alias: loaded.manifest.alias, path: loaded.path, promptRef: loaded.manifest.promptRef, promptBody: prompt.body, errors: scopedErrors }));
+          renderHarnessWidget(pi, state, ctx);
+          ctx.ui.notify(`/zagent use ${id} scoped mode blocked: ${scopedMode?.blockers[0] ?? "see zagent errors"}`, "warning");
+          return;
+        }
+        if (scopedMode?.active && scopedMode.baseMode) {
+          applyMode(pi, state, ctx, scopedMode.baseMode, false);
+          state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
         }
         if (!state.zobLive.peerCard) {
           const peerErrors = ["current session has not registered a local ZPeer endpoint yet"];
@@ -1341,7 +1567,7 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
   });
 
   pi.registerCommand("zteam", {
-    description: "Project-local ZTeams: /zteam list | show <id> | launch-plan <id>",
+    description: "Project-local ZTeams: /zteam list | show <id> | launch-plan <id> | reset <id> [--dry-run] (send /new to team tmux agents)",
     getArgumentCompletions: zteamArgumentCompletions,
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
@@ -1383,7 +1609,39 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
         ctx.ui.notify(`zteam ${loaded.manifest.id} launch-plan printed; spawn count=0; expectedRooms=${plan.roomIds.join(",") || "default"}; models=${plan.modelIds.length || "default"}; defaultModes=${plan.defaultModes.length || "current"}`, loaded.errors.length === 0 ? "info" : "warning");
         return;
       }
-      ctx.ui.notify("Usage: /zteam list | /zteam show <id> | /zteam launch-plan <id>", "warning");
+      if (action === "reset" || action === "new" || action === "reset-plan") {
+        const parsed = parseZteamResetArgs(parts);
+        if (!parsed.id) {
+          ctx.ui.notify(`Usage: /zteam ${action} <id> [--dry-run]`, "warning");
+          return;
+        }
+        const options = action === "reset-plan" ? { ...parsed.options, execute: false } : parsed.options;
+        const loaded = loadZteamManifest(ctx.cwd, parsed.id);
+        const plan = buildZteamResetPlan(ctx.cwd, loaded.manifest, options, [...loaded.errors, ...parsed.errors]);
+        if (!options.execute) {
+          pi.appendEntry("zob-zagent", zteamResetLedgerEntry(`zteam_${action}_dry_run`, plan, plan.errors.length === 0 ? "ok" : "blocked"));
+          renderHarnessWidget(pi, state, ctx);
+          void pi.sendMessage({ customType: "zob-zteam-reset-plan", content: formatZteamResetPlan(plan), display: true, details: { teamIdHash: sha256(plan.teamId), agentIdHashes: plan.agentIds.map((agentId) => sha256(agentId)), roomIdHashes: plan.roomIds.map((roomId) => sha256(roomId)), execute: false, spawnCount: 0, bodyStored: false } }, { triggerTurn: false });
+          ctx.ui.notify(`zteam ${plan.teamId} reset dry-run; execute=false; spawn count=0; /new planned; errors=${plan.errors.length}`, plan.errors.length === 0 ? "info" : "warning");
+          return;
+        }
+        if (plan.errors.length > 0) {
+          pi.appendEntry("zob-zagent", zteamResetLedgerEntry(`zteam_${action}_execute_blocked`, plan, "blocked"));
+          renderHarnessWidget(pi, state, ctx);
+          void pi.sendMessage({ customType: "zob-zteam-reset-plan", content: formatZteamResetPlan(plan), display: true, details: { teamIdHash: sha256(plan.teamId), execute: true, confirmMatched: plan.confirmMatched, spawnCount: 0, bodyStored: false } }, { triggerTurn: false });
+          ctx.ui.notify(`zteam ${plan.teamId} reset execute blocked; errors=${plan.errors.length}`, "warning");
+          return;
+        }
+        const result = await executeZteamResetPlan(ctx.cwd, plan);
+        pi.appendEntry("zob-zagent", zteamResetLedgerEntry(result.ok ? `zteam_${action}_execute` : `zteam_${action}_execute_failed`, plan, result.ok ? "ok" : "blocked", result.errors));
+        renderHarnessWidget(pi, state, ctx);
+        const actionStatusText = result.actionStatuses.length ? `\naction-statuses: ${result.actionStatuses.join(", ")}` : "";
+        const errorText = result.errors.length ? `\nexecute errors:\n- ${result.errors.join("\n- ")}` : "";
+        void pi.sendMessage({ customType: "zob-zteam-reset-plan", content: `${formatZteamResetPlan(plan)}${actionStatusText}${errorText}`, display: true, details: { teamIdHash: sha256(plan.teamId), execute: true, confirmMatched: plan.confirmMatched, spawnCount: plan.spawnCount, actionStatusHashes: result.actionStatuses.map((item) => sha256(item)), bodyStored: false } }, { triggerTurn: false });
+        ctx.ui.notify(`zteam ${plan.teamId} reset execute ${result.ok ? "ok" : "failed"}; sent /new through scoped launcher; spawn count=${plan.spawnCount}`, result.ok ? "info" : "warning");
+        return;
+      }
+      ctx.ui.notify("Usage: /zteam list | /zteam show <id> | /zteam launch-plan <id> | /zteam reset <id> [--dry-run]", "warning");
     },
   });
 
