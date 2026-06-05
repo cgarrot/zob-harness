@@ -1,0 +1,19 @@
+{
+  "factory": "harness-intake-agent-team",
+  "mode": "batch",
+  "description": "Batch manifest placeholder. Batch execution requires passing smoke and pilot evidence plus owner-approved target list.",
+  "items": [],
+  "expectedArtifacts": [
+    "aggregate-harness-patterns.json",
+    "team-candidates.json",
+    "factory-candidates.json",
+    "validation.json",
+    "oracle-review.json"
+  ],
+  "noShipUntil": [
+    "smoke passed",
+    "pilot passed",
+    "owner-approved target list",
+    "session authorization recorded per target"
+  ]
+}

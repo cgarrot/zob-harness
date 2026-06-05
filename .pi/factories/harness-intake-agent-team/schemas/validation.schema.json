@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.harness-intake.validation.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "status", "no_ship", "errors", "warnings", "source_project_modified", "activation_performed", "quarantine_only"],
+  "properties": {
+    "schema": { "const": "zob.harness-intake.validation.v1" },
+    "run_id": { "type": "string" },
+    "status": { "enum": ["pass", "fail"] },
+    "no_ship": { "type": "boolean" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "source_project_modified": { "const": false },
+    "activation_performed": { "const": false },
+    "quarantine_only": { "const": true }
+  }
+}

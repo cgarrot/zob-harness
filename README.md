@@ -125,7 +125,50 @@ Existing factory-shaped surfaces include:
 
 - [`examples/agent-factory-tmux-comms/`](examples/agent-factory-tmux-comms/) — smallest teaching shape for a chief, scout, builder, and oracle.
 - [`examples/agent-factory-pacman-multiplayer/`](examples/agent-factory-pacman-multiplayer/) — runnable generative team demo.
-- [`.pi/factories/`](.pi/factories/) — safe factory scaffolds for repeatable workflows such as ProjectDNA, agentic spec work, budget preflight, code review matrices, and factory forging.
+- [`.pi/factories/harness-intake-agent-team/`](.pi/factories/harness-intake-agent-team/) — natural-language harness/setup/session analyzer that proposes reusable ZOB teams and factory scaffolds in quarantine.
+- [`.pi/factories/`](.pi/factories/) — safe factory scaffolds for repeatable workflows such as ProjectDNA, agentic spec work, budget preflight, code review matrices, harness intake, and factory forging.
+
+## Harness Intake: turn another agent setup into a reusable ZOB team
+
+Use Harness Intake when you want to analyze another agent harness — Claude Code, Codex, Cursor, Aider, Pi/ZOB, or a custom setup — and recover reusable teams/factories from its docs, agents, skills, commands, prompts, and authorized sessions.
+
+Natural-language quick start:
+
+```bash
+npm run harness:intake -- "Analyse ../repo-x comme setup Claude Code et propose une team ZOB réutilisable"
+```
+
+With explicit session/conversation authorization:
+
+```bash
+npm run harness:intake -- --target ../repo-x --harness claude-code --allow-sessions "Tu peux lire les sessions; comprends les workflows récurrents et propose une factory"
+```
+
+Prepare a visible tmux team run without launching completion claims:
+
+```bash
+npm run harness:intake:tmux -- prepare --target ../repo-x "Prépare une team tmux visible pour analyser ce harness"
+```
+
+Outputs are written under:
+
+```text
+reports/factory-runs/<run-id>/
+  inferred-run-spec.json
+  sources-index.json
+  harness-profile.json
+  skills-profile.json
+  sessions-analysis.json
+  workflow-patterns.json
+  team-candidates.json
+  factory-candidates.json
+  generated-proposals/
+  validation.json
+```
+
+Generated teams/factories stay in `generated-proposals/` and are **not activated automatically**. Sessions are read only with explicit authorization, and raw session bodies are not persisted in generated proposals.
+
+See [`.pi/factories/harness-intake-agent-team/README.md`](.pi/factories/harness-intake-agent-team/README.md) for factory usage and implementation details.
 
 ## What a ZOB run produces
 

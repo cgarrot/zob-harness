@@ -1,0 +1,23 @@
+{
+  "factory": "harness-intake-agent-team",
+  "mode": "smoke",
+  "description": "Smoke manifest for natural-language harness intake using the local tmux agent-factory example as a safe fixture.",
+  "items": [
+    {
+      "id": "tmux-example-harness-intake-smoke",
+      "path": "examples/agent-factory-tmux-comms",
+      "request": "Analyse examples/agent-factory-tmux-comms comme setup Agent Factory tmux et propose une team ZOB réutilisable.",
+      "harness_hint": "pi-zob",
+      "include_sessions": false
+    }
+  ],
+  "expectedArtifacts": [
+    "sources-index.json",
+    "harness-profile.json",
+    "skills-profile.json",
+    "workflow-patterns.json",
+    "team-candidates.json",
+    "factory-candidates.json",
+    "validation.json"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "factory": "harness-intake-agent-team",
+  "mode": "pilot",
+  "description": "Pilot manifest placeholder for up to ten approved harness-intake targets. Fill items through natural-language launcher generated specs, not manual user JSON in normal UX.",
+  "items": [
+    {
+      "id": "local-agentic-spec-team-pilot",
+      "path": ".pi/factories/agentic-spec-team",
+      "request": "Analyse .pi/factories/agentic-spec-team comme setup ZOB Agent Factory et propose les teams/factories réutilisables.",
+      "harness_hint": "pi-zob",
+      "include_sessions": false
+    }
+  ],
+  "expectedArtifacts": [
+    "team-candidates.json",
+    "factory-candidates.json",
+    "validation.json",
+    "oracle-review.json"
+  ]
+}

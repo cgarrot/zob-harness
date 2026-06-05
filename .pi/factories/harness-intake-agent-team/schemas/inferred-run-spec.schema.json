@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.harness-intake.inferred-run-spec.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "request", "target", "harness_hint", "mode", "goal", "sessions", "output_policy", "safety"],
+  "properties": {
+    "schema": { "const": "zob.harness-intake.inferred-run-spec.v1" },
+    "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,119}$" },
+    "request": { "type": "string", "minLength": 1 },
+    "request_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "target": {
+      "type": "object",
+      "required": ["input", "path"],
+      "properties": {
+        "input": { "type": "string" },
+        "path": { "type": "string" },
+        "repo_relative": { "type": ["string", "null"] }
+      }
+    },
+    "harness_hint": { "type": "string" },
+    "mode": { "type": "string" },
+    "goal": { "type": "string" },
+    "sessions": {
+      "type": "object",
+      "required": ["mentioned", "mode", "authorized", "paths"],
+      "properties": {
+        "mentioned": { "type": "boolean" },
+        "mode": { "enum": ["disabled", "needs_authorization", "authorized"] },
+        "authorized": { "type": "boolean" },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "output_policy": {
+      "type": "object",
+      "required": ["quarantine_only", "activation_enabled", "raw_session_body_persisted", "source_project_modified"],
+      "properties": {
+        "quarantine_only": { "const": true },
+        "activation_enabled": { "const": false },
+        "raw_session_body_persisted": { "const": false },
+        "source_project_modified": { "const": false }
+      }
+    }
+  }
+}

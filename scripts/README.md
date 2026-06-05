@@ -10,6 +10,7 @@ These script families are intended to be part of the normal tracked repo workflo
 - `scripts/compute-profile/` — compute profile policy and regression checks.
 - `scripts/git-ops/` — governed `/zcommit` policy smokes.
 - `scripts/goal-todo/` — Goal/TODO tree compatibility smokes.
+- `scripts/harness-intake/` — natural-language harness setup/session analyzer that produces quarantined ZOB team/factory proposals plus tmux launch support.
 - `scripts/model-catalog/` — local model catalog/economy validators.
 - `scripts/package-surface/` — package.json script/file surface validation.
 - `scripts/path-policy/` — path safety smoke checks.

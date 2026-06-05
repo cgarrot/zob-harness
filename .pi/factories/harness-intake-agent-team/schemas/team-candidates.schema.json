@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.harness-intake.team-candidates.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "candidates"],
+  "properties": {
+    "schema": { "const": "zob.harness-intake.team-candidates.v1" },
+    "run_id": { "type": "string" },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["team_name", "purpose", "entry_agent", "roles", "activation_status", "confidence", "evidence_refs"],
+        "properties": {
+          "team_name": { "type": "string" },
+          "purpose": { "type": "string" },
+          "entry_agent": { "type": "string" },
+          "roles": { "type": "array", "items": { "type": "string" } },
+          "activation_status": { "const": "quarantine-only" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence_refs": { "type": "array", "items": { "type": "string" } },
+          "blockers": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

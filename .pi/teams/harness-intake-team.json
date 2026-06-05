@@ -1,0 +1,111 @@
+{
+  "name": "harness-intake-team",
+  "version": "0.1.0",
+  "description": "Natural-language-first team for analyzing external agent harness setups, authorized sessions, skills, commands, and generating quarantined ZOB team/factory proposals.",
+  "entryAgent": "harness-intake-orchestrator",
+  "communicationPolicy": {
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "goalRoomCanonical": true,
+    "tmuxVisibleOptional": true
+  },
+  "defaultPosture": {
+    "sourceProjectReadOnly": true,
+    "quarantineOnly": true,
+    "sessionMiningRequiresAuthorization": true,
+    "activationRequiresManualReview": true
+  },
+  "agents": [
+    {
+      "id": "harness-intake-orchestrator",
+      "agent": "harness-intake-orchestrator",
+      "role": "Coordinates the run, assigns lanes, consolidates artifacts, and protects gates.",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputs": ["analysis-plan.json", "run-summary.md"]
+    },
+    {
+      "id": "harness-source-cartographer",
+      "agent": "harness-source-cartographer",
+      "role": "Maps approved harness setup files and source risk posture.",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputs": ["sources-index.json", "source-risk-report.json"]
+    },
+    {
+      "id": "harness-interpreter",
+      "agent": "harness-interpreter",
+      "role": "Interprets external harness conventions and ZOB compatibility.",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputs": ["harness-profile.json"]
+    },
+    {
+      "id": "harness-skill-command-analyst",
+      "agent": "harness-skill-command-analyst",
+      "role": "Analyzes skills, commands, prompts, hooks, and scripts.",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputs": ["skills-profile.json", "commands-profile.json", "prompt-patterns.json"]
+    },
+    {
+      "id": "harness-session-miner",
+      "agent": "harness-session-miner",
+      "role": "Mines authorized sessions without persisting raw conversation bodies.",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputs": ["sessions-analysis.json", "session-evidence-index.json"],
+      "requires": ["sessions.authorized=true"]
+    },
+    {
+      "id": "harness-workflow-pattern-miner",
+      "agent": "harness-workflow-pattern-miner",
+      "role": "Finds reusable workflow patterns from static and behavioral evidence.",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputs": ["workflow-patterns.json", "workflow-patterns.md"]
+    },
+    {
+      "id": "zob-team-architect",
+      "agent": "zob-team-architect",
+      "role": "Generates quarantined ZOB team proposals and role prompts.",
+      "requiredTools": ["read", "grep", "find", "ls"],
+      "outputs": ["team-candidates.json", "generated-proposals/teams", "generated-proposals/agents", "generated-proposals/kickoff"]
+    },
+    {
+      "id": "harness-factory-designer",
+      "agent": "harness-factory-designer",
+      "role": "Generates quarantined factory proposals with validators and activation blockers.",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputs": ["factory-candidates.json", "generated-proposals/factories"]
+    },
+    {
+      "id": "harness-intake-oracle",
+      "agent": "harness-intake-oracle",
+      "role": "Reviews evidence, no-ship posture, session privacy, and quarantine-only outputs.",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "outputs": ["validation.json", "oracle-review.json"]
+    }
+  ],
+  "expectedArtifacts": [
+    "request.md",
+    "inferred-run-spec.json",
+    "manifest.json",
+    "agentic-plan.json",
+    "sources-index.json",
+    "source-risk-report.json",
+    "harness-profile.json",
+    "skills-profile.json",
+    "commands-profile.json",
+    "prompt-patterns.json",
+    "sessions-analysis.json",
+    "workflow-patterns.json",
+    "team-candidates.json",
+    "factory-candidates.json",
+    "generated-proposals/",
+    "validation.json",
+    "oracle-review.json"
+  ],
+  "noShipBlockers": [
+    "session files read without explicit authorization",
+    "secret-like path or credential content included in source artifacts",
+    "raw session body persisted in run artifacts or generated prompts",
+    "generated proposal activated automatically",
+    "team/factory candidate lacks evidence refs for activation claim",
+    "tmux launch treated as completion without validation"
+  ]
+}

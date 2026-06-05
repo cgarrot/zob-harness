@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.harness-intake.sources-index.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "target", "source_project_modified", "raw_secret_storage", "session_authorized", "sources", "skipped"],
+  "properties": {
+    "schema": { "const": "zob.harness-intake.sources-index.v1" },
+    "run_id": { "type": "string" },
+    "source_project_modified": { "const": false },
+    "raw_secret_storage": { "const": false },
+    "session_authorized": { "type": "boolean" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "path", "type", "harness", "content_hash", "contains_possible_secret", "citations"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "path": { "type": "string" },
+          "type": { "type": "string" },
+          "harness": { "type": "string" },
+          "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "contains_possible_secret": { "type": "boolean" },
+          "citations": { "type": "array" }
+        }
+      }
+    },
+    "skipped": { "type": "array" }
+  }
+}

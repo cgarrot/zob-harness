@@ -1,0 +1,124 @@
+{
+  "name": "harness-intake-agent-team",
+  "version": "0.1.0",
+  "description": "Natural-language-first Agent-Team Factory for analyzing external agent harness setups, authorized sessions, skills, commands, and generating quarantined ZOB team/factory proposals.",
+  "status": "p0-scaffold-plus-cli",
+  "autoPromotion": false,
+  "manualPromotionRequired": true,
+  "defaultMode": "smoke",
+  "agenticModel": {
+    "controlPlane": "natural-language-launcher-plus-supervised-agent-team",
+    "team": "harness-intake-team",
+    "entryAgent": "harness-intake-orchestrator",
+    "tmuxVisibleOptional": true,
+    "sessionMiningRequiresAuthorization": true,
+    "quarantineOnly": true
+  },
+  "safeEntrypoints": [
+    "npm run harness:intake -- \"Analyse ../repo-x comme setup Claude Code et propose une team\"",
+    "npm run harness:intake:smoke",
+    "npm run harness:intake:tmux -- start \"Analyse ../repo-x avec sessions autorisées\"",
+    "npm run harness:intake:validate -- <run_id>"
+  ],
+  "requiredStages": [
+    "natural_language_request",
+    "inferred_run_spec",
+    "manifest_loaded",
+    "source_cartography",
+    "harness_profile",
+    "skill_command_profile",
+    "session_mining_if_authorized",
+    "workflow_patterns",
+    "team_candidates",
+    "factory_candidates",
+    "validation",
+    "oracle_review",
+    "sentinel"
+  ],
+  "expectedArtifacts": [
+    "request.md",
+    "inferred-run-spec.json",
+    "manifest.json",
+    "agentic-plan.json",
+    "sources-index.json",
+    "source-risk-report.json",
+    "harness-profile.json",
+    "skills-profile.json",
+    "commands-profile.json",
+    "prompt-patterns.json",
+    "sessions-analysis.json",
+    "session-evidence-index.json",
+    "workflow-patterns.json",
+    "workflow-patterns.md",
+    "team-candidates.json",
+    "factory-candidates.json",
+    "generated-proposals/",
+    "validation.json",
+    "oracle-review.json",
+    "DONE.sentinel"
+  ],
+  "noShipBlockers": [
+    "target path missing or broad root without explicit allow flag",
+    "session files read without explicit authorization",
+    "secret-like path or credential-like content included in source artifacts",
+    "raw session body persisted in reports or generated prompts",
+    "generated team/factory activated automatically",
+    "team/factory candidate lacks evidence refs for activation claim",
+    "tmux launch treated as completion without validation"
+  ],
+  "stages": [
+    {
+      "name": "infer-natural-language-run-spec",
+      "type": "deterministic",
+      "script": "scripts/harness-intake/infer-run-spec.mjs",
+      "expectedOutcome": "Compile the natural-language request into inferred-run-spec.v1 without requiring user-authored JSON."
+    },
+    {
+      "name": "source-cartography",
+      "type": "map",
+      "agent": "harness-source-cartographer",
+      "outputContract": "explore.v1",
+      "requiredTools": ["read", "grep", "find", "ls", "bash"],
+      "script": "scripts/harness-intake/scan-sources.mjs",
+      "expectedOutcome": "Source index and risk report for approved harness setup files."
+    },
+    {
+      "name": "harness-and-skill-analysis",
+      "type": "reduce",
+      "agents": ["harness-interpreter", "harness-skill-command-analyst", "harness-workflow-pattern-miner"],
+      "expectedOutcome": "Harness, skills, commands, prompts, and workflow pattern profiles with evidence."
+    },
+    {
+      "name": "session-mining-if-authorized",
+      "type": "optional-map",
+      "agent": "harness-session-miner",
+      "expectedOutcome": "Behavioral session signals with no raw session body persistence."
+    },
+    {
+      "name": "team-and-factory-proposals",
+      "type": "reduce",
+      "agents": ["zob-team-architect", "harness-factory-designer"],
+      "expectedOutcome": "Quarantined team and factory candidates under generated-proposals/."
+    },
+    {
+      "name": "oracle-validation",
+      "type": "validate",
+      "agent": "harness-intake-oracle",
+      "script": "scripts/harness-intake/validate-run.mjs",
+      "expectedOutcome": "validation.json, oracle-review.json, phase sentinel, and DONE only when no no-ship blockers remain."
+    },
+    {
+      "name": "tmux-visible-launch",
+      "type": "optional-launch",
+      "script": "scripts/harness-intake/tmux-launch.mjs",
+      "expectedOutcome": "Visible local Pi panes with kickoff files; launch is not completion."
+    }
+  ],
+  "activationPolicy": {
+    "analysisCreatesOnlyProposals": true,
+    "activationRequiresOwnerApproval": true,
+    "activationRequiresOraclePass": true,
+    "activationRequiresValidatorPass": true,
+    "copyAllowlist": ["generated-proposals/teams", "generated-proposals/agents", "generated-proposals/factories", "generated-proposals/kickoff"]
+  }
+}
