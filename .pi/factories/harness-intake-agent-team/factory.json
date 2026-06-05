@@ -40,6 +40,8 @@
     "inferred-run-spec.json",
     "manifest.json",
     "agentic-plan.json",
+    "artifact-contracts.json",
+    "autonomous-status.md",
     "sources-index.json",
     "source-risk-report.json",
     "harness-profile.json",
@@ -64,7 +66,8 @@
     "raw session body persisted in reports or generated prompts",
     "generated team/factory activated automatically",
     "team/factory candidate lacks evidence refs for activation claim",
-    "tmux launch treated as completion without validation"
+    "tmux launch treated as completion without validation",
+    "tmux kickoff-dispatch missing startup_file_delivery=true or raw_prompt_transport_line_by_line=false"
   ],
   "stages": [
     {

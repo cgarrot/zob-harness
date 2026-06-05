@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zob.harness-intake.artifact-contracts.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "contracts", "startup_file_delivery_required", "raw_prompt_transport_line_by_line", "post_start_tmux_paste_disabled", "final_gate"],
+  "properties": {
+    "schema": { "const": "zob.harness-intake.artifact-contracts.v1" },
+    "run_id": { "type": "string" },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["agent", "alias", "lane", "outputs", "done_when"],
+        "properties": {
+          "agent": { "type": "string" },
+          "alias": { "type": "string" },
+          "lane": { "type": "string" },
+          "outputs": { "type": "array", "items": { "type": "string" } },
+          "done_when": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "startup_file_delivery_required": { "const": true },
+    "raw_prompt_transport_line_by_line": { "const": false },
+    "post_start_tmux_paste_disabled": { "const": true }
+  }
+}

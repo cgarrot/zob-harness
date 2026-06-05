@@ -155,6 +155,8 @@ Outputs are written under:
 ```text
 reports/factory-runs/<run-id>/
   inferred-run-spec.json
+  artifact-contracts.json
+  autonomous-status.md
   sources-index.json
   harness-profile.json
   skills-profile.json

@@ -32,6 +32,8 @@ reports/factory-runs/<run-id>/
   inferred-run-spec.json
   manifest.json
   agentic-plan.json
+  artifact-contracts.json
+  autonomous-status.md
   sources-index.json
   source-risk-report.json
   harness-profile.json
@@ -70,7 +72,7 @@ npm run harness:intake:tmux -- attach <run_id> harness-intake-orchestrator
 npm run harness:intake:tmux -- stop <run_id>
 ```
 
-Tmux launch is not completion. Success still requires validation/oracle artifacts.
+Tmux launch is not completion. Success still requires validation/oracle artifacts. The tmux dispatch proof records `startup_file_delivery: true`, `raw_prompt_transport_line_by_line: false`, and `post_start_tmux_paste_disabled: true` so the launcher can prove it used `pi @kickoff-file` instead of pasting prompts line by line.
 
 ## Activation policy
 
