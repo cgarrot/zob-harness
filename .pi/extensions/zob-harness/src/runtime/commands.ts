@@ -26,6 +26,7 @@ import { showDelegationOverlay } from "./delegation-overlay.js";
 import { finishDelegationRun } from "./delegation-monitor.js";
 import { showGoalTodoOverlay } from "./goal-todo-overlay.js";
 import type { HarnessRuntimeState } from "./state.js";
+import { registerZobIntroCommand } from "./zob-intro.js";
 import {
   asInteractiveAutonomyMode,
   formatInteractiveAutonomyStatus,
@@ -985,6 +986,8 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
   pi.on("model_select", (_event, ctx) => {
     refreshIntentClassifierModelCache(ctx);
   });
+
+  registerZobIntroCommand(pi);
 
   // Exact `/new` is handled by Pi before extension input/command hooks. Soft carryover
   // is therefore written from the `session_shutdown` reason="new" hook in events.ts.
