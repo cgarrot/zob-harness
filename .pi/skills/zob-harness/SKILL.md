@@ -31,7 +31,7 @@ Communication is a core deliverable. Prefer one parent-visible control room by d
 
 ## Operating model
 
-1. Classify the task as one of: `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`.
+1. Classify the task as one of: `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`. When `.pi/routing/intent-classifier.json` enables an optional model classifier, treat it as advisory intent routing only; regex fallback and deterministic safety hard-blocks remain authoritative. `autoSwitchIntents` controls which detected intents switch mode directly; this project enables all ZOB modes by default. Use `/intent-classifier status|regex|model-strict|model-fallback|test` (alias `/intent`) to switch/test routing without editing JSON by hand.
 2. For non-trivial or tool-ambiguous work, apply `zob-tool-router`: classify applicable families, then use/delegate/skip each with a reason.
 3. Use `orchestrator` when the task needs Chief Vision coordination, multi-agent decomposition, Lead/Worker routing, goal/TODO graph governance, or parent-owned dispatch; the root should delegate substantive work rather than do it directly.
 4. Check `.pi/capabilities/zob-public-runtime-capabilities.json` for the relevant tool/command family, mode allowlist, skill refs, and no-ship notes.
@@ -65,6 +65,7 @@ When the user asks for a plan:
 - Prompt templates: `.pi/prompts/*.md`
 - Capability registry: `.pi/capabilities/zob-public-runtime-capabilities.json`
 - Damage rules: `.pi/damage-control-rules.json`
+- Optional intent classifier config: `.pi/routing/intent-classifier.json`
 - Architecture docs: `docs/`
 - Goal TODO tree plan: `docs/ZOB_GOAL_TODO_TREE_PLAN.md`
 

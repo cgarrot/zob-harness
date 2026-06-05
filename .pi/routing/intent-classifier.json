@@ -1,0 +1,29 @@
+{
+  "schema": "zob.intent-classifier.config.v1",
+  "enabled": true,
+  "provider": "pi-provider",
+  "model": "ollama-cloud/gemma4:31b",
+  "minConfidence": 0.72,
+  "timeoutMs": 5000,
+  "fallback": "regex",
+  "sendUserTextToProvider": true,
+  "providers": {
+    "http-json": {
+      "endpoint": "",
+      "apiKeyEnv": "",
+      "requestFormat": "openai-chat"
+    },
+    "pi-provider": {
+      "enabled": true,
+      "note": "Uses active/selected Pi provider models through the runtime model registry; no endpoint configuration is required for the normal slash UX."
+    }
+  },
+  "allowedIntents": ["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla", "unknown"],
+  "autoSwitchIntents": ["explore", "plan", "implement", "oracle", "factory", "orchestrator", "vanilla"],
+  "notes": [
+    "Default owner-facing posture may use /intent regex, /intent model-strict [provider/model-id], or /intent model-fallback [provider/model-id].",
+    "autoSwitchIntents controls which detected intents may directly switch ZOB mode; this config enables all ZOB modes except unknown.",
+    "model-strict uses fallback=unknown; model-fallback uses fallback=regex.",
+    "The classifier may suggest intent/mode routing only; deterministic safety hard-blocks remain authoritative."
+  ]
+}

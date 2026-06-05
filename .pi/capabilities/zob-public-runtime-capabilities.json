@@ -1432,6 +1432,38 @@
       "noShipNotes": "Switches active harness mode only. orchestrator routes to adaptive-chief-vision plan_only defaults; vanilla restores Pi base-style unrestricted tool access outside ZOB governance and disables ZOB-specific bash mutation blocks. Child dispatch in governed modes requires parent-owned contract/preflight gates and writes remain blocked without sandbox/oracle/human approval."
     },
     {
+      "name": "intent-classifier",
+      "family": "intent-routing",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "README.md",
+        ".pi/routing/intent-classifier.json",
+        ".pi/extensions/zob-harness/src/domains/intent/intent-classifier.ts",
+        ".pi/extensions/zob-harness/src/runtime/commands.ts"
+      ],
+      "noShipNotes": "Slash UX for optional intent routing only: status|regex|model-strict [model]|model-fallback [model]|test. The owner-facing path selects current/available Pi models, similar to /model, without requiring endpoint/API-key flags. autoSwitchIntents controls direct mode switching and this project enables explore, plan, implement, oracle, factory, orchestrator, and vanilla by default. model-strict uses fallback=unknown and must not silently fall back to regex; model-fallback is explicit regex fallback. Advanced http-json endpoint metadata is hidden/optional for custom experiments only. Ledgers never store raw test text or API keys, and the classifier never approves secrets, destructive commands, commits, deploys, session reads, or no-ship state."
+    },
+    {
+      "name": "intent",
+      "family": "intent-routing",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "README.md",
+        ".pi/extensions/zob-harness/src/runtime/commands.ts"
+      ],
+      "noShipNotes": "Alias for /intent-classifier with the same safety/privacy behavior."
+    },
+    {
       "name": "stop",
       "family": "runtime-control",
       "modes": [

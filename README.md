@@ -346,23 +346,24 @@ ZOB can optionally classify user intent with a small model before falling back t
 {
   "enabled": false,
   "provider": "regex",
-  "model": "lfm2.5:8b",
+  "model": "",
   "fallback": "regex",
   "sendUserTextToProvider": false
 }
 ```
 
-To experiment with Ollama Cloud, use the slash command after reloading the extension:
+Use the slash command after reloading the extension:
 
 ```text
-/intent-classifier status
-/intent-classifier regex
-/intent-classifier model-strict --endpoint <ollama-cloud-chat-endpoint> --model lfm2.5:8b
-/intent-classifier model-fallback --endpoint <ollama-cloud-chat-endpoint> --model lfm2.5:8b
-/intent-classifier test launch multiple workers and an oracle
+/intent status
+/intent regex
+/intent model-strict
+/intent model-strict <provider/model-id>
+/intent model-fallback <provider/model-id>
+/intent test launch multiple workers and an oracle
 ```
 
-`model-strict` means no regex fallback: provider failures, invalid JSON, low confidence, or unknown intent return `unknown`. `model-fallback` tries the model first and then falls back to regex. Both model presets set `sendUserTextToProvider=true`; set `OLLAMA_API_KEY` in the environment and pass only `--api-key-env` if you use a non-default env var. The classifier suggests intent only; it never approves secrets, destructive commands, commits, deploys, session reads, or no-ship status.
+`model-strict` means no regex fallback: provider failures, invalid JSON, low confidence, or unknown intent return `unknown`. `model-fallback` tries the model first and then falls back to regex. If no model is provided, the current Pi model is used; autocomplete after `model-strict ` or `model-fallback ` lists available Pi models. Detected intents in `autoSwitchIntents` switch mode directly; the default project config enables `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`, and `vanilla` so an explicit user intention can route to any ZOB mode. The direct HTTP JSON path remains an advanced hidden option for custom endpoints, but the normal UX is provider/model selection from Pi. The classifier suggests intent only; it never approves secrets, destructive commands, commits, deploys, session reads, or no-ship status.
 
 ## Command cheat sheet
 

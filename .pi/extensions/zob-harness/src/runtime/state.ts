@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
 
 import { DEFAULT_RULES, MODE_PROMPTS } from "../core/constants.js";
+import { classifyModeRegex } from "../domains/intent/intent-classifier.js";
 import type { ChildResult, DamageRules, DelegationFailureKind, GoalState, ModeName, QueueTickResult, RuleResolution } from "../types.js";
 import { validateGoalState, validateStrictGoalSpecAnchor, type StrictGoalSpecAnchor } from "../domains/goal/goal.js";
 import { DEFAULT_GOAL_ACTIVATION_MODE, restoreGoalActivationModeFromBranch, restoreRuntimeGoalFromBranch, type GoalActivationMode, type RuntimeGoal } from "./goal-runtime.js";
@@ -424,16 +425,7 @@ export function restoreHarnessState(state: HarnessRuntimeState, ctx: ExtensionCo
 }
 
 export function inferModeFromUserIntent(text: string): ModeName | undefined {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized || normalized.startsWith("/")) return undefined;
-  const asksForVanilla = /\b(vanilla|vania|pi\s+base|base\s+pi|codex|external\s+(?:command|tool|agent)|unrestricted|arbitrary\s+command|no\s+guardrails?)\b/i.test(normalized);
-  if (asksForVanilla) return "vanilla";
-  const asksForOrchestration = /\b(orchestrator|orchestrat(?:e|ion|or)|multi[- ]?agent|lead(?:s)?|worker(?:s)?|chief vision|delegat(?:e|ion)|sub[- ]?agents?|subtasks?|work graph|todo graph)\b/i.test(normalized);
-  if (asksForOrchestration) return "orchestrator";
-  const asksForMutation = /\b(update|udpate|modify|change|correction|fix|patch|implement|edit|write|add|create|delete|remove|refactor|continue .*update)\b/i.test(normalized);
-  if (!asksForMutation) return undefined;
-  const factoryIntent = /\b(factory|factory_run|pilot|batch|sentinel|manifest|quarantine|software factory)\b/i.test(normalized);
-  return factoryIntent ? "factory" : "implement";
+  return classifyModeRegex(text);
 }
 
 

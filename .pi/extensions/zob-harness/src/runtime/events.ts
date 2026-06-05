@@ -16,6 +16,7 @@ import { buildZobLiveResponseEnvelope } from "../domains/coms/coms-v2/response-c
 import { writeZobComsRedactedCapture } from "../domains/coms/coms-v2/transcript-capture.js";
 import { formatGoalActivationMode, runtimeGoalStatusLine } from "./goal-runtime.js";
 import { formatInteractiveAutonomyPromptHint, formatMissionReadinessForUi, scoreMissionReadiness, toMissionReadinessLedgerEntry } from "../domains/autonomy/interactive-autonomy.js";
+import { classifyIntent } from "../domains/intent/intent-classifier.js";
 import { formatGoalTodoPromptHint } from "../domains/goal/goal-todos.js";
 import { resolveRuleProfile } from "../domains/governance/rules.js";
 import { loadDamageRules } from "../domains/governance/safety.js";
@@ -731,13 +732,47 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     }
     if (event.source === "extension" && !event.text.trim()) return { action: "handled" as const };
     if (event.source === "extension") return { action: "continue" as const };
-    const nextMode = inferModeFromUserIntent(event.text);
+    const intentResult = await classifyIntent(event.text, ctx.cwd, undefined, { model: ctx.model, modelRegistry: ctx.modelRegistry, signal: ctx.signal });
+    if (intentResult.provider !== "regex") {
+      pi.appendEntry("zob-intent-classifier", {
+        schema: "zob.intent-classifier.event.v1",
+        provider: intentResult.provider,
+        configuredProvider: intentResult.configuredProvider,
+        model: intentResult.model,
+        intent: intentResult.intent,
+        confidence: intentResult.confidence,
+        needsClarification: intentResult.needsClarification,
+        fallbackReasonHash: intentResult.fallbackReason ? sha256(intentResult.fallbackReason) : undefined,
+        reasonHash: sha256(intentResult.reason),
+        evidenceHashes: intentResult.evidence.map((item) => sha256(item)),
+        inputHash: intentResult.inputHash,
+        rawInputStored: false,
+        safetyApproved: false,
+        at: new Date().toISOString(),
+      });
+    }
+    const intentMode = intentResult.autoSwitch && intentResult.intent !== "unknown" ? intentResult.intent : undefined;
+    const nextMode = intentMode ?? inferModeFromUserIntent(event.text);
     if (!nextMode || nextMode === state.activeMode) return { action: "continue" as const };
-    if (state.activeMode !== "explore" && nextMode !== "vanilla") return { action: "continue" as const };
     const previousMode = state.activeMode;
     applyMode(pi, state, ctx, nextMode);
     state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
-    const reason = nextMode === "orchestrator" ? "orchestration intent detected" : nextMode === "factory" ? "factory workflow intent detected" : nextMode === "vanilla" ? "vanilla/Pi base or external-command intent detected" : "write/update intent detected";
+    const fallbackReason = nextMode === "explore"
+      ? "read-only exploration intent detected"
+      : nextMode === "plan"
+        ? "planning/design intent detected"
+        : nextMode === "oracle"
+          ? "review/validation intent detected"
+          : nextMode === "orchestrator"
+            ? "orchestration intent detected"
+            : nextMode === "factory"
+              ? "factory workflow intent detected"
+              : nextMode === "vanilla"
+                ? "vanilla/Pi base or external-command intent detected"
+                : "write/update intent detected";
+    const reason = intentResult.provider === "model"
+      ? `model intent classifier detected ${nextMode} (${intentResult.confidence.toFixed(2)})`
+      : fallbackReason;
     ctx.ui.notify(`ZOB auto-mode: ${previousMode} → ${nextMode} (${reason})`, "info");
     return { action: "continue" as const };
   });
