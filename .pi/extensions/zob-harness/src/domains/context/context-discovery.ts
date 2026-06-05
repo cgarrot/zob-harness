@@ -1,6 +1,6 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, extname, isAbsolute, join, normalize, sep } from "node:path";
+import { basename, extname, isAbsolute, join, normalize, relative, sep } from "node:path";
 
 export type ContextSearchMode = "auto" | "semantic" | "hybrid" | "regex" | "files";
 
@@ -48,7 +48,7 @@ const DEFAULT_CONFIG: ContextDiscoveryConfig = {
   fallbackProvider: "grep",
   includePaths: [".pi/extensions", ".pi/skills", ".pi/capabilities", "scripts", "docs", "README.md", "AGENTS.md"],
   excludePaths: [".env", "**/.env", ".env.*", "**/*secret*", "**/*key*", "*.pem", ".pi/sessions", ".pi/agent-sessions", "node_modules", "dist", "build"],
-  limits: { maxResults: 20, maxContextLines: 2, maxFileBytes: 1024 * 1024 },
+  limits: { maxResults: 6, maxContextLines: 1, maxFileBytes: 1024 * 1024 },
   promptInjection: { enabled: true, includeInstallHint: true },
   loadedFrom: "defaults",
 };
@@ -76,6 +76,14 @@ export function normalizeRepoPath(raw: unknown): string | undefined {
   const normalized = normalize(trimmed);
   if (!normalized || normalized === "." || normalized === ".." || normalized.startsWith(`..${sep}`)) return undefined;
   return normalized.split(sep).join("/");
+}
+
+function normalizeBackendPath(repoRoot: string, raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.trim().length === 0 || raw.includes("\0")) return undefined;
+  if (!isAbsolute(raw)) return normalizeRepoPath(raw);
+  const relPath = relative(repoRoot, raw);
+  if (!relPath || relPath === ".." || relPath.startsWith(`..${sep}`) || isAbsolute(relPath)) return undefined;
+  return normalizeRepoPath(relPath);
 }
 
 function pathIsExcluded(relPath: string, excludePaths: string[]): boolean {
@@ -136,10 +144,10 @@ export function buildActiveSearchBackendPromptSnippet(repoRoot: string): string 
   const detection = detectColgrep(repoRoot);
   const scope = `${config.loadedFrom}; roots=${config.includePaths.slice(0, 6).join(",")}; excludes=${config.excludePaths.length}`;
   if (detection.ready) {
-    return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: colgrep\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- Prefer zob_context_search for codebase discovery and broad/semantic search; use grep/read for exact proof and final citations.\n- Search output must stay bounded and avoid forbidden paths/secrets.`;
+    return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: colgrep\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- For exploratory, natural-language, or "where is this mechanism?" repo discovery, start with zob_context_search/ColGREP before grep/find.\n- If zob_context_search is not listed in your available tools but bash is available, run npm run --silent zob:context:query -- --query "<natural language query>" --max-results 6 --max-context-lines 1 before rg/grep; the wrapper returns compact refs by default.\n- Do not conclude the native tool is unavailable and immediately use broad rg/grep; use the wrapper above as the ColGREP path.\n- Run one exploratory context search, then read the returned refs; retry only if results=0 or clearly irrelevant.\n- Use grep/read after semantic discovery for exact proof, known identifiers, final citations, and line refs.\n- Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.\n- Search output must stay bounded and avoid forbidden paths/secrets.`;
   }
   const installHint = config.promptInjection.includeInstallHint ? `\n- Optional ColGREP setup hint: ${detection.guidance}` : "";
-  return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: grep fallback\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- Prefer zob_context_search, grep, find, and read for bounded repo-local discovery and exact proof.${installHint}\n- Missing ColGREP is not a blocker; do not auto-install it.`;
+  return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: grep fallback\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- Prefer zob_context_search when listed; if not listed and bash is available, npm run --silent zob:context:query -- --query "<query>" still gives the same bounded compact fallback path.${installHint}\n- Missing ColGREP is not a blocker; do not auto-install it.\n- Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.`;
 }
 
 function safeSearchRoots(repoRoot: string, config: ContextDiscoveryConfig, requestedPaths?: string[]): { roots: string[]; rejected: string[] } {
@@ -180,12 +188,13 @@ function collectFiles(repoRoot: string, relPath: string, config: ContextDiscover
 }
 
 function normalizeLineResult(repoRoot: string, item: Record<string, unknown>, config: ContextDiscoveryConfig): NormalizedContextResult | undefined {
-  const rawPath = item.path ?? item.file ?? item.filename ?? item.source_path;
-  const path = normalizeRepoPath(rawPath);
+  const unit = typeof item.unit === "object" && item.unit !== null ? item.unit as Record<string, unknown> : undefined;
+  const rawPath = item.path ?? item.file ?? item.filename ?? item.source_path ?? unit?.path ?? unit?.file ?? unit?.filename ?? unit?.source_path;
+  const path = normalizeBackendPath(repoRoot, rawPath);
   if (!path || pathIsExcluded(path, config.excludePaths) || !existsSync(join(repoRoot, path))) return undefined;
-  const lineValue = item.line ?? item.lineNumber ?? item.line_number ?? item.start_line;
+  const lineValue = item.line ?? item.lineNumber ?? item.line_number ?? item.start_line ?? unit?.line ?? unit?.lineNumber ?? unit?.line_number ?? unit?.start_line;
   const line = typeof lineValue === "number" ? Math.max(1, Math.floor(lineValue)) : undefined;
-  const rawPreview = item.preview ?? item.text ?? item.lineText ?? item.content ?? item.match ?? "";
+  const rawPreview = item.preview ?? item.text ?? item.lineText ?? item.content ?? item.match ?? unit?.preview ?? unit?.text ?? unit?.lineText ?? unit?.content ?? unit?.code ?? unit?.docstring ?? unit?.signature ?? unit?.qualified_name ?? unit?.name ?? "";
   const preview = String(rawPreview).replace(/\s+/gu, " ").trim().slice(0, 240);
   const score = typeof item.score === "number" ? item.score : undefined;
   return { path, line, ref: line ? `${path}:${line}` : path, preview, score };
@@ -202,12 +211,47 @@ function extractJsonResults(repoRoot: string, stdout: string, config: ContextDis
   }
 }
 
-function runColgrep(repoRoot: string, query: string, roots: string[], config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): { ok: boolean; results: NormalizedContextResult[]; error?: string } {
+const COLGREP_TIMEOUT_MS = 30_000;
+const COLGREP_MAX_OUTPUT_BYTES = 1024 * 1024;
+
+type ColgrepRunResult = { ok: boolean; results: NormalizedContextResult[]; error?: string };
+
+async function runColgrep(repoRoot: string, query: string, roots: string[], config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): Promise<ColgrepRunResult> {
   const args = ["--json", "-k", String(maxResults), "-n", String(maxContextLines), query, ...roots];
-  const result = spawnSync("colgrep", args, { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000, maxBuffer: 1024 * 1024 });
-  if (result.status !== 0) return { ok: false, results: [], error: result.stderr.trim().slice(0, 240) || `colgrep exited ${String(result.status)}` };
-  const results = extractJsonResults(repoRoot, result.stdout, config, maxResults);
-  return { ok: true, results };
+  return await new Promise<ColgrepRunResult>((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const child = spawn("colgrep", args, { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+    const finish = (value: ColgrepRunResult): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish({ ok: false, results: [], error: `colgrep timed out after ${String(COLGREP_TIMEOUT_MS)}ms; retry with narrower paths or max_results.` });
+    }, COLGREP_TIMEOUT_MS);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+      if (stdout.length > COLGREP_MAX_OUTPUT_BYTES) {
+        child.kill("SIGTERM");
+        finish({ ok: false, results: [], error: "colgrep output exceeded compact result budget; retry with lower max_results." });
+      }
+    });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+    child.on("error", (error) => finish({ ok: false, results: [], error: error.message.slice(0, 240) }));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        finish({ ok: false, results: [], error: stderr.trim().slice(0, 240) || `colgrep exited ${String(code)}` });
+        return;
+      }
+      finish({ ok: true, results: extractJsonResults(repoRoot, stdout, config, maxResults) });
+    });
+  });
 }
 
 function fallbackSearch(repoRoot: string, params: Required<Pick<ContextSearchParams, "query" | "mode">> & Pick<ContextSearchParams, "pattern" | "paths">, config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): { results: NormalizedContextResult[]; rejectedPaths: string[]; roots: string[] } {
@@ -246,7 +290,7 @@ function fallbackSearch(repoRoot: string, params: Required<Pick<ContextSearchPar
   return { results, rejectedPaths: rejected, roots };
 }
 
-export function runContextSearch(repoRoot: string, input: ContextSearchParams): Record<string, unknown> {
+export async function runContextSearch(repoRoot: string, input: ContextSearchParams): Promise<Record<string, unknown>> {
   const config = loadContextDiscoveryConfig(repoRoot);
   const query = String(input.query ?? "").trim();
   const mode = input.mode ?? "auto";
@@ -259,7 +303,7 @@ export function runContextSearch(repoRoot: string, input: ContextSearchParams): 
   let fallbackReason = detection.ready ? undefined : detection.guidance;
   let results: NormalizedContextResult[] = [];
   if (detection.ready && mode !== "regex" && mode !== "files") {
-    const colgrep = runColgrep(repoRoot, query, roots, config, maxResults, maxContextLines);
+    const colgrep = await runColgrep(repoRoot, query, roots, config, maxResults, maxContextLines);
     if (colgrep.ok) results = colgrep.results;
     else {
       provider = "grep-fallback";
@@ -292,7 +336,7 @@ export function runContextSearch(repoRoot: string, input: ContextSearchParams): 
     rejectedPaths: rejected,
     limits: { maxResults, maxContextLines },
     recommendedVerification: refs.length > 0
-      ? [`grep -n ${shellQuote(query)} ${shellQuote(results[0]?.path ?? roots[0] ?? ".")}`, `read ${results[0]?.path ?? roots[0] ?? "."}`]
+      ? [`read ${results[0]?.path ?? roots[0] ?? "."}`, "After reading, grep exact identifiers/strings found in returned refs for final proof."]
       : [`grep -R -n ${shellQuote(query)} ${roots.map(shellQuote).join(" ") || "."}`, "find relevant safe paths, then read exact files"],
     safety: { repoRelativeOnly: true, forbiddenPathsExcluded: config.excludePaths, rawPromptOrConversationPersisted: false, autoInstall: false },
   };

@@ -15,13 +15,17 @@ Use this skill for:
 ## Active backend rules
 
 1. Prefer `zob_context_search` for repo-local discovery when the runtime tool is available.
-2. When ColGREP is installed and ready, use it as the preferred broad/semantic discovery backend.
-3. Always use grep/find/read or exact file refs for verification before making claims.
-4. When ColGREP is missing, unavailable, or not indexed, fall back to grep/find/read. Missing ColGREP is not a blocker for normal ZOB work.
-5. Do not auto-install ColGREP, run network/package-manager installer commands, or mutate user tooling without explicit owner approval.
-6. Keep search bounded to repo-local allowed paths and task-relevant globs.
-7. Never read forbidden paths or secret-like files, including `.env`, `**/.env`, `**/*secret*`, `**/*key*`, private keys, `.pi/sessions`, `.pi/agent-sessions`, `node_modules`, `dist`, or `build`.
-8. Persist only safe metadata/artifact refs for context packs. Do not persist raw secret/session bodies.
+2. When ColGREP is installed and ready, exploratory or natural-language repo discovery MUST start with `zob_context_search`/ColGREP before broad grep/find. This includes prompts like “explore this repo”, “where is this mechanism?”, or “find the design/flow”.
+3. If `zob_context_search` is not exposed in the current session/toolset but `bash` is available, use the compact local wrapper before broad grep: `npm run --silent zob:context:query -- --query "<natural language query>" --max-results 6 --max-context-lines 1`.
+4. Do not treat missing native-tool exposure as permission to immediately use broad `rg`/`grep`; the wrapper is the ColGREP path for those sessions.
+5. Run one exploratory context search, then read returned refs; retry only when results are empty or clearly irrelevant.
+6. Use grep/find/read after semantic discovery for exact proof, known identifiers/strings, final citations, and line refs. If the exact identifier/path/string is already known, grep/read may be used directly.
+7. When ColGREP is missing, unavailable, or not indexed, fall back to grep/find/read. Missing ColGREP is not a blocker for normal ZOB work.
+8. Do not auto-install ColGREP, run network/package-manager installer commands, or mutate user tooling without explicit owner approval.
+9. Keep search bounded to repo-local allowed paths and task-relevant globs.
+10. Never run broad grep/find over `.pi` unless `.pi/sessions` and `.pi/agent-sessions` are explicitly excluded/pruned.
+11. Never read forbidden paths or secret-like files, including `.env`, `**/.env`, `**/*secret*`, `**/*key*`, private keys, `.pi/sessions`, `.pi/agent-sessions`, `node_modules`, `dist`, or `build`.
+12. Persist only safe metadata/artifact refs for context packs. Do not persist raw secret/session bodies.
 
 ## User setup and scripts
 
@@ -34,7 +38,12 @@ Use this skill for:
 
 - Active-backend prompt injection is controlled by `.pi/context-discovery.json` under `promptInjection.enabled`.
 - The injected block must stay concise, current-repo scoped, and bounded by the configured include/exclude roots; it is a discovery hint, not a context pack or evidence source.
-- Do not inject stale/global context or raw search results into the prompt. Use `zob_context_search` and then read exact files when details are needed.
+- Do not inject stale/global context or raw search results into the prompt. Use `zob_context_search` or the compact `npm run --silent zob:context:query` wrapper, then read exact files when details are needed.
+
+## UX / performance posture
+
+- Native `zob_context_search` execution must remain async/non-blocking from the Pi extension perspective; avoid synchronous long-running ColGREP calls in tool handlers.
+- Default discovery output should be compact: a small set of refs/previews, then read exact files. Do not dump raw ColGREP JSON or code bodies into the chat by default.
 
 ## Evidence expectations
 

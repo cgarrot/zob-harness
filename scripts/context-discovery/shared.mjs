@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, extname, join, normalize, relative, sep } from "node:path";
+import { basename, extname, isAbsolute, join, normalize, relative, sep } from "node:path";
 
 export const repoRoot = process.cwd();
 export const configPath = ".pi/context-discovery.json";
@@ -33,8 +33,8 @@ export const defaultConfig = {
     "build",
   ],
   limits: {
-    maxResults: 20,
-    maxContextLines: 2,
+    maxResults: 6,
+    maxContextLines: 1,
     maxFileBytes: 1024 * 1024,
   },
   promptInjection: {
@@ -126,11 +126,33 @@ export function parseArgs(argv) {
 }
 
 export function normalizeRepoPath(raw) {
-  const normalized = normalize(String(raw).replace(/^\.\//u, ""));
+  if (typeof raw !== "string" || raw.trim().length === 0 || raw.includes("\0") || raw.includes("\\")) {
+    return null;
+  }
+  const trimmed = raw.trim().replace(/^\.\//u, "");
+  if (isAbsolute(trimmed)) {
+    return null;
+  }
+  const normalized = normalize(trimmed);
   if (!normalized || normalized === "." || normalized === ".." || normalized.startsWith(`..${sep}`)) {
     return null;
   }
   return normalized.split(sep).join("/");
+}
+
+export function normalizeBackendPath(raw) {
+  if (typeof raw !== "string" || raw.trim().length === 0 || raw.includes("\0")) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!isAbsolute(trimmed)) {
+    return normalizeRepoPath(trimmed);
+  }
+  const relPath = relative(repoRoot, trimmed);
+  if (!relPath || relPath === ".." || relPath.startsWith(`..${sep}`) || isAbsolute(relPath)) {
+    return null;
+  }
+  return normalizeRepoPath(relPath);
 }
 
 function globToRegExp(pattern) {
@@ -141,7 +163,7 @@ function globToRegExp(pattern) {
   return new RegExp(`^${escaped}$`, "iu");
 }
 
-function isExcluded(relPath, excludePaths) {
+export function isExcluded(relPath, excludePaths) {
   const normalized = normalizeRepoPath(relPath);
   if (!normalized) {
     return true;
@@ -231,6 +253,51 @@ export function fallbackSearch({ query, config, maxResults, maxContextLines }) {
   };
 }
 
+export function normalizeColgrepResults(stdout, { query, config, maxResults, maxContextLines }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    parsed = [];
+  }
+  const candidates = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object"
+      ? [parsed.results, parsed.matches, parsed.items].find(Array.isArray) ?? []
+      : [];
+  const results = [];
+  for (const item of candidates) {
+    if (!item || typeof item !== "object") continue;
+    const unit = item.unit && typeof item.unit === "object" ? item.unit : {};
+    const path = normalizeBackendPath(item.path ?? item.file ?? item.filename ?? item.source_path ?? unit.path ?? unit.file ?? unit.filename ?? unit.source_path);
+    if (!path || isExcluded(path, config.excludePaths) || !existsSync(join(repoRoot, path))) continue;
+    const lineValue = item.line ?? item.lineNumber ?? item.line_number ?? item.start_line ?? unit.line ?? unit.lineNumber ?? unit.line_number ?? unit.start_line;
+    const line = Number.isFinite(Number(lineValue)) ? Math.max(1, Math.floor(Number(lineValue))) : undefined;
+    const previewSource = item.preview ?? item.text ?? item.lineText ?? item.match ?? unit.docstring ?? unit.signature ?? unit.qualified_name ?? unit.name ?? path;
+    const preview = String(previewSource).replace(/\s+/gu, " ").trim().slice(0, 240);
+    results.push({
+      path,
+      line,
+      ref: line ? `${path}:${line}` : path,
+      preview,
+      score: Number.isFinite(Number(item.score)) ? Number(item.score) : undefined,
+    });
+    if (results.length >= maxResults) break;
+  }
+  return {
+    provider: "colgrep",
+    fallback: false,
+    query,
+    maxResults,
+    maxContextLines,
+    resultCount: results.length,
+    results,
+    recommendedVerification: results.length
+      ? [`read ${results[0].path}`, "After reading, grep exact identifiers/strings found in returned refs for final proof."]
+      : ["No compact ColGREP refs parsed; retry with a narrower query or inspect ColGREP status."],
+  };
+}
+
 export function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -241,6 +308,10 @@ export function printHumanSearch(result) {
   console.log(`results: ${result.resultCount}`);
   for (const item of result.results ?? []) {
     console.log(`- ${item.ref}: ${item.preview}`);
+  }
+  const verification = Array.isArray(result.recommendedVerification) ? result.recommendedVerification.slice(0, 2) : [];
+  if (verification.length > 0) {
+    console.log(`verify: ${verification.join(" ; ")}`);
   }
 }
 

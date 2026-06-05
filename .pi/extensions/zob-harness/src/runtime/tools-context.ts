@@ -30,16 +30,19 @@ export function registerContextTools(pi: ExtensionAPI): void {
     name: "zob_context_search",
     label: "ZOB Context Search",
     description: "Search bounded repo-local context through the active context backend. Prefers ColGREP when installed and ready, falls back to safe grep/find-style search, never auto-installs ColGREP, and excludes forbidden/session/vendor/build paths.",
-    promptSnippet: "Use zob_context_search for bounded repo-local discovery before broad grep/read; verify exact proof with grep/read on returned refs.",
+    promptSnippet: "For exploratory/natural-language repo discovery, call zob_context_search before broad grep/find; if this tool is not exposed but bash is available, use compact npm run --silent zob:context:query before rg/grep; verify exact proof with grep/read on returned refs.",
     promptGuidelines: [
-      "Call zob_context_search for codebase/context discovery when semantic or broad search is useful.",
+      "Call zob_context_search first for exploratory/natural-language codebase discovery when semantic or broad search is useful.",
       "zob_context_search prefers ColGREP when ready and falls back to bounded grep when ColGREP is missing, not ready, or a query fails.",
+      "If zob_context_search is not available in the current toolset, use the compact local wrapper: npm run --silent zob:context:query -- --query \"<query>\" --max-results 6 --max-context-lines 1 before broad rg/grep.",
       "Never install ColGREP from this tool path; missing ColGREP is not a blocker.",
+      "Run one exploratory context search, then read returned refs; retry only when results are empty or clearly irrelevant.",
+      "Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.",
       "Use returned refs as leads and verify final claims with exact read/grep evidence.",
     ],
     parameters: ContextSearchParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = runContextSearch(ctx.cwd, params);
+      const result = await runContextSearch(ctx.cwd, params);
       return { content: [{ type: "text", text: formatContextSearchResult(result) }], details: result };
     },
   });

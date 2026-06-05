@@ -332,7 +332,7 @@ This release adds the handoff runtime/docs and `npm run smoke:goal-todo-handoff`
 
 ### Use active context discovery
 
-ZOB can adapt context search to the active backend. Use `zob_context_search` inside Pi when available: it prefers ColGREP for broad/semantic repo discovery when ColGREP is installed and indexed, and falls back to grep/find/read when it is missing or unavailable. Treat broad search hits as leads and verify exact claims with file refs before editing or reporting readiness.
+ZOB can adapt context search to the active backend. Use `zob_context_search` inside Pi when available: it prefers ColGREP for broad/semantic repo discovery when ColGREP is installed and indexed, runs native search asynchronously from the extension handler, and falls back to grep/find/read when it is missing or unavailable. Treat broad search hits as leads and verify exact claims with file refs before editing or reporting readiness.
 
 ColGREP setup is optional and owner-driven; ZOB must not auto-install it or run installer/package-manager commands. Local helpers:
 
@@ -343,7 +343,7 @@ npm run zob:context:query -- "goal todo routing"  # one-shot query with grep fal
 npm run smoke:context-discovery   # deterministic fallback smoke; passes without ColGREP
 ```
 
-Forbidden/secret/session/vendor/build paths remain excluded from discovery. Active-backend prompt injection is bounded and configurable through `.pi/context-discovery.json` (`promptInjection.enabled`); it should never inject stale/global context or raw search results. Oracle/no-ship review for this feature checks context freshness, citation coverage, exact grep/read verification, forbidden-source violations, and no unapproved installer/network behavior.
+Forbidden/secret/session/vendor/build paths remain excluded from discovery. Active-backend prompt injection is bounded and configurable through `.pi/context-discovery.json` (`promptInjection.enabled`); it should never inject stale/global context or raw search results. When ColGREP is ready, exploratory/natural-language repo discovery should start with `zob_context_search`/ColGREP before broad grep/find; if the native tool is not exposed but `bash` is available, use the compact wrapper `npm run --silent zob:context:query -- --query "<query>" --max-results 6 --max-context-lines 1` before `rg`/`grep`. Then use grep/read for exact proof and citations. Broad grep/find over `.pi` must explicitly prune `.pi/sessions` and `.pi/agent-sessions`. Oracle/no-ship review for this feature checks context freshness, citation coverage, exact grep/read verification, forbidden-source violations, and no unapproved installer/network behavior.
 
 See [`reports/context-discovery/design.md`](reports/context-discovery/design.md), [`.pi/skills/zob-context-discovery/SKILL.md`](.pi/skills/zob-context-discovery/SKILL.md), and [scripts/README.md](scripts/README.md) for the operating rules and script map.
 

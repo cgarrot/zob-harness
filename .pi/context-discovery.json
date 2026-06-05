@@ -25,8 +25,8 @@
     "build"
   ],
   "limits": {
-    "maxResults": 20,
-    "maxContextLines": 2,
+    "maxResults": 6,
+    "maxContextLines": 1,
     "maxFileBytes": 1048576
   },
   "promptInjection": {

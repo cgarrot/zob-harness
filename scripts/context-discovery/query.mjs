@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { detectColgrep, fallbackSearch, loadConfig, parseArgs, printHumanSearch, printJson } from "./shared.mjs";
+import { detectColgrep, fallbackSearch, loadConfig, normalizeColgrepResults, parseArgs, printHumanSearch, printJson } from "./shared.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const query = args.query ?? args.q ?? args._.join(" ");
@@ -32,15 +32,9 @@ if (colgrep.ready) {
   });
 
   if (colgrepResult.status === 0) {
-    result = {
-      provider: "colgrep",
-      fallback: false,
-      query,
-      resultCount: undefined,
-      raw: colgrepResult.stdout.trim(),
-      stderr: colgrepResult.stderr.trim(),
-      recommendedVerification: ["Use grep/read on returned repo-relative refs for exact proof."],
-    };
+    result = normalizeColgrepResults(colgrepResult.stdout, { query, config, maxResults, maxContextLines });
+    result.stderr = colgrepResult.stderr.trim().slice(0, 240);
+    result.colgrepArgs = colgrepArgs;
   } else {
     result = runFallback("colgrep-query-failed");
     result.colgrepQueryStatus = colgrepResult.status;
@@ -53,9 +47,6 @@ if (colgrep.ready) {
 
 if (args.json) {
   printJson(result);
-} else if (result.provider === "colgrep") {
-  console.log("provider: colgrep");
-  console.log(result.raw);
 } else {
   printHumanSearch(result);
 }

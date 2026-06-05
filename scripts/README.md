@@ -8,7 +8,7 @@ These script families are intended to be part of the normal tracked repo workflo
 
 - `scripts/autonomy/` — static/read-only autonomy readiness smokes.
 - `scripts/compute-profile/` — compute profile policy and regression checks.
-- `scripts/context-discovery/` — adaptive active search backend helpers: `npm run zob:context:doctor`, `npm run zob:context:init`, `npm run zob:context:query`, and `npm run smoke:context-discovery`; prefers ColGREP when installed/ready and validates grep fallback when it is absent.
+- `scripts/context-discovery/` — adaptive active search backend helpers: `npm run zob:context:doctor`, `npm run zob:context:init`, `npm run zob:context:query`, and `npm run smoke:context-discovery`; starts exploratory/natural-language discovery with ColGREP when installed/ready, gives sessions without native `zob_context_search` a compact wrapper command before `rg`/`grep`, validates grep fallback when absent, and keeps broad grep/find away from `.pi/sessions` / `.pi/agent-sessions`.
 - `scripts/git-ops/` — governed `/zcommit` policy smokes.
 - `scripts/goal-todo/` — Goal/TODO tree compatibility smokes, including `scripts/goal-todo/handoff-static-smoke.mjs` coverage for the Goal TODO ZPeer/ZTeam handoff script (`npm run smoke:goal-todo-handoff`).
 - `scripts/harness-intake/` — natural-language harness setup/session analyzer that produces quarantined ZOB team/factory proposals plus tmux launch support.
