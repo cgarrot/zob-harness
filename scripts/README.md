@@ -16,6 +16,7 @@ These script families are intended to be part of the normal tracked repo workflo
 - `scripts/package-surface/` — package.json script/file surface validation.
 - `scripts/path-policy/` — path safety smoke checks.
 - `scripts/project-dna/` — ProjectDNA scaffold/scan/query smoke helpers; canonical helpers are grouped in subfolders with top-level compatibility CLI shims.
+- `scripts/release/` — local release-impact preview helpers for Conventional Commit driven CI releases; these never create tags or publish.
 - `scripts/worker-pool/` — worker-pool metadata/static checks.
 - `scripts/start-pi.sh` — local Pi startup helper.
 
@@ -57,6 +58,8 @@ npm run smoke:harness
 ```
 
 Run `npm run validate:script-surface` after changing `package.json` scripts, adding/removing script helper files, or changing `package.json.files`. It verifies package script file references exist, are not ignored, are tracked or visible as pending adds in the current patch, and are included in the package file surface.
+
+Run `npm run release:preview` before an authorized `/zcommit push` when you want local visibility into whether the next `main` push should create a `vX.Y.Z` tag and publish to npm after CI passes.
 
 Run `npm run validate:capability-refs` after changing `.pi/capabilities/zob-public-runtime-capabilities.json`, skills, docs, or runtime capability references. It verifies registry doc/skill refs resolve to repo-local files.
 

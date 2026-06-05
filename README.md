@@ -328,7 +328,7 @@ Use `handoff_goal_todo`, `/goal todo handoff`, or `/todo handoff` to hand existi
 
 Durable records stay hash-only (`bodyStored=false` with TODO refs, receiver refs, message/task/result hashes, and artifact refs). Handoff delivery, ACKs, or chat replies are not completion evidence: the receiver returns a claim or split/blocker request, and the parent/oracle accepts or rejects it before any TODO becomes done.
 
-This release adds the handoff runtime/docs and `npm run smoke:goal-todo-handoff` validation. It does not auto-launch teams, auto-complete parent TODOs, or automate `npm publish`, versioning, tags, commits, or pushes.
+This release adds the handoff runtime/docs and `npm run smoke:goal-todo-handoff` validation. It does not auto-launch teams or auto-complete parent TODOs. Current npm release automation is handled separately by the CI/CD flow below; local agents still must not create tags, publish packages, commit, or push unless explicitly authorized through the governed workflow.
 
 ### Use ProjectDNA context
 
@@ -337,6 +337,46 @@ ProjectDNA turns approved local code scan artifacts into bounded, cited context 
 ### Use governed commits
 
 ZOB does not encourage invisible git operations. When a user explicitly asks for a commit, agents must use `/zcommit` or the governed `zob_zcommit_run` tool and follow [`.pi/git-policy.json`](.pi/git-policy.json). Autocommit and autopush are off by default.
+
+### Automated npm releases
+
+Release tagging and npm publishing are performed by GitHub Actions, not by local agents. The local harness should create Conventional Commit messages and may preview release impact, but it must not run `git tag` or `npm publish` directly.
+
+```text
+local change
+  ↓
+/zcommit commit with a Conventional Commit message
+  ↓
+npm run release:preview
+  ↓
+/zcommit push to main, when explicitly authorized
+  ↓
+GitHub Actions validation
+  ↓
+semantic-release decides:
+  ├── no fix/feat/breaking commits → no tag, no npm publish
+  └── release needed → create vX.Y.Z tag, create GitHub release, publish npm package
+```
+
+Decision rules follow Conventional Commits:
+
+- `fix:` and `perf:` create a patch release;
+- `feat:` creates a minor release;
+- `feat!:` or a `BREAKING CHANGE:` footer creates a major release;
+- `docs:`, `test:`, `chore:`, `ci:`, and similar non-release commits do not publish by default.
+
+Before an authorized push, run:
+
+```bash
+npm run release:preview
+```
+
+The preview reports the base tag/version, release type, next `vX.Y.Z` tag if any, and whether npm publish should happen after CI passes. The actual tag and npm publication still happen only in `.github/workflows/release.yml` after validation.
+
+To enable publishing, configure one of the npm authentication paths for the GitHub repository:
+
+- recommended simple setup: add an npm automation token as the `NPM_TOKEN` GitHub Actions secret;
+- stronger setup: configure npm Trusted Publishing for this package and keep the workflow `id-token: write` permission enabled.
 
 ### Optional intent classifier
 
@@ -482,19 +522,21 @@ npm run validate:project-dna
 npm run pack:dry-run
 ```
 
-For a public npm release, maintainers should additionally run:
+For a public npm release, maintainers should additionally run the local release preview and then let CI publish after an explicitly authorized push to `main`:
 
 ```bash
-npm whoami
-npm view zob-harness@0.3.1 version || true
-npm publish --dry-run
-npm publish
-npm view zob-harness@0.3.1 version
-pi install npm:zob-harness@0.3.1
-pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm run release:preview
 ```
 
-`npm publish` may require npm two-factor authentication in the browser or a one-time password. Do not paste OTPs, tokens, or secrets into issue reports or agent transcripts.
+After the GitHub Actions release job completes, verify the published version with the actual tag/version reported by semantic-release:
+
+```bash
+npm view zob-harness@<version> version
+pi install npm:zob-harness@<version>
+pi -e npm:zob-harness@<version> --offline --no-session -p "Reply exactly: zob-harness-ok"
+```
+
+Do not paste npm tokens, OTPs, or Trusted Publishing setup material into issue reports or agent transcripts. Local maintainers should not run `npm publish`; `.github/workflows/release.yml` performs the publish step after validation.
 
 Report exact command outcomes before claiming readiness.
 

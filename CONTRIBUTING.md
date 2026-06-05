@@ -37,7 +37,8 @@ npm run pi
 3. Implement only the bounded slice.
 4. Run validation.
 5. If a commit is authorized, load `.pi/skills/zob-commit/SKILL.md` and `.pi/git-policy.json`, run `/zcommit status` then `/zcommit plan`, and commit only owned files with a Conventional Commit message.
-6. Document evidence and remaining risks.
+6. Before an explicitly authorized push to `main`, run `npm run release:preview` to see whether CI should create a `vX.Y.Z` tag and publish to npm.
+7. Document evidence and remaining risks.
 
 Minimum validation before opening a PR:
 
@@ -54,3 +55,4 @@ For runtime, safety, delegation, factory, or output-contract changes, also run t
 - [ ] No secrets or credentials were read or committed.
 - [ ] Validation commands and results are included.
 - [ ] Any no-ship risk or incomplete evidence is called out clearly.
+- [ ] If the change will be pushed to `main`, `npm run release:preview` was checked and the expected tag/no-tag outcome is understood.

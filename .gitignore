@@ -10,8 +10,9 @@ package-lock.json
 docs/
 plans/
 
-# Kept local until the GitHub token has workflow scope.
-.github/workflows/
+# GitHub release workflow is tracked; other local workflow experiments stay ignored.
+.github/workflows/*
+!.github/workflows/release.yml
 
 # Generated runtime/report artifacts, including Agent Factory generated projects
 # such as reports/agent-factory-pacman-runs/<run_id>/project/: keep locally,
@@ -47,6 +48,8 @@ scripts/*.mjs
 !scripts/compute-profile/**
 !scripts/project-dna/
 !scripts/project-dna/**
+!scripts/release/
+!scripts/release/**
 
 # Private benchmark scaffold/artifacts are intentionally excluded from the OSS repo.
 .pi/factories/coding-agent-benchmark/

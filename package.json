@@ -12,6 +12,15 @@
     "url": "https://github.com/cgarrot/zob-harness/issues"
   },
   "homepage": "https://github.com/cgarrot/zob-harness#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "tagFormat": "v${version}"
+  },
   "keywords": [
     "pi-package",
     "agentic-engineering",
@@ -76,6 +85,7 @@
     "scripts/model-catalog",
     "scripts/package-surface",
     "scripts/path-policy",
+    "scripts/release",
     "scripts/project-dna",
     "scripts/worker-pool",
     "scripts/zpeer-static-smoke.mjs",
@@ -106,6 +116,8 @@
     "smoke:zagent": "node scripts/zagent-static-smoke.mjs",
     "validate:script-surface": "node scripts/package-surface/validate-script-refs.mjs",
     "pack:dry-run": "npm pack --dry-run --json",
+    "release:preview": "node scripts/release/preview.mjs",
+    "release:dry-run": "semantic-release --dry-run --no-ci",
     "validate:capability-refs": "node scripts/package-surface/validate-capability-refs.mjs",
     "validate:compute-profile-policy": "node scripts/compute-profile/validate-policy.mjs",
     "preview:compute-profile:project-dna-smoke": "node scripts/compute-profile/preview.mjs --domain project-dna --path .pi/factories/project-dna --requested auto --run-id project-dna-smoke --out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-preview.json --resolution-out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-profile-resolution.json",
@@ -171,6 +183,7 @@
     "@earendil-works/pi-coding-agent": "0.75.5",
     "@earendil-works/pi-tui": "0.75.5",
     "@types/node": "22.19.19",
+    "semantic-release": "^24.2.9",
     "typebox": "1.0.66",
     "typescript": "5.9.3"
   }
