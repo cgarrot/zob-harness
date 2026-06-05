@@ -322,6 +322,14 @@ Use `/contract` to create a bounded six-part handoff, then route to the appropri
 
 Use `/goal`, `/todo`, and `/goal_gate` when work needs a parent-owned TODO graph. Child agents return claims; the parent decides acceptance. This prevents children from marking parent work done without review.
 
+### Goal TODO ZPeer/ZTeam handoff (0.4.0)
+
+Use `handoff_goal_todo`, `/goal todo handoff`, or `/todo handoff` to hand existing Goal TODOs to a live ZPeer/ZTeam member. Handoffs can be single TODOs or bounded batches to one receiver, require a maintainer-provided custom message, and use transient live delivery plus canonical Goal Room metadata.
+
+Durable records stay hash-only (`bodyStored=false` with TODO refs, receiver refs, message/task/result hashes, and artifact refs). Handoff delivery, ACKs, or chat replies are not completion evidence: the receiver returns a claim or split/blocker request, and the parent/oracle accepts or rejects it before any TODO becomes done.
+
+This release adds the handoff runtime/docs and `npm run smoke:goal-todo-handoff` validation. It does not auto-launch teams, auto-complete parent TODOs, or automate `npm publish`, versioning, tags, commits, or pushes.
+
 ### Use ProjectDNA context
 
 ProjectDNA turns approved local code scan artifacts into bounded, cited context packs and sample/spec outputs. Keep scans approved, artifacts local, and writeback proposal-only unless the parent explicitly authorizes more.
@@ -329,6 +337,32 @@ ProjectDNA turns approved local code scan artifacts into bounded, cited context 
 ### Use governed commits
 
 ZOB does not encourage invisible git operations. When a user explicitly asks for a commit, agents must use `/zcommit` or the governed `zob_zcommit_run` tool and follow [`.pi/git-policy.json`](.pi/git-policy.json). Autocommit and autopush are off by default.
+
+### Optional intent classifier
+
+ZOB can optionally classify user intent with a small model before falling back to deterministic regex routing. The default config at [`.pi/routing/intent-classifier.json`](.pi/routing/intent-classifier.json) is disabled and local-only:
+
+```json
+{
+  "enabled": false,
+  "provider": "regex",
+  "model": "lfm2.5:8b",
+  "fallback": "regex",
+  "sendUserTextToProvider": false
+}
+```
+
+To experiment with Ollama Cloud, use the slash command after reloading the extension:
+
+```text
+/intent-classifier status
+/intent-classifier regex
+/intent-classifier model-strict --endpoint <ollama-cloud-chat-endpoint> --model lfm2.5:8b
+/intent-classifier model-fallback --endpoint <ollama-cloud-chat-endpoint> --model lfm2.5:8b
+/intent-classifier test launch multiple workers and an oracle
+```
+
+`model-strict` means no regex fallback: provider failures, invalid JSON, low confidence, or unknown intent return `unknown`. `model-fallback` tries the model first and then falls back to regex. Both model presets set `sendUserTextToProvider=true`; set `OLLAMA_API_KEY` in the environment and pass only `--api-key-env` if you use a non-default env var. The classifier suggests intent only; it never approves secrets, destructive commands, commits, deploys, session reads, or no-ship status.
 
 ## Command cheat sheet
 
@@ -341,6 +375,7 @@ Inside Pi:
 - `/goal`, `/todo`, `/todos`, `/goal_gate` — manage goal-linked TODO work and scope anchors.
 - `/compute` or `/effort` — preview/resolve compute profiles without bypassing safety gates.
 - `/project-dna` — query or operate bounded ProjectDNA context workflows.
+- `/intent-classifier` or `/intent` — configure/test regex, model-strict, or model-fallback intent routing.
 - `/zcompact` — configure proactive context compaction.
 - `/zcommit` — governed commit workflow; no direct git commit/push/tag shortcuts.
 - `/zpeer` — local peer/coms workflow commands where enabled.
@@ -354,6 +389,8 @@ npm run check -- --pretty false    # TypeScript validation baseline
 npm run check:ci                   # CI-style TypeScript check
 npm run validate:script-surface    # package script/file surface validation
 npm run smoke:harness              # path-policy + child-goal-ref smoke
+npm run smoke:goal-todo-handoff    # Goal TODO ZPeer/ZTeam handoff static smoke
+npm run smoke:intent-classifier    # optional model intent-classifier fallback smoke
 npm run smoke:git-ops              # governed commit policy smoke
 npm run smoke:worker-pool          # worker-pool static smoke
 npm run smoke:zpeer                # static + local ZPeer smoke

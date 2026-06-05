@@ -9,8 +9,9 @@ These script families are intended to be part of the normal tracked repo workflo
 - `scripts/autonomy/` — static/read-only autonomy readiness smokes.
 - `scripts/compute-profile/` — compute profile policy and regression checks.
 - `scripts/git-ops/` — governed `/zcommit` policy smokes.
-- `scripts/goal-todo/` — Goal/TODO tree compatibility smokes.
+- `scripts/goal-todo/` — Goal/TODO tree compatibility smokes, including `scripts/goal-todo/handoff-static-smoke.mjs` coverage for the Goal TODO ZPeer/ZTeam handoff script (`npm run smoke:goal-todo-handoff`).
 - `scripts/harness-intake/` — natural-language harness setup/session analyzer that produces quarantined ZOB team/factory proposals plus tmux launch support.
+- `scripts/intent-classifier/` — optional model intent-classifier fallback and privacy smoke tests.
 - `scripts/model-catalog/` — local model catalog/economy validators.
 - `scripts/package-surface/` — package.json script/file surface validation.
 - `scripts/path-policy/` — path safety smoke checks.
