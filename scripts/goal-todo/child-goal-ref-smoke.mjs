@@ -45,6 +45,8 @@ const modelAvailability = await import(pathToFileURL(join(outRoot, "domains", "m
 const toolsDelegationSource = readFileSync(join(srcRoot, "runtime", "tools-delegation.ts"), "utf8");
 assert(!toolsDelegationSource.includes("childGoalTodoErrors"), "delegation runtime must not reference stale childGoalTodoErrors symbol");
 assert(toolsDelegationSource.includes("...childGoalResolution.errors"), "delegation preflight must include structured childGoalResolution.errors");
+assert(toolsDelegationSource.includes("if (childGoal.todo_id && childGoal.todo_path && !resolution.node)"), "delegation preflight should attempt stale todo_id -> explicit todo_path fallback only after the id fails");
+assert(toolsDelegationSource.includes("resolution = pathResolution"), "delegation preflight should retarget to the safe resolved todo_path when it is unique and delegatable");
 assert(toolsDelegationSource.includes("subtodos/XDEF leaves"), "TODO-linked child prompts must recommend XDEF/subtodo split before parallel work");
 assert(toolsDelegationSource.includes("TODO_SPLIT_REQUEST.v1"), "TODO-linked child prompts must preserve split request guidance");
 

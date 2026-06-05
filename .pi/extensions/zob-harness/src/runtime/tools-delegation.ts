@@ -284,10 +284,14 @@ function appendChildGoalToTask(task: string, childGoal: ChildGoalInput | undefin
 
 function resolveChildGoalTodoRef(state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined): { childGoal: ChildGoalInput | undefined; errors: string[]; node?: GoalTodoNode } {
   if (!childGoal) return { childGoal, errors: [] };
-  const requestedRef = childGoal.todo_id ?? childGoal.todo_path;
-  if (!requestedRef) return { childGoal, errors: [] };
+  if (!childGoal.todo_id && !childGoal.todo_path) return { childGoal, errors: [] };
   const goalId = state.runtimeGoal?.goalId;
-  const resolution = resolveGoalTodoReference(state.goalTodos, goalId, requestedRef, childGoal.todo_id ? "child_goal.todo_id" : "child_goal.todo_path", { requireDelegatable: true });
+  const primaryRef = childGoal.todo_id ?? childGoal.todo_path;
+  let resolution = resolveGoalTodoReference(state.goalTodos, goalId, primaryRef, childGoal.todo_id ? "child_goal.todo_id" : "child_goal.todo_path", { requireDelegatable: true });
+  if (childGoal.todo_id && childGoal.todo_path && !resolution.node) {
+    const pathResolution = resolveGoalTodoReference(state.goalTodos, goalId, childGoal.todo_path, "child_goal.todo_path", { requireDelegatable: true });
+    if (pathResolution.node && pathResolution.errors.length === 0) resolution = pathResolution;
+  }
   const errors = [...resolution.errors];
   if (childGoal.delegation_depth !== undefined && childGoal.delegation_depth > state.goalTodos.policy.maxDelegationDepth) errors.push(`child_goal.delegation_depth exceeds maxDelegationDepth=${state.goalTodos.policy.maxDelegationDepth}`);
   if (!resolution.node || errors.length > 0) return { childGoal: { ...childGoal, todo_id: undefined }, errors };
