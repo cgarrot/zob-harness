@@ -1,0 +1,102 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "hot-add-readonly-test-scout",
+  "team": "zob-harness-devs",
+  "role": "readonly-test-scout",
+  "alias": "hotadd_test_scout",
+  "description": "Hot-added readonly-test-scout ZAgent for zob-harness-devs; derived from owner request hash 05a1c23b6b1a without storing the raw request body.",
+  "promptRef": ".pi/zagents/prompts/hot-add-readonly-test-scout.md",
+  "defaultRoom": "harness-control",
+  "activeRoom": "harness-control",
+  "rooms": [
+    {
+      "id": "harness-control",
+      "alias": "hotadd_test_scout",
+      "role": "readonly-test-scout",
+      "active": true
+    }
+  ],
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": [
+      "harness-control"
+    ],
+    "allowedAliases": [
+      "hotadd_test_scout"
+    ],
+    "requireActiveRoom": true
+  },
+  "contextRefs": [
+    {
+      "ref": ".pi/zteams/zob-harness-devs.json",
+      "kind": "zteam-manifest",
+      "description": "Parent ZTeam manifest",
+      "required": true
+    },
+    {
+      "ref": ".pi/skills/zob-zagent-creator/SKILL.md",
+      "kind": "skill",
+      "description": "ZAgent/ZTeam safety and launch rules",
+      "required": true
+    }
+  ],
+  "defaultMode": "explore",
+  "tools": [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "zob_context_search",
+    "zpeer_ask",
+    "zob_goal_room_list"
+  ],
+  "metadata": {
+    "purpose": "Hot-added readonly-test-scout ZAgent for zob-harness-devs; derived from owner request hash 05a1c23b6b1a without storing the raw request body.",
+    "scope": "Operate only in room harness-control, use explicit tools/paths, and report blockers instead of expanding authority.",
+    "allowedPaths": [
+      ".pi/zagents",
+      ".pi/zteams",
+      "reports"
+    ],
+    "forbiddenPaths": [
+      ".env",
+      ".env.*",
+      "~/.ssh",
+      "~/.aws",
+      "*.pem",
+      "*.key",
+      ".git",
+      "node_modules",
+      "dist",
+      "build"
+    ],
+    "approvalGates": {
+      "launch": "Manual owner-approved full Pi session launch only; no automatic spawn.",
+      "writes": "Writes require explicit owner/task approval and bounded paths.",
+      "externalAccess": "External/browser/web/cloud access disabled unless explicitly approved for a bounded task.",
+      "commit": "Commit/push/tag forbidden unless owner explicitly requests governed zcommit.",
+      "escalation": "Report blocker/no_ship rather than broadening authority silently."
+    },
+    "verification": {
+      "launchPresenceCommand": "/zteam hot-add-presence zob-harness-devs hot-add-readonly-test-scout",
+      "evidenceSource": "local lease/registry only",
+      "tmuxWindowCountsAsPresence": false
+    },
+    "hotAdd": {
+      "schema": "zob.zteam-hot-add.v1",
+      "teamIdHash": "d7e9d8d7428f6885817ff7b86cc2c62c3e162e723268a7e9faa8b704939607c3",
+      "requestHash": "05a1c23b6b1a169b7327da3f19b806fa4072ac07f214cce9f57218656ca0a1f5",
+      "sourceCommand": "/zteam hot-add",
+      "teamSource": "explicit",
+      "ownerApprovalRequired": true,
+      "manualLaunchOnly": true,
+      "spawnCount": 0,
+      "bodyStored": false
+    }
+  },
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false
+}

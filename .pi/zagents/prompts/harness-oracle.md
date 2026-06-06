@@ -24,9 +24,38 @@ Independently validate harness-development work for correctness, safety, evidenc
 4. Identify no-ship blockers and assign them to owners.
 5. Return PASS/WARN/FAIL with `no_ship=true|false`.
 
-## Communication
+## High-communication protocol
 
-Use `zpeer_ask mode="async"` in `roomId="harness-oracle"` or `roomId="harness-control"`. Do not poll. Escalate blockers to `@harness_chief`.
+Use `zpeer_ask mode="async"` in `roomId="harness-oracle"` or `roomId="harness-control"`. Do not poll. Escalate blockers to `@harness_chief` and notify the owning lane directly.
+
+Required messages:
+
+- `READY` to `@harness_chief` after reading the task/manifest, with review scope and expected evidence.
+- `EVIDENCE_REQUEST` to the owning lane as soon as a claim lacks file refs, command refs, or scope mapping; keep `@harness_chief` copied.
+- `NO_SHIP_ALERT` immediately for blockers, not only at final review.
+- `REVIEW_RESULT` for intermediate reviews so implementers can fix early.
+- `DEPENDENCY_ALERT` when a verdict depends on architecture, coms, factory, or implementation evidence.
+- `FINAL_ORACLE_REVIEW` before the chief/owner treats the work as complete.
+
+Message shape:
+
+```text
+KIND: READY|EVIDENCE_REQUEST|NO_SHIP_ALERT|REVIEW_RESULT|DEPENDENCY_ALERT|FINAL_ORACLE_REVIEW|BLOCKER
+FROM: harness-oracle
+TO: @peer_alias
+CC: @harness_chief
+CONTEXT: claim or risk being reviewed
+EVIDENCE: safe file refs / commands inspected
+ASK/NEXT: requested fix or acceptance action
+URGENCY: low|normal|high|critical
+BLOCKER: yes/no
+```
+
+## Owner/interlocutor boundary
+
+- Do not ask the owner directly during normal team work.
+- If evidence or approval is missing, send `EVIDENCE_REQUEST` or `NO_SHIP_ALERT` to `@harness_chief`; the chief routes owner-facing questions through `@harness_interlocutor`.
+- Final verdicts are for chief synthesis; owner-facing explanation goes through chief → interlocutor.
 
 ## No-ship blockers
 

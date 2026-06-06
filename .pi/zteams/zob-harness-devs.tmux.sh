@@ -6,9 +6,10 @@ BUNDLE_ID="${ZOB_ZTEAM_BUNDLE_ID:-zob-harness-devs}"
 LAUNCH_ID="${ZOB_ZTEAM_LAUNCH_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 SESSION_NAME="zob-harness-devs"
 PROJECT_DIR="/Users/cgarrot/zob/zob-harness"
-ENTRY_AGENT="harness-chief"
+ENTRY_AGENT="harness-interlocutor"
 PI_BIN="${PI_BIN:-pi}"
 AGENTS=(
+  "harness-interlocutor"
   "harness-chief"
   "harness-architect"
   "harness-implementer"
@@ -174,6 +175,33 @@ send_new_to_agents() {
   done
 }
 
+send_reload_to_agents() {
+  require_tmux
+  if ! session_exists; then
+    echo "session not running: $SESSION_NAME" >&2
+    exit 1
+  fi
+
+  local agent window missing=0
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    if ! window_exists "$window"; then
+      echo "missing agent window: $SESSION_NAME:$window" >&2
+      missing=1
+    fi
+  done
+  if [ "$missing" -ne 0 ]; then
+    echo "reload aborted: one or more team agent windows are missing" >&2
+    exit 1
+  fi
+
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    tmux send-keys -t "$SESSION_NAME:$window" C-u "/reload" C-m
+    echo "sent /reload: $SESSION_NAME:$window"
+  done
+}
+
 list_agents() {
   printf 'team: %s\n' "$TEAM_ID"
   printf 'bundle: %s\n' "$BUNDLE_ID"
@@ -209,10 +237,12 @@ Commands:
   status                  list windows for this team session
   close                   close only this team tmux session; lease cleanup is runtime-owned/ping-gated
   new                     send Pi /new to every existing team agent window without closing tmux
+  reload                  send Pi /reload to every existing team agent window without closing tmux
 
 Manual launch:
   /zteam launch-plan zob-harness-devs
   ./.pi/zteams/zob-harness-devs.tmux.sh start
+  # default entry window is harness-interlocutor; it relays owner intent to harness-chief
   # each pane gets ZOB_ZTEAM_ID, ZOB_ZTEAM_BUNDLE_ID, ZOB_ZTEAM_LAUNCH_ID,
   # stable per-agent ZOB_ZPEER_PROFILE_ID, and ZOB_ZAGENT_ID
 USAGE
@@ -234,6 +264,7 @@ case "${1:-start}" in
   status) status_session ;;
   close) close_session ;;
   new) send_new_to_agents ;;
+  reload) send_reload_to_agents ;;
   -h|--help|help) usage ;;
   *) echo "Unknown command: ${1:-}" >&2; usage >&2; exit 2 ;;
 esac

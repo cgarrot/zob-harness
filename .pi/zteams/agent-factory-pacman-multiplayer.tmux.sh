@@ -230,6 +230,31 @@ send_new_to_agents() {
   done
 }
 
+send_reload_to_agents() {
+  require_tmux
+  if ! session_exists; then
+    echo "session not running: $SESSION_NAME" >&2
+    exit 1
+  fi
+  local agent window missing=0
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    if ! window_exists "$window"; then
+      echo "missing agent window: $SESSION_NAME:$window" >&2
+      missing=1
+    fi
+  done
+  if [ "$missing" -ne 0 ]; then
+    echo "reload aborted: one or more team agent windows are missing" >&2
+    exit 1
+  fi
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    tmux send-keys -t "$SESSION_NAME:$window" C-u "/reload" C-m
+    echo "sent /reload: $SESSION_NAME:$window"
+  done
+}
+
 close_session() {
   require_tmux
   if session_exists; then
@@ -255,6 +280,7 @@ Commands:
   ensure <agent>         add/start one known agent window in the existing session
   close                  close only this demo tmux session
   new                    send Pi /new to every existing team agent window without closing tmux
+  reload                 send Pi /reload to every existing team agent window without closing tmux
   help                   show this message
 
 Full auto may launch multiple Pi sessions and consume model/API budget.
@@ -278,6 +304,7 @@ case "${1:-help}" in
     ;;
   close) close_session ;;
   new) send_new_to_agents ;;
+  reload) send_reload_to_agents ;;
   help|-h|--help) usage ;;
   *) usage; exit 2 ;;
 esac

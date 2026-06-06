@@ -3,10 +3,19 @@
   "teamId": "zob-harness-devs",
   "defaults": {
     "byAgent": {
+      "harness-interlocutor": "owner-interlocutor",
       "harness-chief": "chief-coordinator"
     }
   },
   "modes": [
+    {
+      "id": "owner-interlocutor",
+      "baseMode": "orchestrator",
+      "metadata": {
+        "purpose": "Owner-facing intake and relay posture; translates owner requests to harness-chief and returns chief/team synthesis to the owner.",
+        "authorityNote": "No explicit tool policy is set here; it does not broaden tools, rooms, paths, network, or body storage. The ZAgent manifest still limits this role to intake/relay behavior."
+      }
+    },
     {
       "id": "chief-coordinator",
       "baseMode": "orchestrator",
@@ -102,7 +111,7 @@
       "launchIsManual": true,
       "spawnCountFromLaunchPlan": 0
     },
-    "defaultsPolicy": "defaults.byAgent.harness-chief auto-activates chief-coordinator; this default is narrowing-only against canonical orchestrator and keeps the chief in coordination/coms/TODO/read-only posture.",
+    "defaultsPolicy": "defaults.byAgent.harness-interlocutor auto-activates owner-interlocutor as the human entry posture; defaults.byAgent.harness-chief auto-activates chief-coordinator for internal coordination. Both defaults are narrowing-only against canonical orchestrator.",
     "safetyPosture": "localOnly, network disabled, body-free metadata; chief-coordinator defines an explicit allowedTools subset of orchestrator and excludes write/shell/delegation-dispatch/orchestration/commit/workspace/merge/worker-pool/factory/ProjectDNA proposal authority."
   },
   "localOnly": true,

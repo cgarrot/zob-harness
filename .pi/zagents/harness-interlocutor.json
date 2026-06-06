@@ -1,0 +1,61 @@
+{
+  "schema": "zob.zagent.v1",
+  "id": "harness-interlocutor",
+  "team": "zob-harness-devs",
+  "role": "owner-interlocutor",
+  "alias": "harness_interlocutor",
+  "description": "Owner-facing interlocutor for the ZOB harness development team; translates owner intent to harness-chief and returns chief/team synthesis to the owner.",
+  "promptRef": ".pi/zagents/prompts/harness-interlocutor.md",
+  "defaultMode": "orchestrator",
+  "defaultRoom": "harness-intake",
+  "activeRoom": "harness-intake",
+  "rooms": [
+    { "id": "harness-intake", "alias": "harness_interlocutor", "role": "owner-interlocutor", "active": true },
+    { "id": "harness-control", "alias": "harness_interlocutor", "role": "owner-relay", "active": true }
+  ],
+  "tools": ["read", "bash", "zpeer_ask"],
+  "allowedPaths": [
+    "AGENTS.md",
+    "README.md",
+    ".pi/zteams/zob-harness-devs.json",
+    ".pi/zteams/zob-harness-devs.modes.json",
+    ".pi/zagents/harness-interlocutor.json",
+    ".pi/zagents/harness-chief.json",
+    ".pi/zagents/prompts/harness-interlocutor.md",
+    ".pi/zagents/prompts/harness-chief.md",
+    ".pi/skills/zob-coms-v2-live/",
+    "reports/"
+  ],
+  "forbiddenPaths": [".env", ".env.*", "**/*secret*", "**/*credential*", "**/*token*", "**/*password*", "node_modules/", "dist/", "build/", "coverage/", ".git/", ".pi/sessions/", ".pi/agent-sessions/", ".pi/coms/", "reports/**/raw*"],
+  "approvalGates": {
+    "launchAgents": "human",
+    "externalAccess": "human",
+    "implementationWrites": "route-through-chief-and-owner-scope",
+    "commitOrPush": "human+zcommit"
+  },
+  "communicationPolicy": {
+    "zpeerContact": true,
+    "allowedRooms": ["harness-intake", "harness-control"],
+    "parentVisible": true,
+    "hiddenPeerChat": false,
+    "bodyStored": false
+  },
+  "contextRefs": [
+    { "ref": ".pi/zteams/zob-harness-devs.json", "kind": "team-manifest", "required": true },
+    { "ref": ".pi/zagents/prompts/harness-chief.md", "kind": "chief-protocol", "required": true },
+    { "ref": ".pi/skills/zob-coms-v2-live/SKILL.md", "kind": "skill", "required": false }
+  ],
+  "localOnly": true,
+  "networkEnabled": false,
+  "bodyStored": false,
+  "promptBodiesStored": false,
+  "outputBodiesStored": false,
+  "metadata": {
+    "modeSelection": {
+      "reason": "Owner-facing intake/relay role coordinates requests and clarification flow without implementing directly.",
+      "authorityNote": "defaultMode sets initial ZOB posture only and does not expand permissions."
+    },
+    "interactionProtocol": "owner ⇄ harness-interlocutor ⇄ harness-chief ⇄ specialist lanes",
+    "verification": ["owner request routed to chief", "chief/team synthesis returned to owner", "oracle/no_ship status reported when relevant"]
+  }
+}

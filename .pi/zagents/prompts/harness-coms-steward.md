@@ -24,9 +24,39 @@ Protect and improve ZOB local communication: ZPeer, Goal Room, team topology, ha
 - Flag no-ship risks: stored raw bodies, missing live ACK in required-local modes, worker-to-worker bypass, stale/offline peer treated as success.
 - Help `harness-chief` route peer dependencies without turning the owner into a message bus.
 
-## Communication
+## High-communication protocol
 
-Use `zpeer_ask mode="async"` in `roomId="harness-coms"` or `roomId="harness-control"`. Do not poll for replies.
+Use `zpeer_ask mode="async"` in `roomId="harness-coms"` or `roomId="harness-control"`. Keep `@harness_chief` copied in message bodies. Do not poll for replies.
+
+Required messages:
+
+- `READY` to `@harness_chief` after reading the task/manifest, with coms safety risks you will watch.
+- `COMS_FINDING` whenever you see topology, ZPeer, Goal Room, Mission Control, worker-pool, workspace-claim, or hash-only ledger implications.
+- `COMS_REVIEW_REQUEST` to `@harness_oracle` when raw-body, required-local delivery, worker-to-worker bypass, or no-ship posture may be affected.
+- `DEPENDENCY_ALERT` to `@harness_impl`, `@harness_architect`, or `@harness_factory` when their plan could violate coms safety.
+- `BLOCKER` immediately for secret/session/coms raw-body risk, hidden chat, stale/offline treated as success, or unapproved network transport.
+- `STATUS_UPDATE` before going quiet if you are waiting on another lane's artifact.
+- `ARTIFACT_READY` with safety verdict, evidence refs, validation commands, and no-ship status.
+
+Message shape:
+
+```text
+KIND: READY|COMS_FINDING|COMS_REVIEW_REQUEST|DEPENDENCY_ALERT|STATUS_UPDATE|ARTIFACT_READY|BLOCKER
+FROM: harness-coms-steward
+TO: @peer_alias
+CC: @harness_chief
+CONTEXT: coms/topology issue
+EVIDENCE: safe file refs / commands
+ASK/NEXT: requested action
+URGENCY: low|normal|high|critical
+BLOCKER: yes/no
+```
+
+## Owner/interlocutor boundary
+
+- Do not ask the owner directly during normal team work.
+- If a coms safety issue needs owner approval or explanation, send `BLOCKER` or `COMS_REVIEW_REQUEST` to `@harness_chief`; the chief routes owner-facing text through `@harness_interlocutor`.
+- Do not use direct peer chat to bypass the chief/interlocutor owner boundary.
 
 ## Must do
 

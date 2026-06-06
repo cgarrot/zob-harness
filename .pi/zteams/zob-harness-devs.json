@@ -1,72 +1,221 @@
 {
   "schema": "zob.zteam.v1",
   "id": "zob-harness-devs",
-  "description": "Full Pi-session ZTeam for developing the ZOB harness with explicit orchestration, proactive local communication, implementation lanes, factory work, and oracle review.",
+  "description": "Full Pi-session ZTeam for developing the ZOB harness with a dedicated owner interlocutor, internal chief orchestration, proactive local communication, implementation lanes, factory work, and oracle review.",
   "defaultRoom": "harness-control",
   "activeRoom": "harness-control",
   "rooms": [
-    { "id": "harness-control", "role": "coordination-owner-facing", "active": true },
-    { "id": "harness-architecture", "role": "architecture-and-boundaries", "active": true },
-    { "id": "harness-implementation", "role": "bounded-code-and-artifact-changes", "active": true },
-    { "id": "harness-coms", "role": "zpeer-goal-room-topology-safety", "active": true },
-    { "id": "harness-factory", "role": "repeatable-factory-and-script-workflows", "active": true },
-    { "id": "harness-oracle", "role": "validation-no-ship-review", "active": true }
+    {
+      "id": "harness-intake",
+      "role": "owner-interlocutor-and-request-translation",
+      "active": true
+    },
+    {
+      "id": "harness-control",
+      "role": "chief-coordination-and-team-routing",
+      "active": true
+    },
+    {
+      "id": "harness-architecture",
+      "role": "architecture-and-boundaries",
+      "active": true
+    },
+    {
+      "id": "harness-implementation",
+      "role": "bounded-code-and-artifact-changes",
+      "active": true
+    },
+    {
+      "id": "harness-coms",
+      "role": "zpeer-goal-room-topology-safety",
+      "active": true
+    },
+    {
+      "id": "harness-factory",
+      "role": "repeatable-factory-and-script-workflows",
+      "active": true
+    },
+    {
+      "id": "harness-oracle",
+      "role": "validation-no-ship-review",
+      "active": true
+    }
   ],
   "agents": [
+    {
+      "id": "harness-interlocutor",
+      "alias": "harness_interlocutor",
+      "rooms": [
+        {
+          "id": "harness-intake",
+          "alias": "harness_interlocutor",
+          "role": "owner-interlocutor",
+          "active": true
+        },
+        {
+          "id": "harness-control",
+          "alias": "harness_interlocutor",
+          "role": "owner-relay",
+          "active": true
+        }
+      ]
+    },
     {
       "id": "harness-chief",
       "alias": "harness_chief",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_chief", "role": "lead", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_chief",
+          "role": "lead",
+          "active": true
+        }
       ]
     },
     {
       "id": "harness-architect",
       "alias": "harness_architect",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_architect", "role": "member", "active": true },
-        { "id": "harness-architecture", "alias": "harness_architect", "role": "architect", "active": true },
-        { "id": "harness-implementation", "alias": "harness_architect", "role": "structure-reviewer", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_architect",
+          "role": "member",
+          "active": true
+        },
+        {
+          "id": "harness-architecture",
+          "alias": "harness_architect",
+          "role": "architect",
+          "active": true
+        },
+        {
+          "id": "harness-implementation",
+          "alias": "harness_architect",
+          "role": "structure-reviewer",
+          "active": true
+        }
       ]
     },
     {
       "id": "harness-implementer",
       "alias": "harness_impl",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_impl", "role": "member", "active": true },
-        { "id": "harness-implementation", "alias": "harness_impl", "role": "implementer", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_impl",
+          "role": "member",
+          "active": true
+        },
+        {
+          "id": "harness-implementation",
+          "alias": "harness_impl",
+          "role": "implementer",
+          "active": true
+        }
       ]
     },
     {
       "id": "harness-coms-steward",
       "alias": "harness_coms",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_coms", "role": "member", "active": true },
-        { "id": "harness-coms", "alias": "harness_coms", "role": "coms-steward", "active": true },
-        { "id": "harness-oracle", "alias": "harness_coms", "role": "coms-reviewer", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_coms",
+          "role": "member",
+          "active": true
+        },
+        {
+          "id": "harness-coms",
+          "alias": "harness_coms",
+          "role": "coms-steward",
+          "active": true
+        },
+        {
+          "id": "harness-oracle",
+          "alias": "harness_coms",
+          "role": "coms-reviewer",
+          "active": true
+        }
       ]
     },
     {
       "id": "harness-factory-engineer",
       "alias": "harness_factory",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_factory", "role": "member", "active": true },
-        { "id": "harness-factory", "alias": "harness_factory", "role": "factory-engineer", "active": true },
-        { "id": "harness-implementation", "alias": "harness_factory", "role": "workflow-builder", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_factory",
+          "role": "member",
+          "active": true
+        },
+        {
+          "id": "harness-factory",
+          "alias": "harness_factory",
+          "role": "factory-engineer",
+          "active": true
+        },
+        {
+          "id": "harness-implementation",
+          "alias": "harness_factory",
+          "role": "workflow-builder",
+          "active": true
+        }
       ]
     },
     {
       "id": "harness-oracle",
       "alias": "harness_oracle",
       "rooms": [
-        { "id": "harness-control", "alias": "harness_oracle", "role": "oracle", "active": true },
-        { "id": "harness-oracle", "alias": "harness_oracle", "role": "oracle", "active": true }
+        {
+          "id": "harness-control",
+          "alias": "harness_oracle",
+          "role": "oracle",
+          "active": true
+        },
+        {
+          "id": "harness-oracle",
+          "alias": "harness_oracle",
+          "role": "oracle",
+          "active": true
+        }
       ]
+    },
+    {
+      "id": "hot-add-readonly-test-scout",
+      "alias": "hotadd_test_scout",
+      "rooms": [
+        {
+          "id": "harness-control",
+          "alias": "hotadd_test_scout",
+          "role": "readonly-test-scout",
+          "active": true
+        }
+      ],
+      "role": "readonly-test-scout",
+      "active": true,
+      "communicationPolicy": {
+        "zpeerContact": true,
+        "allowedRooms": [
+          "harness-control"
+        ],
+        "allowedAliases": [
+          "hotadd_test_scout"
+        ],
+        "requireActiveRoom": true
+      }
     }
   ],
   "communicationPolicy": {
     "zpeerContact": true,
-    "allowedRooms": ["harness-control", "harness-architecture", "harness-implementation", "harness-coms", "harness-factory", "harness-oracle"],
+    "allowedRooms": [
+      "harness-intake",
+      "harness-control",
+      "harness-architecture",
+      "harness-implementation",
+      "harness-coms",
+      "harness-factory",
+      "harness-oracle"
+    ],
     "parentVisible": true,
     "hiddenPeerChat": false,
     "workerToWorkerDirect": false,
@@ -80,8 +229,11 @@
   "outputBodiesStored": false,
   "metadata": {
     "ownerLaunchRequired": true,
-    "entryAgent": "harness-chief",
-    "entryRoom": "harness-control",
+    "entryAgent": "harness-interlocutor",
+    "entryRoom": "harness-intake",
+    "ownerInterlocutor": "harness-interlocutor",
+    "internalChief": "harness-chief",
+    "ownerFlow": "owner ⇄ harness-interlocutor ⇄ harness-chief ⇄ specialist lanes",
     "manualReviewCommand": "/zteam launch-plan zob-harness-devs",
     "modePackRef": "zob-harness-devs.modes.json",
     "tmuxLauncher": ".pi/zteams/zob-harness-devs.tmux.sh",
@@ -91,7 +243,7 @@
       "/Users/cgarrot/zob/project-dna-lab/.pi/zteams/project-dna-builders.tmux.sh",
       "/Users/cgarrot/zob/project-dna-lab/docs/TEAM_COMMUNICATION_PROTOCOL.md"
     ],
-    "launchNote": "This manifest is activation-ready but not proof of launch. Review with /zteam launch-plan, then manually run the tmux launcher if desired.",
+    "launchNote": "This manifest is activation-ready but not proof of launch. Review with /zteam launch-plan, then manually run the tmux launcher if desired. Owner-facing work should start in harness-interlocutor, which relays to harness-chief.",
     "completionGate": "Harness work is complete only after concrete evidence, validation commands, and harness-oracle PASS/no_ship=false."
   }
 }

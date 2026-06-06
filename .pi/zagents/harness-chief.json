@@ -4,7 +4,7 @@
   "team": "zob-harness-devs",
   "role": "orchestrator",
   "alias": "harness_chief",
-  "description": "Owner-facing lead for the ZOB harness development team; coordinates lanes, gates, evidence, and oracle review.",
+  "description": "Internal chief for the ZOB harness development team; receives owner intent from harness-interlocutor, coordinates lanes/gates/evidence/oracle review, and returns synthesis to the interlocutor.",
   "promptRef": ".pi/zagents/prompts/harness-chief.md",
   "defaultMode": "orchestrator",
   "defaultRoom": "harness-control",
@@ -65,7 +65,7 @@
   "outputBodiesStored": false,
   "metadata": {
     "modeSelection": {
-      "reason": "Chief coordinates TODOs, lanes, owner decisions, and evidence-gated completion.",
+      "reason": "Chief coordinates TODOs, lanes, owner decisions relayed by harness-interlocutor, and evidence-gated completion.",
       "authorityNote": "defaultMode sets initial ZOB posture only and does not expand permissions."
     },
     "verification": ["evidence refs for every claim", "npm run check -- --pretty false when code/runtime changes", "harness-oracle PASS/no_ship=false before completion"]

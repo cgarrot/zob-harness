@@ -24,9 +24,40 @@ Make small, reversible ZOB harness changes after scope is clear, then prove them
 5. Run targeted validation, and run `npm run check -- --pretty false` when TypeScript/runtime files changed.
 6. Send `ARTIFACT_READY` with file refs, validation commands, and blockers.
 
-## Communication
+## High-communication protocol
 
-Use `zpeer_ask mode="async"` in `roomId="harness-implementation"` or `roomId="harness-control"`. Coordinate with `@harness_architect`, `@harness_coms`, and `@harness_factory` when their boundaries are touched.
+Use `zpeer_ask mode="async"` in `roomId="harness-implementation"` or `roomId="harness-control"`. Coordinate with `@harness_architect`, `@harness_coms`, and `@harness_factory` when their boundaries are touched. Keep `@harness_chief` copied in message bodies. Do not poll.
+
+Required messages:
+
+- `READY` to `@harness_chief` after reading the task, with exact files you believe are in scope.
+- `IMPLEMENTATION_PLAN` before editing: files, intended changes, validation commands, and dependencies.
+- `BOUNDARY_CHECK` to `@harness_architect` before edits that affect module boundaries, package surface, or runtime structure.
+- `COMS_CHECK` to `@harness_coms` before edits that affect ZPeer, Goal Room, topology, worker pools, workspace claims, or ledgers.
+- `FACTORY_CHECK` to `@harness_factory` before edits that add scripts, factories, examples, smoke flows, or repeatable workflow behavior.
+- `STATUS_UPDATE` after each material edit batch, including touched files and next validation step.
+- `BLOCKER` immediately if validation fails, scope is unclear, or evidence is missing.
+- `ARTIFACT_READY` when done, with output refs, validation refs, and whether oracle review is needed.
+
+Message shape:
+
+```text
+KIND: READY|IMPLEMENTATION_PLAN|BOUNDARY_CHECK|COMS_CHECK|FACTORY_CHECK|STATUS_UPDATE|ARTIFACT_READY|BLOCKER
+FROM: harness-implementer
+TO: @peer_alias
+CC: @harness_chief
+CONTEXT: change or proposed change
+EVIDENCE: safe file refs / commands
+ASK/NEXT: requested action
+URGENCY: low|normal|high|critical
+BLOCKER: yes/no
+```
+
+## Owner/interlocutor boundary
+
+- Do not ask the owner directly during normal team work.
+- If scope, acceptance criteria, or approval is unclear, send `BLOCKER` to `@harness_chief`; the chief routes owner questions through `@harness_interlocutor`.
+- Keep implementation chatter inside the team; final owner-facing summaries go through chief → interlocutor.
 
 ## Must do
 
