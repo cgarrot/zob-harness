@@ -1405,6 +1405,48 @@
       "noShipNotes": "Factory-mode only; requires manifest/checkpoint/sentinel validation."
     },
     {
+      "name": "zob_zteam_hot_add",
+      "family": "zteam/zagent",
+      "modes": [
+        "plan",
+        "implement",
+        "orchestrator",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-zagent-creator/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/runtime/tools-zagent.ts",
+        ".pi/extensions/zob-harness/src/runtime/schemas.ts",
+        ".pi/extensions/zob-harness/src/domains/coms/zagents.ts"
+      ],
+      "noShipNotes": "Agent-executable governed ZTeam/ZAgent hot-add. Defaults to plan-only/no-spawn with action=plan and spawnCount=0; action=apply still writes only promptRef/prompt, ZAgent manifest, and ZTeam membership after exact apply_confirmation=<team_id> and never launches. action=launch is explicit and requires exact launch_confirmation_phrase: LAUNCH ZTEAM <team_id> ZAGENT <zagent_id> IN TMUX <session_name>; it requires existing ZTeam/ZAgent manifests, existing membership, existing tmux session, absent target window, safe ids/window/session, and bounded cwd. Launch creates only one scoped tmux new-window in the existing session and send-keys a single ZOB_ZTEAM_ID/ZOB_ZAGENT_ID pi command for the target ZAgent; it never creates sessions, kills/closes/reloads windows, or touches unrelated agents. It polls local ZPeer lease/registry presence with bounded timeout and returns liveProofBlocked unless presence is online. Durable ledgers remain local-only/hash-only/body-free; raw request, generated prompt body, launch command, output, and diffs are not persisted."
+    },
+    {
+      "name": "zob_zteam_remove",
+      "family": "zteam/zagent",
+      "modes": [
+        "plan",
+        "implement",
+        "orchestrator",
+        "factory"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-zagent-creator/SKILL.md",
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/runtime/tools-zagent.ts",
+        ".pi/extensions/zob-harness/src/runtime/schemas.ts",
+        ".pi/extensions/zob-harness/src/domains/coms/zagents.ts"
+      ],
+      "noShipNotes": "Agent-executable governed ZTeam/ZAgent remove/delete/close planner. Defaults to plan-only/no-spawn with action=plan, spawnCount=0, closeCount=0, and bodyStored=false/promptBodiesStored=false/outputBodiesStored=false in durable records. action=apply preserves existing file-delete semantics and requires exact confirmation phrase: REMOVE ZTEAM <team_id> ZAGENT <zagent_id> SCOPE <membership|manifest|prompt|manifest_and_prompt>. action=close_tmux is explicit and requires exact close_confirmation_phrase: CLOSE ZTEAM <team_id> ZAGENT <zagent_id> TMUX WINDOW <session_name>; it validates safe team/agent/session/window ids, bounded cwd paths, existing tmux session, and existing target window. It sends only scoped tmux send-keys C-u /quit C-m to the selected window, waits bounded for local ZPeer presence offline/none and/or target window disappearance, and if force_close_window=true may use targeted tmux kill-window only for that selected window. It never creates sessions, kills sessions, uses broad process termination, reloads, closes all, or touches unrelated windows/agents. Durable ledgers remain local-only/hash-only/body-free; raw tmux commands, raw output, diffs, prompts, and secrets are not persisted."
+    },
+    {
       "name": "zob_zcommit_run",
       "family": "git/commit",
       "modes": [
@@ -1626,7 +1668,7 @@
         "AGENTS.md",
         ".pi/skills/zob-zagent-creator/SKILL.md"
       ],
-      "noShipNotes": "Project-local ZTeam bundle UX for .pi/zteams/ only. ZTeam members are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan is plan/metadata only and must not spawn processes; reset sends Pi /new to existing scoped tmux agent windows without close/start. Persisted command metadata must remain hash/body-free."
+      "noShipNotes": "Project-local ZTeam bundle UX for .pi/zteams/ only. ZTeam members are full-session Pi/ZPeer identities tied to live coordination, not delegate subagents; launch-plan and hot-add default to plan/metadata only and must not spawn processes. Hot-add supports explicit team ids or current-context inference from ZOB_ZTEAM_ID, active ZAgent, ZPeer team/active room, or repo conventions. Hot-add apply requires --apply --confirm <team-id>; optional tmux-window launch planning requires --tmux-window --launch-confirm <team-id>; raw natural-language ask is hashed only in durable records; generated ZAgents include promptRef/prompt, explicit tools/paths/gates; live presence checks use local lease/registry evidence and tmux windows are not presence proof; persisted command metadata must remain hash/body-free. Reset sends Pi /new and reload sends Pi /reload to existing scoped tmux agent windows without close/start; quit calls only the scoped launcher close for the current or explicit team."
     },
     {
       "name": "rules_status",

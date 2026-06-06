@@ -372,6 +372,41 @@ const ZcommitRunParams = Type.Object({
   user_requested: Type.Optional(Type.Boolean({ description: "Set true only when the user explicitly asked the agent to commit/push. Required for commit/push unless autocommit is on." })),
 });
 
+const ZteamHotAddParams = Type.Object({
+  action: Type.Optional(StringEnum(["plan", "apply", "launch"] as const, { description: "Hot-add action. Default plan. Apply writes prompt/manifest/team only after exact apply_confirmation; launch starts only the target ZAgent in an existing tmux session after exact launch_confirmation_phrase." })),
+  request: Type.Optional(Type.String({ description: "Natural-language ask for plan/apply. Raw value is accepted transiently and persisted only as requestHash. Not required for action=launch." })),
+  team_id: Type.Optional(Type.String({ description: "Optional ZTeam id. Required for action=launch. When omitted for plan/apply, current ZOB/ZPeer/repo context fallback is used." })),
+  zagent_id: Type.Optional(Type.String({ description: "Optional explicit ZAgent id. Required for action=launch. Otherwise derived safely from request hash." })),
+  alias: Type.Optional(Type.String({ description: "Optional ZPeer alias for generated ZAgent." })),
+  role: Type.Optional(Type.String({ description: "Optional role label for generated ZAgent." })),
+  room: Type.Optional(Type.String({ description: "Optional existing ZTeam room id." })),
+  default_mode: Type.Optional(StringEnum(["explore", "plan", "implement", "oracle", "factory", "orchestrator"] as const, { description: "Default ZOB mode for generated ZAgent. Inferred when omitted." })),
+  apply_confirmation: Type.Optional(Type.String({ description: "Exact team id required when action=apply." })),
+  tmux_window_plan: Type.Optional(Type.Boolean({ description: "When true, returns a manual tmux new-window plan only; never executes it." })),
+  launch_confirmation: Type.Optional(Type.String({ description: "Exact team id required to include optional tmux-window plan." })),
+  launch_confirmation_phrase: Type.Optional(Type.String({ description: "Exact phrase required for action=launch: LAUNCH ZTEAM <team_id> ZAGENT <zagent_id> IN TMUX <session_name>." })),
+  tmux_session_name: Type.Optional(Type.String({ description: "Existing tmux session name for action=launch. Defaults to safe team metadata tmuxSession or team id." })),
+  presence_timeout_ms: Type.Optional(Type.Number({ description: "Bounded ZPeer presence wait for action=launch. Default 5000ms, capped at 30000ms." })),
+  presence_poll_ms: Type.Optional(Type.Number({ description: "Bounded ZPeer presence poll interval for action=launch. Default 500ms, capped at 2000ms." })),
+});
+
+const ZteamRemoveParams = Type.Object({
+  action: Type.Optional(StringEnum(["plan", "apply", "close_tmux"] as const, { description: "Remove action. Default plan. Apply requires exact confirmation_phrase; close_tmux closes only one target ZAgent tmux window after exact close_confirmation_phrase." })),
+  team_id: Type.String({ description: "ZTeam id to remove membership from or close a target ZAgent window for." }),
+  zagent_id: Type.String({ description: "ZAgent id targeted for membership removal, manifest/prompt deletion, or target tmux-window close." }),
+  scope: Type.Optional(StringEnum(["membership", "manifest", "prompt", "manifest_and_prompt"] as const, { description: "Removal scope. Default membership. Manifest scopes also remove membership from the team." })),
+  confirmation_phrase: Type.Optional(Type.String({ description: "Exact phrase required for apply: REMOVE ZTEAM <team_id> ZAGENT <zagent_id> SCOPE <scope>." })),
+  include_tmux_plan: Type.Optional(Type.Boolean({ description: "Return a manual tmux cleanup note only; never executes tmux/process operations." })),
+  tmux_confirmation_phrase: Type.Optional(Type.String({ description: "Exact phrase required to include optional tmux manual plan: PLAN TMUX REMOVE <team_id> <zagent_id>." })),
+  close_confirmation_phrase: Type.Optional(Type.String({ description: "Exact phrase required for action=close_tmux: CLOSE ZTEAM <team_id> ZAGENT <zagent_id> TMUX WINDOW <session_name>." })),
+  tmux_session_name: Type.Optional(Type.String({ description: "Existing tmux session name for action=close_tmux. Defaults to safe team metadata tmuxSession or team id." })),
+  tmux_window_name: Type.Optional(Type.String({ description: "Optional explicit safe tmux window override for action=close_tmux. Defaults to zagent_id-derived window name." })),
+  presence_timeout_ms: Type.Optional(Type.Number({ description: "Bounded ZPeer presence wait after targeted tmux close. Default 5000ms, capped at 30000ms." })),
+  presence_poll_ms: Type.Optional(Type.Number({ description: "Bounded ZPeer/window poll interval for close_tmux. Default 500ms, capped at 2000ms." })),
+  graceful_timeout_ms: Type.Optional(Type.Number({ description: "Bounded wait after sending graceful Pi /quit. Default 5000ms, capped at 30000ms." })),
+  force_close_window: Type.Optional(Type.Boolean({ description: "When true with exact close confirmation, allows targeted tmux kill-window fallback for only the selected window if graceful /quit does not close it." })),
+});
+
 const GoalRoomKindEnum = StringEnum(["QUESTION", "ANSWER", "FINDING", "ACTION_TAKEN", "ARTIFACT_READY", "TODO_CLAIM", "BLOCKER", "RISK", "NO_SHIP_ALERT", "CONTEXT_REQUEST", "SPLIT_REQUEST", "DELEGATION_REQUEST", "ORACLE_REQUEST", "OWNER_CHANGE_REQUEST", "OWNER_CHANGE_DECISION", "HANDOFF", "DECISION", "STATUS_UPDATE"] as const, { description: "Typed goal-room message kind." });
 const GoalRoomAudienceEnum = StringEnum(["all", "parent", "lead", "oracle", "worker"] as const, { description: "Visible goal-room audience bucket. This is not hidden peer chat." });
 const GoalRoomPriorityEnum = StringEnum(["low", "normal", "high", "critical"] as const, { description: "Goal-room message priority." });
@@ -678,6 +713,8 @@ export {
   ZobComsStatusParams,
   ZpeerAskParams,
   ZcommitRunParams,
+  ZteamHotAddParams,
+  ZteamRemoveParams,
   ZobGoalRoomSendParams,
   ZobGoalRoomListParams,
   GovernedRequestExtractParams,

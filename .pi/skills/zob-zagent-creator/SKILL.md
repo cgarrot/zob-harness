@@ -92,6 +92,7 @@ The script must support these manual subcommands:
 ./.pi/zteams/<bundle-id>.tmux.sh status          # list bundle windows/session status
 ./.pi/zteams/<bundle-id>.tmux.sh close           # close only this bundle's tmux session
 ./.pi/zteams/<bundle-id>.tmux.sh new             # send Pi /new to every existing team agent window without closing tmux
+./.pi/zteams/<bundle-id>.tmux.sh reload          # send Pi /reload to every existing team agent window without closing tmux
 ```
 
 Script safety requirements:
@@ -104,7 +105,8 @@ Script safety requirements:
 - `start [agent]`, `attach [agent]`, and `window <agent>` must validate the target against the launcher `AGENTS` list before passing it to tmux.
 - `close` may call only `tmux kill-session -t "$SESSION_NAME"`; do not use `killall`, broad process kills, destructive shell commands, global cleanup, or direct registry deletion.
 - `new` must validate the tmux session and every known agent window, then send exactly Pi `/new` to each existing scoped window; it must not close, start, kill, relaunch, clean leases, or create missing windows.
-- Active ZPeer/ZTeam presence is lease-based: runtime owns stable `teamId+agentId` leases, graceful shutdown releases only the matching lease owner, relaunch pings the previous live endpoint before reclaiming, and `/zteam reset` sends Pi `/new` to existing scoped tmux agent windows without closing tmux or cleaning leases directly.
+- `reload` must validate the tmux session and every known agent window, then send exactly Pi `/reload` to each existing scoped window; it must not close, start, kill, relaunch, clean leases, or create missing windows.
+- Active ZPeer/ZTeam presence is lease-based: runtime owns stable `teamId+agentId` leases, graceful shutdown releases only the matching lease owner, relaunch pings the previous live endpoint before reclaiming, `/zteam reset` sends Pi `/new`, `/zteam reload` sends Pi `/reload`, and `/zteam quit` calls scoped launcher `close` for the current or explicitly named team.
 - Launcher `close` is only tmux lifecycle control, not proof of presence cleanup; cards remain history and active room summaries come from leases.
 - Quote shell values safely. Do not inject raw natural-language text into shell commands.
 - Only include `--model <model>` when the model value passes the same safe pattern expected by `/zteam launch-plan`; otherwise omit it and report the omission.
@@ -228,6 +230,21 @@ send_new_to_agents() {
   done
 }
 
+send_reload_to_agents() {
+  require_tmux
+  if ! session_exists; then echo "session not running: $SESSION_NAME" >&2; exit 1; fi
+  local agent window missing=0
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    if ! window_exists "$window"; then echo "missing agent window: $SESSION_NAME:$window" >&2; missing=1; fi
+  done
+  if [ "$missing" -ne 0 ]; then echo "reload aborted: one or more team agent windows are missing" >&2; exit 1; fi
+  for agent in "${AGENTS[@]}"; do
+    window="$(safe_window_name "$agent")"
+    tmux send-keys -t "$SESSION_NAME:$window" C-u "/reload" C-m
+  done
+}
+
 list_agents() {
   printf 'entry: %s\n' "$ENTRY_AGENT"
   printf 'agents:\n'
@@ -242,11 +259,12 @@ case "${1:-start}" in
   status) require_tmux; tmux list-windows -t "$SESSION_NAME" ;;
   close) require_tmux; tmux kill-session -t "$SESSION_NAME" ;;
   new) send_new_to_agents ;;
-  *) echo "Usage: $0 start [agent]|attach [agent]|window <agent>|list|status|close|new"; exit 2 ;;
+  reload) send_reload_to_agents ;;
+  *) echo "Usage: $0 start [agent]|attach [agent]|window <agent>|list|status|close|new|reload"; exit 2 ;;
 esac
 ```
 
-When reporting a generated tmux launcher, include the bundle id, session name, scope (`team`, `connected`, or `all`), teams included, unique ZAgents included, shared/bridge ZAgents deduplicated, entry agent/window, whether `metadata.entryAgent` was written/found, and the manual `start [agent]`, `attach [agent]`, `window <agent>`, `list`, `status`, `close`, and `new` commands.
+When reporting a generated tmux launcher, include the bundle id, session name, scope (`team`, `connected`, or `all`), teams included, unique ZAgents included, shared/bridge ZAgents deduplicated, entry agent/window, whether `metadata.entryAgent` was written/found, and the manual `start [agent]`, `attach [agent]`, `window <agent>`, `list`, `status`, `close`, `new`, and `reload` commands.
 
 ## Model catalog selection
 
@@ -335,11 +353,28 @@ A Team Contract Pack is the safety contract metadata carried with the team/mode 
 5. Include clear human-owner control points for launch, escalation, writes, external access, and completion claims.
 6. Validate the artifact structurally before claiming it is ready.
 7. Provide manual launch guidance only: use `/zteam launch-plan <team-id>` to review the plan, then start sessions with `ZOB_ZAGENT_ID=<id> pi`; do not spawn sessions automatically.
-8. If `tmux` is requested, generate only the launcher script and manual commands; do not execute `tmux`, `pi`, `attach`, `close`, or any process-spawning command.
-9. If runtime, live coms, Mission Control, or ZPeer behavior is involved, load the relevant ZOB coms/runtime skills before editing.
-10. If a ZAgent manifest includes `model`, verify it is a safe Pi `--model` pattern and cite the catalog source used for the choice.
-11. If a ZAgent manifest includes `defaultMode`, verify it is one of `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`, or explicitly requested `vanilla`.
-12. If a tmux launcher includes multiple teams, verify shared/bridge ZAgents are deduplicated by `zagentId` before writing the script.
+8. For `/zteam hot-add <team-id> <natural-language ask>`, default to plan-only/no-spawn, hash the raw ask in durable command records, and print the proposed `.pi/zagents/*.json`, `.pi/zagents/prompts/*.md`, plus `.pi/zteams/*.json` changes without writing. The explicit `<team-id>` form remains supported; when the team id is omitted, current-context inference may use `ZOB_ZTEAM_ID`, active ZAgent team, ZPeer team/active room, or repo convention fallback. Applying the hot-add requires explicit owner confirmation: `--apply --confirm <team-id>`. Optional tmux-window launch planning requires separate explicit approval: `--tmux-window --launch-confirm <team-id>`, still with spawn-count=0 and no automatic tmux/Pi launch.
+9. Generated hot-add ZAgents must include a bounded `promptRef`/prompt, explicit tools, allowed paths, forbidden paths, purpose/scope, and owner approval gates for launch, writes, external access, and commit/push/tag. `/zteam hot-add` presence checks must use local stable lease/registry evidence (`readZobLiveRegistryAllProjectsSnapshot`/team-agent leases); stale/offline/append-only records are blocker/evidence, not launch or completion proof. Durable hot-add ledger records must keep `bodyStored=false`, `promptBodiesStored=false`, and `outputBodiesStored=false`. A tmux window is not presence proof; use `/zteam hot-add-presence <team-id> <zagent-id>` after manual launch.
+10. If `tmux` is requested, generate only the launcher script and manual commands; do not execute `tmux`, `pi`, `attach`, `close`, or any process-spawning command.
+11. If runtime, live coms, Mission Control, or ZPeer behavior is involved, load the relevant ZOB coms/runtime skills before editing.
+12. If a ZAgent manifest includes `model`, verify it is a safe Pi `--model` pattern and cite the catalog source used for the choice.
+13. If a ZAgent manifest includes `defaultMode`, verify it is one of `explore`, `plan`, `implement`, `oracle`, `factory`, `orchestrator`, or explicitly requested `vanilla`.
+14. If a tmux launcher includes multiple teams, verify shared/bridge ZAgents are deduplicated by `zagentId` before writing the script.
+
+## Agent-executable runtime tools
+
+Use these tools when an agent needs governed ZTeam/ZAgent maintenance without asking the owner to paste slash commands:
+
+- `zob_zteam_hot_add`: parameters are `action` (`plan` default, `apply`, or `launch`), transient `request` for plan/apply, optional `team_id`, `zagent_id`, `alias`, `role`, `room`, `default_mode`, `apply_confirmation`, `tmux_window_plan`, `launch_confirmation`, plus launch-only `launch_confirmation_phrase`, `tmux_session_name`, `presence_timeout_ms`, and `presence_poll_ms`. Plan returns proposed prompt/manifest/team paths and hashes only. Apply writes only the generated `.pi/zagents/prompts/*.md`, `.pi/zagents/*.json`, and updated `.pi/zteams/*.json` after exact `apply_confirmation=<team_id>`; apply still keeps `spawnCount=0` and never launches. Launch requires exact phrase `LAUNCH ZTEAM <team_id> ZAGENT <zagent_id> IN TMUX <session_name>`, existing ZTeam/ZAgent manifests, existing membership, existing tmux session, absent target window, safe ids/session/window, and bounded project cwd. Launch creates only one scoped `tmux new-window` in the existing session and sends one `ZOB_ZTEAM_ID=<team> ZOB_ZAGENT_ID=<agent> pi` command for that ZAgent; it then polls local ZPeer lease/registry presence with bounded timeout and reports `liveProofBlocked=true` unless presence is `online`. It keeps durable `bodyStored=false`, `promptBodiesStored=false`, and `outputBodiesStored=false`; the raw request body, generated prompt body, launch command, raw output, and raw diff are never persisted.
+- `zob_zteam_remove`: parameters are `action` (`plan` default, `apply`, or `close_tmux`), `team_id`, `zagent_id`, optional `scope` (`membership`, `manifest`, `prompt`, or `manifest_and_prompt`), `confirmation_phrase`, `include_tmux_plan`, `tmux_confirmation_phrase`, plus close-only `close_confirmation_phrase`, `tmux_session_name`, `tmux_window_name`, `presence_timeout_ms`, `presence_poll_ms`, `graceful_timeout_ms`, and `force_close_window`. Apply requires the exact phrase `REMOVE ZTEAM <team_id> ZAGENT <zagent_id> SCOPE <scope>` before membership removal or manifest/prompt deletion and keeps existing file-delete semantics. `action=close_tmux` requires the exact phrase `CLOSE ZTEAM <team_id> ZAGENT <zagent_id> TMUX WINDOW <session_name>` before any tmux interaction. It validates safe ids/session/window, bounded cwd paths, an existing tmux session, and an existing target window; it sends only scoped `tmux send-keys -t <session>:<window> C-u /quit C-m`, waits bounded for ZPeer presence offline/none and/or target window disappearance, and only when `force_close_window=true` may use targeted `tmux kill-window -t <session>:<window>` for that selected window. It never creates sessions, kills sessions, performs broad process termination, reloads, closes all windows, or touches unrelated agents/windows. Durable records keep hashes/status/booleans/path refs only; raw tmux commands/output/diffs are not persisted.
+
+Tool safety requirements:
+
+- Default to plan-only unless the owner or parent controller explicitly supplied the exact confirmation for the same `team_id`/`zagent_id`/`scope`.
+- Keep durable records local-only and body-free: `localOnly=true` where artifacts are written, `networkEnabled=false`, `bodyStored=false`, and no raw ask/prompt/diff/tmux command bodies in ledgers or reports.
+- Treat delete operations as file mutations gated by the confirmation phrase; do not infer permission from a plan result.
+- Treat `close_tmux` as a separate live lifecycle action gated by the exact close phrase; do not infer close permission from remove/apply confirmation or a manual tmux plan.
+- Treat manual launch/tmux snippets and newly created tmux windows as launch mechanics only, never presence proof or completion evidence. Presence evidence comes from local lease/registry checks and launch results must block unless the target ZAgent reaches `online` within the bounded poll window. Close evidence is the target window disappearing and/or target ZPeer presence becoming offline/none; unrelated windows/agents must not be touched.
 
 ## MUST DO
 
@@ -384,6 +419,10 @@ Before reporting completion, verify:
 - [ ] If model preferences/cost/quality were mentioned, the chosen `model` values cite `.pi/model-catalog.json` or `.pi/model-catalog.example.json`, map to valid `.pi/model-routing.json` classes, and avoid oracle/security downgrade.
 - [ ] Each `defaultMode` is valid, role-appropriate, and not `vanilla` unless explicitly requested.
 - [ ] Manual launch instructions mention `/zteam launch-plan <team-id>`, `ZOB_ZTEAM_ID=<team> ZOB_ZAGENT_ID=<id> pi` / `ZOB_ZTEAM_ID=<team> ZOB_ZAGENT_ID=<id> pi --model <model>`, and `spawn-count=0`, with no automatic process spawn.
+- [ ] `/zteam hot-add` defaults to plan-only/no-spawn, supports explicit team id plus current-context inference, requires `--apply --confirm <team-id>` before manifest/prompt writes, requires `--tmux-window --launch-confirm <team-id>` before any optional tmux-window launch plan, generates a promptRef/prompt with explicit tools/paths/gates, uses local lease/registry presence evidence, and keeps durable records body-free.
+- [ ] Agent-executable `zob_zteam_hot_add` and `zob_zteam_remove` are registered, documented, plan-only by default, confirmation-gated for apply/delete/launch/close, local-only/body-free in durable metadata, and covered by smokes.
+- [ ] `zob_zteam_hot_add action=launch` requires the exact `LAUNCH ZTEAM <team_id> ZAGENT <zagent_id> IN TMUX <session_name>` phrase, uses only an existing tmux session, creates only one new target window, sends only the target ZAgent launch command, performs bounded ZPeer presence polling, and returns a blocker when presence is not `online`.
+- [ ] `zob_zteam_remove action=close_tmux` requires the exact `CLOSE ZTEAM <team_id> ZAGENT <zagent_id> TMUX WINDOW <session_name>` phrase, uses only an existing tmux session/window, sends only scoped Pi `/quit` to the target pane, optionally uses targeted window close only when `force_close_window=true`, records hash-only evidence, and never closes/kills sessions or unrelated windows.
 - [ ] Any Scoped ZTeam Mode Pack is under `.pi/zteams/`, schema `zob.zteam-modes.v1`, local-only/network-disabled/body-free, and narrowing-only with safe defaults or no defaults.
 - [ ] If tmux was requested, the primary ZTeam has `metadata.entryAgent` or the report states the fallback first agent.
 - [ ] If tmux was requested, the report lists bundle id, session name, scope, teams included, unique agents, shared/bridge agents, entry agent/window, and manual `start [agent]`/`attach [agent]`/`window <agent>`/`list`/`status`/`close` commands.

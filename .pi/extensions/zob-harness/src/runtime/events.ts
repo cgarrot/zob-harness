@@ -137,6 +137,17 @@ function formatScopedZteamModeLabel(scopedMode: ActiveZagentState["scopedMode"])
   return `zob:${scopedMode.baseMode}@${scopedMode.teamId}/${scopedMode.modeId}`;
 }
 
+function zagentLockedMode(state: HarnessRuntimeState): { mode: HarnessRuntimeState["activeMode"]; reason: string } | undefined {
+  const zagent = activeZagentState(state);
+  if (!zagent?.id) return undefined;
+  const scopedMode = zagent.scopedMode;
+  if (scopedMode?.active && scopedMode.baseMode && (scopedMode.blockers?.length ?? 0) === 0) {
+    return { mode: scopedMode.baseMode, reason: `zagent scoped mode ${scopedMode.label ?? scopedMode.modeId ?? scopedMode.baseMode}` };
+  }
+  if (zagent.defaultMode) return { mode: zagent.defaultMode, reason: `zagent defaultMode ${zagent.defaultMode}` };
+  return undefined;
+}
+
 export function loadActiveZagentScopedMode(state: HarnessRuntimeState, repoRoot: string): void {
   const zagent = activeZagentState(state);
   if (!zagent?.id) return;
@@ -441,14 +452,22 @@ function modeIntentContent(intent: ZobModeIntent, previousMode: string, accepted
 
 function handleSameAgentModeIntent(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, intent: ZobModeIntent, assistantText = ""): void {
   const previousMode = state.activeMode;
-  const validation = validateModeIntent(intent, state.activeMode, state.lastUserInputText ?? "", assistantText);
+  const lockedMode = zagentLockedMode(state);
+  const validation = lockedMode
+    ? { accepted: false, reason: `${lockedMode.reason} locks auto-mode` }
+    : validateModeIntent(intent, state.activeMode, state.lastUserInputText ?? "", assistantText);
   state.lastModeIntent = { ...intent, at: Date.now(), accepted: validation.accepted, validationReason: validation.reason };
   if (validation.accepted) {
     applyMode(pi, state, ctx, intent.mode);
     state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
     ctx.ui.notify(`ZOB same-agent auto-mode: ${previousMode} → ${intent.mode} (${intent.confidence}; ${intent.reason})`, "info");
   } else {
-    renderHarnessWidget(pi, state, ctx);
+    if (lockedMode && state.activeMode !== lockedMode.mode) {
+      applyMode(pi, state, ctx, lockedMode.mode, false);
+      state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+    } else {
+      renderHarnessWidget(pi, state, ctx);
+    }
   }
   pi.sendMessage({
     customType: "zob-mode-intent",
@@ -872,6 +891,14 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     }
     const intentMode = intentResult.autoSwitch && intentResult.intent !== "unknown" ? intentResult.intent : undefined;
     const nextMode = intentMode ?? inferModeFromUserIntent(event.text);
+    const lockedMode = zagentLockedMode(state);
+    if (lockedMode) {
+      if (state.activeMode !== lockedMode.mode) {
+        applyMode(pi, state, ctx, lockedMode.mode, false);
+        state.activeRuleResolution = resolveRuleProfile({ repoRoot: ctx.cwd, mode: state.activeMode });
+      }
+      return { action: "continue" as const };
+    }
     if (!nextMode || nextMode === state.activeMode) return { action: "continue" as const };
     const previousMode = state.activeMode;
     applyMode(pi, state, ctx, nextMode);
