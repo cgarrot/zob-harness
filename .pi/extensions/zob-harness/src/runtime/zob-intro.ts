@@ -1,4 +1,5 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -35,7 +36,8 @@ type ZobIntroStyles = {
 
 const WELCOME_TITLE = "Welcome to the ZOB Harness";
 const START_PROMPT = "Press Enter/Space to continue";
-const FIRST_RUN_MARKER_RELATIVE_PATH = ".pi/tmp/zob-intro-first-run.json";
+const FIRST_RUN_MARKER_FILE_NAME = "zob-intro-first-run.json";
+const LEGACY_FIRST_RUN_MARKER_RELATIVE_PATH = ".pi/tmp/zob-intro-first-run.json";
 const FIRST_RUN_ARGS = "once fast";
 
 const DEFAULT_ZOB_INTRO_OPTIONS: ZobIntroOptions = {
@@ -339,13 +341,17 @@ function appendZobIntroLedger(pi: ExtensionAPI, options: ZobIntroOptions, status
   });
 }
 
-function firstRunMarkerPath(cwd: string): string {
-  return join(cwd, FIRST_RUN_MARKER_RELATIVE_PATH);
+function firstRunMarkerPath(): string {
+  return join(homedir(), ".local", "state", "pi", "zob-harness", FIRST_RUN_MARKER_FILE_NAME);
 }
 
-async function hasSeenFirstRunIntro(cwd: string): Promise<boolean> {
+function legacyFirstRunMarkerPath(cwd: string): string {
+  return join(cwd, LEGACY_FIRST_RUN_MARKER_RELATIVE_PATH);
+}
+
+async function hasLegacyFirstRunIntroMarker(cwd: string): Promise<boolean> {
   try {
-    await readFile(firstRunMarkerPath(cwd), "utf8");
+    await readFile(legacyFirstRunMarkerPath(cwd), "utf8");
     return true;
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return false;
@@ -353,17 +359,43 @@ async function hasSeenFirstRunIntro(cwd: string): Promise<boolean> {
   }
 }
 
-async function markFirstRunIntroSeen(cwd: string): Promise<void> {
-  const markerPath = firstRunMarkerPath(cwd);
+function firstRunMarkerBody(): string {
+  return `${JSON.stringify({ schema: "zob.intro-first-run-marker.v1", seenAt: new Date().toISOString(), frameHash: stableFrameHash(), bodyStored: false }, null, 2)}\n`;
+}
+
+async function writeFirstRunIntroMarkerIfMissing(): Promise<boolean> {
+  const markerPath = firstRunMarkerPath();
   await mkdir(dirname(markerPath), { recursive: true });
-  await writeFile(markerPath, `${JSON.stringify({ schema: "zob.intro-first-run-marker.v1", seenAt: new Date().toISOString(), frameHash: stableFrameHash(), bodyStored: false }, null, 2)}\n`, "utf8");
+  try {
+    const marker = await open(markerPath, "wx");
+    try {
+      await marker.writeFile(firstRunMarkerBody(), "utf8");
+    } finally {
+      await marker.close();
+    }
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") return false;
+    throw error;
+  }
+}
+
+async function shouldPlayFirstRunIntro(cwd: string): Promise<boolean> {
+  if (await hasLegacyFirstRunIntroMarker(cwd)) {
+    await writeFirstRunIntroMarkerIfMissing();
+    return false;
+  }
+  return writeFirstRunIntroMarkerIfMissing();
 }
 
 async function resetFirstRunIntro(cwd: string): Promise<void> {
-  try {
-    await unlink(firstRunMarkerPath(cwd));
-  } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+  const markerPaths = [firstRunMarkerPath(), legacyFirstRunMarkerPath(cwd)];
+  for (const markerPath of markerPaths) {
+    try {
+      await unlink(markerPath);
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+    }
   }
 }
 
@@ -645,11 +677,10 @@ export function registerZobIntroCommand(pi: ExtensionAPI): void {
   pi.on("session_start", async (event, ctx) => {
     if (event.reason !== "startup") return;
     if (!ctx.hasUI) return;
-    if (await hasSeenFirstRunIntro(ctx.cwd)) {
+    if (!(await shouldPlayFirstRunIntro(ctx.cwd))) {
       appendZobIntroLedger(pi, DEFAULT_ZOB_INTRO_OPTIONS, "auto_skipped");
       return;
     }
-    await markFirstRunIntroSeen(ctx.cwd);
     await handleZobIntroCommand(pi, FIRST_RUN_ARGS, ctx);
   });
 
