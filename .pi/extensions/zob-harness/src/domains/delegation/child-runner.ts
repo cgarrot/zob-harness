@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { discoverAgents } from "./agents.js";
 import { SUPERVISED_READONLY_CHILD_TOOLS } from "../../core/constants.js";
@@ -22,6 +22,28 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
     return { command: process.execPath, args: [currentScript, ...args] };
   }
   return { command: "pi", args };
+}
+
+function childModelPattern(ctx: ExtensionContext, agent: HarnessAgent, modelOverride: string | undefined): string | undefined {
+  if (modelOverride?.trim()) return modelOverride.trim();
+  if (agent.model?.trim()) return agent.model.trim();
+  const model = ctx.model;
+  if (!model?.provider || !model.id) return undefined;
+  return `${model.provider}/${model.id}`;
+}
+
+function providerFromModelPattern(model: string | undefined): string | undefined {
+  if (!model) return undefined;
+  const [provider] = model.split("/");
+  return provider && provider !== model ? provider : undefined;
+}
+
+function resolveCodexFastModeExtension(ctx: ExtensionContext, model: string | undefined): string | undefined {
+  const provider = ctx.model?.provider ?? providerFromModelPattern(model);
+  const usesCodexProvider = provider === "openai-codex" || provider === "codex-auto" || provider?.startsWith("codex-") === true;
+  if (!usesCodexProvider) return undefined;
+  const extensionPath = join(getAgentDir(), "extensions", "codex-fast-mode.ts");
+  return existsSync(extensionPath) ? extensionPath : undefined;
 }
 
 const CHILD_THINKING_LEVELS = new Set<string>(["low", "medium", "high", "xhigh"]);
@@ -90,13 +112,14 @@ async function runChildAgent(
   pathPolicy?: { allowedPaths?: string[]; forbiddenPaths?: string[]; sandboxRoot?: string },
   thinkingOverride?: ChildThinkingLevel,
 ): Promise<ChildResult> {
+  const resolvedModel = childModelPattern(ctx, agent, modelOverride);
   const result: ChildResult = {
     agent: agent.name,
     task,
     exitCode: 0,
     output: "",
     stderr: "",
-    model: modelOverride ?? agent.model,
+    model: resolvedModel,
     usage: usageEmpty(),
   };
 
@@ -123,10 +146,12 @@ async function runChildAgent(
 
   try {
     const childSafetyExtension = join(ctx.cwd, ".pi", "extensions", "zob-child-safety", "index.ts");
+    const childCodexFastModeExtension = resolveCodexFastModeExtension(ctx, resolvedModel);
     const args = ["--mode", "json", "-p", "--no-extensions"];
+    if (childCodexFastModeExtension) args.push("-e", childCodexFastModeExtension);
     if (existsSync(childSafetyExtension)) args.push("-e", childSafetyExtension);
     args.push("--session", sessionPath);
-    const model = modelOverride ?? agent.model;
+    const model = resolvedModel;
     if (model) args.push("--model", model);
     const thinking = resolveChildThinking(agent, thinkingOverride);
     if (thinking) args.push("--thinking", thinking);

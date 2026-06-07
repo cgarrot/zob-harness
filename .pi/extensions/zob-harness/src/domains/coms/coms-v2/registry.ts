@@ -97,6 +97,21 @@ function readLeasesFromDir(dir: string, nowMs: number, teamName?: string): ZobLi
     .map((lease) => leaseToPeerCard(lease, nowMs));
 }
 
+function peerRegistryKey(peer: Pick<ZobLivePeerCard, "projectId" | "roleId" | "sessionHash">): string {
+  return `${peer.projectId}:${peer.roleId}:${peer.sessionHash}`;
+}
+
+function mergeLeaseBackedAndAdhocPeers(leasePeers: ZobLivePeerCard[], agentPeers: ZobLivePeerCard[]): ZobLivePeerCard[] {
+  const byKey = new Map<string, ZobLivePeerCard>();
+  for (const peer of leasePeers) byKey.set(peerRegistryKey(peer), peer);
+  for (const peer of agentPeers) {
+    if (peer.zpeerAdhoc !== true) continue;
+    const key = peerRegistryKey(peer);
+    if (!byKey.has(key)) byKey.set(key, peer);
+  }
+  return [...byKey.values()];
+}
+
 function boundedOfflinePeerRetentionMs(value: number | undefined): number {
   const env = Number.parseInt(process.env.ZOB_COMS_OFFLINE_PEER_RETENTION_MS ?? "", 10);
   const raw = typeof value === "number" && Number.isFinite(value) ? value : Number.isFinite(env) ? env : DEFAULT_OFFLINE_PEER_RETENTION_MS;
@@ -514,8 +529,13 @@ export function unregisterCurrentZobLivePeer(repoRoot: string, teamName = "zob-c
 export function readZobLiveRegistrySnapshot(repoRoot: string, teamName?: string): ZobLiveRegistrySnapshot {
   const { dir, projectId, kind } = projectLeasesDir(repoRoot);
   const nowMs = Date.now();
-  if (existsSync(dir)) return buildSnapshot(projectId, kind, readLeasesFromDir(dir, nowMs, teamName), teamName);
   const agents = projectAgentsDir(repoRoot);
+  if (existsSync(dir)) {
+    return buildSnapshot(projectId, kind, mergeLeaseBackedAndAdhocPeers(
+      readLeasesFromDir(dir, nowMs, teamName),
+      readPeerCardsFromAgentsDir(agents.dir, nowMs, teamName),
+    ), teamName);
+  }
   return buildSnapshot(agents.projectId, agents.kind, readPeerCardsFromAgentsDir(agents.dir, nowMs, teamName), teamName);
 }
 
@@ -523,9 +543,10 @@ export function readZobLiveRegistryAllProjectsSnapshot(repoRoot: string, teamNam
   const { projectId, kind } = projectAgentsDir(repoRoot);
   const nowMs = Date.now();
   const leaseDirs = allProjectLeasesDirs();
+  const agentPeers = allProjectAgentsDirs().flatMap((dir) => readPeerCardsFromAgentsDir(dir, nowMs, teamName));
   const hasLeaseDomain = leaseDirs.some((dir) => existsSync(dir));
   const peers = hasLeaseDomain
-    ? leaseDirs.flatMap((dir) => readLeasesFromDir(dir, nowMs, teamName))
-    : allProjectAgentsDirs().flatMap((dir) => readPeerCardsFromAgentsDir(dir, nowMs, teamName));
+    ? mergeLeaseBackedAndAdhocPeers(leaseDirs.flatMap((dir) => readLeasesFromDir(dir, nowMs, teamName)), agentPeers)
+    : agentPeers;
   return buildSnapshot(projectId, kind, peers, teamName);
 }

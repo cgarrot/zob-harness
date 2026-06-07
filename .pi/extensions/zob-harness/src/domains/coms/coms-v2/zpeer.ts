@@ -234,7 +234,7 @@ export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId
   const ensured = ensureZpeerFields(repoRoot, peer, roomId, alias, restoredMemberships);
   if (!hasLocalSocketEndpointEvidence(ensured)) return ensured;
   const refreshed = writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
-  writeZobLiveTeamAgentLease(repoRoot, refreshed, { reason: "zpeer_refresh" });
+  if (refreshed.zpeerAdhoc !== true) writeZobLiveTeamAgentLease(repoRoot, refreshed, { reason: "zpeer_refresh" });
   return refreshed;
 }
 
@@ -479,8 +479,10 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   };
 
   if (!selfMembership) return finish("attempt", { status: "blocked", reason: `current peer is not a member of room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
-  const leaseOwnership = ownsZobLiveTeamAgentLease(repoRoot, self);
-  if (!leaseOwnership.owned) return finish("attempt", { status: "blocked", reason: `current peer does not own stable team-agent lease (${leaseOwnership.reason})`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
+  if (self.zpeerAdhoc !== true) {
+    const leaseOwnership = ownsZobLiveTeamAgentLease(repoRoot, self);
+    if (!leaseOwnership.owned) return finish("attempt", { status: "blocked", reason: `current peer does not own stable team-agent lease (${leaseOwnership.reason})`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
+  }
   if (selfMembership.role === "observer") return finish("attempt", { status: "blocked", reason: `current peer is observer-only in room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
   if (!targetAlias) return finish("attempt", { status: "blocked", reason: "invalid target alias", bodyStored: false });
   if (!transientPrompt.trim()) return finish("attempt", { status: "blocked", reason: "empty peer prompt", targetAlias, bodyStored: false });

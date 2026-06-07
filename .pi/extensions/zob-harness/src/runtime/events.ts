@@ -132,6 +132,19 @@ function activeZagentState(state: HarnessRuntimeState): ActiveZagentState | unde
   return state.zagent.id ? state.zagent as ActiveZagentState : undefined;
 }
 
+function zpeerStableTeamAgentLeaseRequired(zagent: ActiveZagentState | undefined): boolean {
+  return Boolean(
+    zagent?.id
+    || process.env.ZOB_ZAGENT_ID?.trim()
+    || process.env.ZOB_ZTEAM_ID?.trim()
+    || process.env.ZOB_COMS_ROLE_ID?.trim(),
+  );
+}
+
+function withZpeerLeaseMode<T extends NonNullable<HarnessRuntimeState["zobLive"]["peerCard"]>>(peer: T, useStableTeamAgentLease: boolean): T {
+  return { ...peer, zpeerAdhoc: useStableTeamAgentLease ? undefined : true } as T;
+}
+
 function formatScopedZteamModeLabel(scopedMode: ActiveZagentState["scopedMode"]): string | undefined {
   if (!scopedMode?.active || !scopedMode.teamId || !scopedMode.modeId || !scopedMode.baseMode) return undefined;
   return `zob:${scopedMode.baseMode}@${scopedMode.teamId}/${scopedMode.modeId}`;
@@ -511,6 +524,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
   if (carryoverProfile?.zagentId && state.zagent.id !== carryoverProfile.zagentId) loadActiveZagentById(state, repoRoot, carryoverProfile.zagentId);
   const sharedZpeerProfile = zpeerProfile ? zpeerProfileIdIsSharedFallback(zpeerProfile.profileId) : false;
   const zagent = activeZagentState(state);
+  const useStableTeamAgentLease = zpeerStableTeamAgentLeaseRequired(zagent);
   const zagentMemberships = zagent ? zagentRoomMemberships(zagent) : undefined;
   const zagentActiveRoomId = zagent?.activeRoom ?? zagentMemberships?.find((membership) => membership.roomId)?.roomId;
   const zpeerProfileRoomId = zagentActiveRoomId ?? zpeerProfile?.activeRoomId ?? zpeerProfile?.roomId ?? carryoverProfile?.activeRoomId ?? carryoverProfile?.roomId;
@@ -579,7 +593,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       }, { triggerTurn: true, deliverAs: "followUp" });
       return buildZobLiveAckEnvelope(envelope);
     });
-    const peerCard = ensureZpeerFields(repoRoot, {
+    const peerCard = withZpeerLeaseMode(ensureZpeerFields(repoRoot, {
       ...basePeer,
       team: zagent?.team ?? basePeer.team,
       roleId: zagent?.id ?? basePeer.roleId,
@@ -588,58 +602,78 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
       endpoint,
       endpointHash: sha256(endpoint),
       status: "online" as const,
-    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships);
+    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships), useStableTeamAgentLease);
     state.zobLive.server = server;
-    const leaseClaim = await claimZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_start" });
-    if (leaseClaim.ok) {
+    if (!useStableTeamAgentLease) {
+      releaseZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_adhoc" });
       state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
-      state.zobLive.leaseOwned = true;
-      state.zobLive.leaseStatus = "owned";
+      state.zobLive.leaseOwned = false;
+      state.zobLive.leaseStatus = "unavailable";
       state.zobLive.leaseBlockReason = undefined;
       state.zobLive.lastHeartbeatMs = Date.now();
       scheduleZpeerHeartbeat(pi, state, ctx);
     } else {
-      state.zobLive.peerCard = await stopLeaseBlockedLocalEndpoint(state, repoRoot, peerCard, server);
-      setZpeerLastEvent(state, {
-        kind: "blocked",
-        roomId: state.zobLive.peerCard.zpeerActiveRoomId ?? state.zobLive.peerCard.zpeerRoomId,
-        fromAlias: state.zobLive.peerCard.zpeerAlias,
-        status: "lease_blocked",
-        reason: "stable team-agent lease is held by a responsive live endpoint; duplicate local endpoint stopped and peer marked offline",
-      });
+      const leaseClaim = await claimZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_start" });
+      if (leaseClaim.ok) {
+        state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
+        state.zobLive.leaseOwned = true;
+        state.zobLive.leaseStatus = "owned";
+        state.zobLive.leaseBlockReason = undefined;
+        state.zobLive.lastHeartbeatMs = Date.now();
+        scheduleZpeerHeartbeat(pi, state, ctx);
+      } else {
+        state.zobLive.peerCard = await stopLeaseBlockedLocalEndpoint(state, repoRoot, peerCard, server);
+        setZpeerLastEvent(state, {
+          kind: "blocked",
+          roomId: state.zobLive.peerCard.zpeerActiveRoomId ?? state.zobLive.peerCard.zpeerRoomId,
+          fromAlias: state.zobLive.peerCard.zpeerAlias,
+          status: "lease_blocked",
+          reason: "stable team-agent lease is held by a responsive live endpoint; duplicate local endpoint stopped and peer marked offline",
+        });
+      }
     }
     try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
   } else {
-    const peerCard = ensureZpeerFields(repoRoot, {
+    const peerCard = withZpeerLeaseMode(ensureZpeerFields(repoRoot, {
       ...state.zobLive.peerCard,
       team: zagent?.team ?? state.zobLive.peerCard.team,
       roleId: zagent?.id ?? state.zobLive.peerCard.roleId,
       agent: zagent?.id ?? state.zobLive.peerCard.agent,
       heartbeatAt: new Date().toISOString(),
       status: "online",
-    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships);
-    const leaseClaim = await claimZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_refresh" });
-    if (leaseClaim.ok) {
+    }, zpeerProfileRoomId, zpeerProfileAlias, zpeerProfileMemberships), useStableTeamAgentLease);
+    if (!useStableTeamAgentLease) {
+      releaseZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_adhoc" });
       state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
-      state.zobLive.leaseOwned = true;
-      state.zobLive.leaseStatus = "owned";
+      state.zobLive.leaseOwned = false;
+      state.zobLive.leaseStatus = "unavailable";
       state.zobLive.leaseBlockReason = undefined;
       state.zobLive.lastHeartbeatMs = Date.now();
       scheduleZpeerHeartbeat(pi, state, ctx);
-    } else if (state.zobLive.server) {
-      state.zobLive.peerCard = await stopLeaseBlockedLocalEndpoint(state, repoRoot, peerCard, state.zobLive.server);
-      setZpeerLastEvent(state, {
-        kind: "blocked",
-        roomId: state.zobLive.peerCard.zpeerActiveRoomId ?? state.zobLive.peerCard.zpeerRoomId,
-        fromAlias: state.zobLive.peerCard.zpeerAlias,
-        status: "lease_blocked",
-        reason: "stable team-agent lease is held by a responsive live endpoint; duplicate local endpoint stopped and peer marked offline",
-      });
     } else {
-      state.zobLive.peerCard = writeZobLivePeerCard(repoRoot, { ...peerCard, heartbeatAt: new Date().toISOString(), status: "offline" });
-      state.zobLive.leaseOwned = false;
-      state.zobLive.leaseStatus = "blocked";
-      state.zobLive.leaseBlockReason = "blocked_live_owner";
+      const leaseClaim = await claimZobLiveTeamAgentLease(repoRoot, peerCard, { reason: "runtime_refresh" });
+      if (leaseClaim.ok) {
+        state.zobLive.peerCard = refreshZpeerSelf(repoRoot, peerCard);
+        state.zobLive.leaseOwned = true;
+        state.zobLive.leaseStatus = "owned";
+        state.zobLive.leaseBlockReason = undefined;
+        state.zobLive.lastHeartbeatMs = Date.now();
+        scheduleZpeerHeartbeat(pi, state, ctx);
+      } else if (state.zobLive.server) {
+        state.zobLive.peerCard = await stopLeaseBlockedLocalEndpoint(state, repoRoot, peerCard, state.zobLive.server);
+        setZpeerLastEvent(state, {
+          kind: "blocked",
+          roomId: state.zobLive.peerCard.zpeerActiveRoomId ?? state.zobLive.peerCard.zpeerRoomId,
+          fromAlias: state.zobLive.peerCard.zpeerAlias,
+          status: "lease_blocked",
+          reason: "stable team-agent lease is held by a responsive live endpoint; duplicate local endpoint stopped and peer marked offline",
+        });
+      } else {
+        state.zobLive.peerCard = writeZobLivePeerCard(repoRoot, { ...peerCard, heartbeatAt: new Date().toISOString(), status: "offline" });
+        state.zobLive.leaseOwned = false;
+        state.zobLive.leaseStatus = "blocked";
+        state.zobLive.leaseBlockReason = "blocked_live_owner";
+      }
     }
     try { writeZpeerLocalProfileFromPeer(repoRoot, state.zobLive.peerCard, profileId); } catch { /* best-effort reload continuity; live runtime must remain available */ }
   }

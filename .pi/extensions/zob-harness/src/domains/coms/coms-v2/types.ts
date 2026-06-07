@@ -109,6 +109,7 @@ export interface ZobLivePeerCard {
   zpeerActiveRoomId?: string;
   zpeerMemberships?: ZpeerRoomMembership[];
   zpeerLocalOnly?: true;
+  zpeerAdhoc?: true;
   staleAfterMs: number;
   offlineAfterMs: number;
   bodyStored: false;

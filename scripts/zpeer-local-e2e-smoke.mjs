@@ -200,6 +200,8 @@ async function main() {
   const gammaEndpoint = join(root, 'gamma.sock');
   const workerOneEndpoint = join(root, 'worker-one.sock');
   const workerTwoEndpoint = join(root, 'worker-two.sock');
+  const adhocOneEndpoint = join(root, 'adhoc-one.sock');
+  const adhocTwoEndpoint = join(root, 'adhoc-two.sock');
   const pendingReplies = new Map();
   const receivedPrompts = [];
   const receivedResponses = [];
@@ -244,6 +246,11 @@ async function main() {
     receivedPrompts.push(incoming);
     return envelope.buildZobLiveAckEnvelope(incoming);
   }));
+  servers.push(await localTransport.bindZobLocalEndpoint(adhocOneEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
+  servers.push(await localTransport.bindZobLocalEndpoint(adhocTwoEndpoint, async (incoming) => {
+    receivedPrompts.push(incoming);
+    return envelope.buildZobLiveAckEnvelope(incoming);
+  }));
 
   const oldHeartbeatAt = new Date(Date.now() - 180_000).toISOString();
   let alpha = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'alpha', roomId: 'room-one', endpoint: alphaEndpoint, endpointHash: hashing.sha256(alphaEndpoint), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'alpha');
@@ -278,6 +285,17 @@ async function main() {
       },
     });
   });
+
+  const adhocOne = zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'adhocone', roomId: 'adhoc-room', endpoint: adhocOneEndpoint, endpointHash: hashing.sha256(adhocOneEndpoint), sha256: hashing.sha256 }), 'adhoc-room', 'adhocone'), zpeerAdhoc: true });
+  const adhocTwo = zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'adhoctwo', roomId: 'adhoc-room', endpoint: adhocTwoEndpoint, endpointHash: hashing.sha256(adhocTwoEndpoint), sha256: hashing.sha256 }), 'adhoc-room', 'adhoctwo'), zpeerAdhoc: true });
+  assert(adhocOne.zpeerAdhoc === true && adhocTwo.zpeerAdhoc === true, 'direct/ad-hoc zpeer peers must carry the ad-hoc marker');
+  const adhocSummary = zpeer.buildZpeerRoomSummary(repoRoot, adhocOne, 'adhoc-room');
+  assert(adhocSummary.peerCount === 2 && adhocSummary.online === 2, `ad-hoc room summary expected 2 online peers even with lease domain present, got ${adhocSummary.online}/${adhocSummary.peerCount}`);
+  assert(adhocSummary.aliases.includes('adhocone') && adhocSummary.aliases.includes('adhoctwo'), 'ad-hoc room summary must include both direct peers');
+  const adhocPromptCountBefore = receivedPrompts.length;
+  const adhocAsync = await zpeer.sendZpeerPrompt(repoRoot, adhocOne, 'adhoctwo', rawPrompt, waitForReply, { mode: 'async' });
+  assert(adhocAsync.status === 'waiting', `ad-hoc same-room send expected waiting after ACK, got ${adhocAsync.status}${adhocAsync.reason ? `: ${adhocAsync.reason}` : ''}`);
+  assert(receivedPrompts.length === adhocPromptCountBefore + 1 && receivedPrompts.at(-1).receiver === 'adhoctwo', 'ad-hoc same-room send must deliver to the target without a stable team-agent lease');
 
   const joinedAlpha = await zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
   assert(joinedAlpha.ok === true, `alpha multi-room join expected ok, got ${joinedAlpha.reason ?? 'not ok'}`);
