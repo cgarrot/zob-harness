@@ -655,7 +655,9 @@ export function workerPoolBodyFreeViolations(value: unknown): string[] {
   const visit = (item: unknown, path: string): void => {
     if (!item || typeof item !== "object") return;
     if (Array.isArray(item)) {
-      item.forEach((child, index) => visit(child, `${path}[${index}]`));
+      for (let index = 0; index < item.length; index += 1) {
+        visit(item[index], `${path}[${index}]`);
+      }
       return;
     }
     for (const [key, child] of Object.entries(item as Record<string, unknown>)) {

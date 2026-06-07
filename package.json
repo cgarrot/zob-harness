@@ -110,6 +110,11 @@
     "validate:agentic-spec-team": "node scripts/agentic-spec-team/validate-run.mjs",
     "check": "tsc --noEmit --pretty false",
     "check:ci": "npm run check -- --pretty false",
+    "check:all": "npm run check && npm run validate:script-surface && npm run validate:capability-refs && npm run smoke:harness && npm run test",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "test": "node --import tsx --test \"test/*\"",
+    "test:watch": "node --import tsx --watch --test \"test/*\"",
     "smoke:path-policy": "node scripts/path-policy/validate-smoke.mjs",
     "smoke:child-goal-ref": "node scripts/goal-todo/child-goal-ref-smoke.mjs",
     "smoke:goal-todo-handoff": "node scripts/goal-todo/handoff-static-smoke.mjs",
@@ -131,6 +136,7 @@
     "release:preview": "node scripts/release/preview.mjs",
     "release:dry-run": "semantic-release --dry-run --no-ci",
     "validate:capability-refs": "node scripts/package-surface/validate-capability-refs.mjs",
+    "audit:prompt-context": "node scripts/package-surface/validate-capability-refs.mjs",
     "validate:compute-profile-policy": "node scripts/compute-profile/validate-policy.mjs",
     "preview:compute-profile:project-dna-smoke": "node scripts/compute-profile/preview.mjs --domain project-dna --path .pi/factories/project-dna --requested auto --run-id project-dna-smoke --out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-preview.json --resolution-out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-profile-resolution.json",
     "validate:compute-profile:project-dna-smoke": "node scripts/compute-profile/validate-preview.mjs --preview ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-preview.json --resolution ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/compute-profile-resolution.json",
@@ -156,6 +162,7 @@
     "validate:project-dna-5of5:smoke": "node scripts/project-dna/validate-5of5.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}",
     "bench:project-dna:smoke": "node scripts/project-dna/bench-smoke.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke} --out ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/bench/benchmark-smoke.json",
     "oracle:project-dna:smoke": "node scripts/project-dna/oracle-review-smoke.mjs --scan-dir ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke} --benchmark ${PROJECT_DNA_SCAN_DIR:-reports/project-dna-scans/project-dna-factory-smoke}/bench/benchmark-smoke.json",
+    "project-dna:smoke:all": "npm run smoke:project-dna-scan && npm run validate:project-dna-scan:smoke && npm run plan:project-dna-workflow:smoke && npm run validate:project-dna-workflow:smoke && npm run emit:project-dna-ontology:smoke && npm run validate:project-dna-ontology:smoke && npm run emit:project-dna-golden-cases:smoke && npm run validate:project-dna-golden-cases:smoke && npm run steward:project-dna-query:smoke && npm run query:project-dna:smoke && npm run build:project-dna-capsules:smoke && npm run build:project-dna-sample-spec:smoke && npm run generate:project-dna-sample:smoke && npm run validate:project-dna-sample:smoke && npm run bench:project-dna:smoke && npm run oracle:project-dna:smoke && npm run validate:project-dna-5of5:smoke",
     "validate:model-catalog": "node scripts/model-catalog/validate.mjs",
     "validate:model-economy": "node scripts/model-catalog/validate-economy.mjs",
     "smoke:harness-switch": "node scripts/harness-switch/static-smoke.mjs",
@@ -185,17 +192,19 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-ai": "^0.75.0",
+    "@earendil-works/pi-coding-agent": "^0.75.0",
+    "@earendil-works/pi-tui": "^0.75.0",
+    "typebox": "^1.0.66"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@earendil-works/pi-ai": "0.75.5",
     "@earendil-works/pi-coding-agent": "0.75.5",
     "@earendil-works/pi-tui": "0.75.5",
     "@types/node": "22.19.19",
     "semantic-release": "^24.2.9",
+    "tsx": "^4.22.4",
     "typebox": "1.0.66",
     "typescript": "5.9.3"
   }

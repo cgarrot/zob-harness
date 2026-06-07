@@ -62,7 +62,9 @@ function readJson(scanDir, name, errors) {
 function hasForbiddenBodyKey(value, path = "$", hits = []) {
   if (!value || typeof value !== "object") return hits;
   if (Array.isArray(value)) {
-    value.forEach((child, index) => hasForbiddenBodyKey(child, `${path}[${index}]`, hits));
+    for (let index = 0; index < value.length; index += 1) {
+      hasForbiddenBodyKey(value[index], `${path}[${index}]`, hits);
+    }
     return hits;
   }
   for (const [key, child] of Object.entries(value)) {

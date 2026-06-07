@@ -96,7 +96,14 @@ export function validatePromotionComsThread(thread: unknown): string[] {
   if (thread.parentVisible !== true || thread.parentOwnedActions !== true || thread.hiddenPeerChat !== false) errors.push("promotion coms thread must be parent-visible and parent-owned");
   if (thread.bodyStored !== false || thread.promptBodiesStored !== false || thread.outputBodiesStored !== false) errors.push("promotion coms thread must keep body flags false");
   if (!Array.isArray(thread.messageRefs)) errors.push("messageRefs must be an array");
-  else thread.messageRefs.forEach((message, index) => validatePromotionComsMessageRef(message).forEach((error) => errors.push(`messageRefs[${index}]: ${error}`)));
+  else {
+    for (let index = 0; index < thread.messageRefs.length; index += 1) {
+      const message = thread.messageRefs[index];
+      for (const error of validatePromotionComsMessageRef(message)) {
+        errors.push(`messageRefs[${index}]: ${error}`);
+      }
+    }
+  }
   if (!Array.isArray(thread.requiredAcks) || !thread.requiredAcks.every((ack) => typeof ack === "string")) errors.push("requiredAcks must be string array");
   const acked = new Set(Array.isArray(thread.messageRefs) ? thread.messageRefs.filter(isRecord).filter((message) => message.status === "acked" || message.status === "completed").map((message) => String(message.msgId)) : []);
   for (const requiredAck of Array.isArray(thread.requiredAcks) ? thread.requiredAcks : []) {

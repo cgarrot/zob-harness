@@ -1,0 +1,59 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules/**",
+      "!reports/**",
+      "!.pi/sessions/**",
+      "!.pi/agent-sessions/**",
+      "!.pi/logs/**",
+      "!.pi/tmp/**",
+      "!.pi/coms/**",
+      "!plans/**",
+      "!docs/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 200,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        ".pi/extensions/zob-harness/src/runtime/delegation-markdown.ts",
+        ".pi/extensions/zob-harness/src/runtime/delegation-monitor.ts",
+        ".pi/extensions/zob-harness/src/runtime/delegation-mouse.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noControlCharactersInRegex": "off"
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  }
+}

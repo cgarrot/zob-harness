@@ -387,5 +387,5 @@ export {
 } from "./src/domains/factory/quarantine.js";
 
 export default function zobHarness(pi: ExtensionAPI): void {
-  return zobHarnessRuntime(pi);
+  zobHarnessRuntime(pi);
 }

@@ -215,13 +215,13 @@ The exact shape depends on the factory, but the posture is consistent: bounded i
 After the package is published to npm, install the pinned Pi package:
 
 ```bash
-pi install npm:zob-harness@0.3.1
+pi install npm:zob-harness@0.4.0
 ```
 
 Verify Pi can load the package extension set and return a deterministic response:
 
 ```bash
-pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
+pi -e npm:zob-harness@0.4.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
 ```
 
 Expected result:
@@ -233,13 +233,13 @@ zob-harness-ok
 If `pi install` cannot find the package, confirm the npm release is visible first:
 
 ```bash
-npm view zob-harness@0.3.1 version
+npm view zob-harness@0.4.0 version
 ```
 
 Expected result:
 
 ```text
-0.3.1
+0.4.0
 ```
 
 Pi package discovery on `pi.dev/packages` is based on the npm `pi-package` keyword and may lag behind npm publication.
@@ -345,7 +345,7 @@ npm run smoke:context-discovery   # deterministic fallback smoke; passes without
 
 Forbidden/secret/session/vendor/build paths remain excluded from discovery. Active-backend prompt injection is bounded and configurable through `.pi/context-discovery.json` (`promptInjection.enabled`); it should never inject stale/global context or raw search results. When ColGREP is ready, exploratory/natural-language repo discovery should start with `zob_context_search`/ColGREP before broad grep/find; if the native tool is not exposed but `bash` is available, use the compact wrapper `npm run --silent zob:context:query -- --query "<query>" --max-results 6 --max-context-lines 1` before `rg`/`grep`. Then use grep/read for exact proof and citations. Broad grep/find over `.pi` must explicitly prune `.pi/sessions` and `.pi/agent-sessions`. Oracle/no-ship review for this feature checks context freshness, citation coverage, exact grep/read verification, forbidden-source violations, and no unapproved installer/network behavior.
 
-See [`reports/context-discovery/design.md`](reports/context-discovery/design.md), [`.pi/skills/zob-context-discovery/SKILL.md`](.pi/skills/zob-context-discovery/SKILL.md), and [scripts/README.md](scripts/README.md) for the operating rules and script map.
+See [`.pi/skills/zob-context-discovery/SKILL.md`](.pi/skills/zob-context-discovery/SKILL.md) and [scripts/README.md](scripts/README.md) for the operating rules and script map.
 
 ### Use governed commits
 
@@ -462,12 +462,33 @@ npm run demo:pacman                # launch the full Pac-Man Agent Factory demo
 Published package install/check:
 
 ```bash
-pi install npm:zob-harness@0.3.1
-pi -e npm:zob-harness@0.3.1 --offline --no-session -p "Reply exactly: zob-harness-ok"
-npm view zob-harness@0.3.1 version
+pi install npm:zob-harness@0.4.0
+pi -e npm:zob-harness@0.4.0 --offline --no-session -p "Reply exactly: zob-harness-ok"
+npm view zob-harness@0.4.0 version
 ```
 
 See [scripts/README.md](scripts/README.md) for the script family map.
+
+### Core vs advanced surface
+
+The harness exposes ~77 tools, 25 commands, 39 specialist agents, 24 skills, and
+75 npm scripts, but a new user only needs this core set to be productive:
+
+- `/zmode` — pick the operating mode (`explore` / `plan` / `implement` / `oracle` / `factory`).
+- `/goal` and `/todo` — set the active goal and drive the goal-linked TODO tree.
+- `/contract` — insert the six-part delegation contract.
+- `zob_delegation_catalog` — discover the right agent/contract before delegating.
+- `delegate_task` and `delegate_agent` — delegate one task or specialist agent(s).
+- `zob_context_search` — bounded repo-local context discovery.
+- `/agents` — list specialist agents.
+- `/zcommit` (and the `zob_zcommit_run` tool) — the only governed commit/push path.
+- `/compute` or `/effort` — preview/resolve a compute profile without bypassing gates.
+
+Everything else — live coms (`zpeer_ask`, `zob_coms_*`), worker-pool/goal-room,
+merge-queue, mission-control, ProjectDNA, compute internals, autonomy, factory,
+and ZTeam/ZAgent surfaces, plus the domain smoke and demo scripts — is
+advanced/experimental and opt-in. The full classification lives in the local
+`reports/zob-cleanup-lanes/surface-triage.md` triage.
 
 ## Repository map
 

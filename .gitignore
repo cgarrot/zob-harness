@@ -1,6 +1,6 @@
 node_modules/
-package-lock.json
 .DS_Store
+.cursor/
 .env
 .env.*
 !.env.example
@@ -13,6 +13,7 @@ plans/
 # GitHub release workflow is tracked; other local workflow experiments stay ignored.
 .github/workflows/*
 !.github/workflows/release.yml
+!.github/workflows/ci.yml
 
 # Generated runtime/report artifacts, including Agent Factory generated projects
 # such as reports/agent-factory-pacman-runs/<run_id>/project/: keep locally,

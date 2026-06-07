@@ -1,10 +1,38 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const repoRoot = process.cwd();
-const source = readFileSync(join(repoRoot, ".pi", "extensions", "zob-harness", "src", "runtime", "goal-runtime.ts"), "utf8");
+
+// Reads the source-text "surface" for a module: the file at `path` plus, when a
+// move-only refactor split that file into a sibling directory named after it
+// (minus the `.ts`/`.mjs` extension), every `*.ts`/`*.mjs` file under that
+// directory, concatenated recursively. This widens only WHERE guard text is
+// read from (barrel + submodules) without changing any assertion. For files
+// without such a sibling directory it returns the file content unchanged.
+function readSurface(path) {
+  const absPath = resolve(path);
+  let text = readFileSync(absPath, "utf8");
+  const siblingDir = absPath.replace(/\.(ts|mjs)$/, "");
+  if (siblingDir !== absPath && existsSync(siblingDir) && statSync(siblingDir).isDirectory()) {
+    const stack = [siblingDir];
+    const collected = [];
+    while (stack.length > 0) {
+      const dir = stack.pop();
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) stack.push(full);
+        else if (/\.(ts|mjs)$/.test(full)) collected.push(full);
+      }
+    }
+    collected.sort();
+    for (const sub of collected) text += `\n${readFileSync(sub, "utf8")}`;
+  }
+  return text;
+}
+
+const source = readSurface(join(repoRoot, ".pi", "extensions", "zob-harness", "src", "runtime", "goal-runtime.ts"));
 
 assert(!source.includes("append_goal_room: Type.Optional"), "handoff_goal_todo must not expose append_goal_room in its public parameter schema");
 assert(source.includes("append_goal_room=false is not allowed for live TODO handoff"), "legacy append_goal_room=false must be hard-blocked before live delivery");

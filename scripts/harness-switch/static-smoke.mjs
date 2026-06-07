@@ -38,6 +38,6 @@ const zobCommands = registry.commands.filter((entry) => entry.name === "zob");
 assert.equal(zobCommands.length, 1, "registry must have exactly one /zob entry");
 assert.equal(zobCommands[0].family, "harness-switch", "registry /zob family must be harness-switch");
 assert.match(zobCommands[0].noShipNotes, /No aliases\./, "registry must explicitly say no aliases");
-assert(zobCommands[0].docRefs.includes("docs/HARNESS_CAPABILITY_MATRIX.md"), "registry must keep the capability matrix doc ref for local docs");
+assert(zobCommands[0].docRefs.includes("SOURCE_INDEX.md"), "registry must keep the SOURCE_INDEX.md capability map doc ref");
 
 console.log("harness-switch static smoke: ok");

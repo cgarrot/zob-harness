@@ -49,8 +49,8 @@ function assertIncludes(text, needle, path) {
 }
 
 const requiredFiles = [
-  "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
-  "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md",
+  ".pi/factories/project-dna/README.md",
+  ".pi/prompts/compute-plan.md",
   ".pi/skills/zob-compute-profile/SKILL.md",
   ".pi/skills/zob-project-dna/SKILL.md",
   ".pi/prompts/compute-preview.md",

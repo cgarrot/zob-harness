@@ -239,8 +239,11 @@ function extractImports(text) {
     /require\s*\(\s*["']([^"']+)["']\s*\)/g,
   ];
   for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(text))) imports.push(match[1]);
+    let match = pattern.exec(text);
+    while (match) {
+      imports.push(match[1]);
+      match = pattern.exec(text);
+    }
   }
   return [...new Set(imports)].sort();
 }

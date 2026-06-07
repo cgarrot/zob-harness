@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative, resolve } from "node:path";
 
@@ -261,7 +262,7 @@ function collectTargetStats(repoRoot: string, targetPath: string | undefined): T
       stats.maxFilesReached = true;
       return;
     }
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(absolutePath, { withFileTypes: true });
     } catch (error) {

@@ -90,7 +90,10 @@ function buildOrchestrationStatuses(messages: Array<Record<string, unknown>>, ru
 function writeOrchestrationStatuses(runDir: string, statuses: Array<Record<string, unknown>>, runId: string, execution: OrchestrateExecutionMode): void {
   writeFileSync(join(runDir, "status.jsonl"), statuses.map((status) => JSON.stringify(status)).join("\n") + (statuses.length > 0 ? "\n" : ""), "utf8");
   const latestByMsgId = new Map<string, Record<string, unknown>>();
-  statuses.forEach((status, index) => latestByMsgId.set(typeof status.msgId === "string" ? status.msgId : `unknown-${index}`, status));
+  for (let index = 0; index < statuses.length; index += 1) {
+    const status = statuses[index];
+    latestByMsgId.set(typeof status.msgId === "string" ? status.msgId : `unknown-${index}`, status);
+  }
   const snapshotStatuses = [...latestByMsgId.values()];
   const byStatus = snapshotStatuses.reduce<Record<string, number>>((counts, status) => {
     const key = typeof status.status === "string" ? status.status : "unknown";
@@ -241,7 +244,10 @@ export function writeOrchestrationRoomArtifacts(input: {
   }
   const tasks = Array.isArray(input.plan.tasks) ? input.plan.tasks.filter(isRecord) : [];
   const latestStatusByMsgId = new Map<string, Record<string, unknown>>();
-  input.statuses.forEach((status, index) => latestStatusByMsgId.set(typeof status.msgId === "string" ? status.msgId : `unknown-${index}`, status));
+  for (let index = 0; index < input.statuses.length; index += 1) {
+    const status = input.statuses[index];
+    latestStatusByMsgId.set(typeof status.msgId === "string" ? status.msgId : `unknown-${index}`, status);
+  }
   const latestStatuses = [...latestStatusByMsgId.values()];
   const contextScope = {
     schema: "zob.context-scope.v1",

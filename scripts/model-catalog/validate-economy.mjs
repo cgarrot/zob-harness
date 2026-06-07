@@ -68,7 +68,9 @@ const forbiddenExactKeys = new Set([
 function scanForbiddenKeys(value, path = "$") {
   if (!value || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    value.forEach((item, index) => scanForbiddenKeys(item, `${path}[${index}]`));
+    for (let index = 0; index < value.length; index += 1) {
+      scanForbiddenKeys(value[index], `${path}[${index}]`);
+    }
     return;
   }
   for (const [key, child] of Object.entries(value)) {

@@ -199,7 +199,7 @@
         ".pi/skills/zob-coms-safety/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_GOAL_TODO_HANDOFF.md",
+        "README.md",
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
       "noShipNotes": "Explicit Goal TODO handoff to an existing live ZPeer/ZTeam member only; requires active team context, existing TODO refs, and maintainer-provided contextual message. Single/batch handoff records hash-only Goal Room metadata and transient ZPeer delivery; it must not auto-launch teams, persist raw bodies, count stale/offline/append-only refs as success, dispatch anonymous subagents, or mark parent TODOs complete. Receiver returns TODO_CHILD_RESULT.v2 or split/blocker claim for parent/oracle acceptance."
@@ -1026,7 +1026,6 @@
         ".pi/skills/zob-harness/SKILL.md"
       ],
       "docRefs": [
-        "reports/context-discovery/design.md",
         "README.md",
         "scripts/README.md"
       ],
@@ -1104,7 +1103,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+        ".pi/prompts/compute-preview.md"
       ],
       "noShipNotes": "Metadata-only preview; no child dispatch, network, source writes, or safety/budget bypass."
     },
@@ -1123,7 +1122,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+        ".pi/prompts/compute-preview.md"
       ],
       "noShipNotes": "Resolves effective profile and caps only; no live dispatch or approval bypass."
     },
@@ -1142,7 +1141,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+        ".pi/prompts/compute-plan.md"
       ],
       "noShipNotes": "Builds metadata-only workflow-shape lanes; no live dispatch, network, source writes, or approval bypass."
     },
@@ -1162,7 +1161,7 @@
         ".pi/skills/zob-oracle/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+        ".pi/prompts/compute-plan.md"
       ],
       "noShipNotes": "Read-only artifact validation; missing caps/oracle/budget evidence remains no-ship."
     },
@@ -1179,7 +1178,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md"
+        ".pi/prompts/compute-plan.md"
       ],
       "noShipNotes": "Writes local metadata-only reports under .pi/logs; no child dispatch, network, source writes, or raw bodies."
     },
@@ -1198,7 +1197,7 @@
         ".pi/skills/zob-oracle/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+        ".pi/prompts/project-dna.md"
       ],
       "noShipNotes": "Read-only readiness audit from repo-local artifacts; no source scan or backend write."
     },
@@ -1217,7 +1216,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+        ".pi/prompts/project-dna.md"
       ],
       "noShipNotes": "Builds metadata-only agentic workflow plans from manifest v2; no source scan, child dispatch, network, source write, or backend write."
     },
@@ -1235,7 +1234,7 @@
         ".pi/skills/zob-project-dna/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+        ".pi/prompts/project-dna.md"
       ],
       "noShipNotes": "Returns bounded cited context from existing scan artifacts only; no external project scan, no child dispatch, no backend write."
     },
@@ -1254,7 +1253,7 @@
         ".pi/skills/zob-oracle/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+        ".pi/prompts/project-dna.md"
       ],
       "noShipNotes": "Metadata-only multi-source context merge; source isolation preserved; durable promotion remains approval-gated."
     },
@@ -1271,7 +1270,7 @@
         ".pi/skills/zob-oracle/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md"
+        ".pi/prompts/project-dna.md"
       ],
       "noShipNotes": "Hash-only proposal append; no raw bodies, no auto-promotion, no external knowledge-backend write."
     },
@@ -1711,7 +1710,7 @@
       ],
       "docRefs": [
         "AGENTS.md",
-        "docs/ZOB_GOAL_TODO_HANDOFF.md"
+        "README.md"
       ],
       "noShipNotes": "Manages active goal/TODO metadata only. `/goal todo handoff` is explicit team-only ZPeer/ZTeam TODO handoff requiring existing TODO refs and a maintainer-provided contextual message; batch handoff is bounded and parent-owned, stores only hash/body-free Goal Room metadata, uses transient ZPeer delivery, and never auto-launches teams or completes TODOs."
     },
@@ -1728,7 +1727,7 @@
       ],
       "docRefs": [
         "AGENTS.md",
-        "docs/ZOB_GOAL_TODO_HANDOFF.md"
+        "README.md"
       ],
       "noShipNotes": "Alias for goal TODO metadata only. `/todo handoff` follows `/goal todo handoff` semantics: explicit team-only ZPeer/ZTeam handoff, custom contextual maintainer message required, hash-only durable metadata, transient live delivery, receiver claim returns for parent/oracle acceptance, and no auto-completion."
     },
@@ -1785,7 +1784,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md",
+        ".pi/prompts/compute-preview.md",
         "AGENTS.md"
       ],
       "noShipNotes": "Slash preview/resolve only; metadata-only, no child dispatch, no network, no source writes."
@@ -1800,7 +1799,7 @@
         ".pi/skills/zob-compute-profile/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_COMPUTE_PROFILE_ROUTING_PLAN.md",
+        ".pi/prompts/compute-preview.md",
         "AGENTS.md"
       ],
       "noShipNotes": "Alias for /compute; metadata-only and cannot bypass approval/budget/oracle gates."
@@ -1815,7 +1814,7 @@
         ".pi/skills/zob-project-dna/SKILL.md"
       ],
       "docRefs": [
-        "docs/ZOB_PROJECT_DNA_CODE_KNOWLEDGE_GRAPH_PLAN.md",
+        ".pi/prompts/project-dna.md",
         "AGENTS.md"
       ],
       "noShipNotes": "Slash readiness/plan/query only; plan is metadata-only from manifest v2, query reads existing repo-local scan artifacts, and neither scans external projects nor writes a backend."

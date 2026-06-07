@@ -1,12 +1,39 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
 
 function readText(path) {
   return readFileSync(resolve(repoRoot, path), "utf8");
+}
+
+// Reads the source-text "surface" for a module: the file at `path` plus, when a
+// move-only refactor split that file into a sibling directory named after it
+// (minus the `.ts`/`.mjs` extension), every `*.ts`/`*.mjs` file under that
+// directory, concatenated recursively. This widens only WHERE guard text is
+// read from (barrel + submodules) without changing any assertion. For files
+// without such a sibling directory it returns the file content unchanged.
+function readSurface(path) {
+  const absPath = resolve(repoRoot, path);
+  let text = readFileSync(absPath, "utf8");
+  const siblingDir = absPath.replace(/\.(ts|mjs)$/, "");
+  if (siblingDir !== absPath && existsSync(siblingDir) && statSync(siblingDir).isDirectory()) {
+    const stack = [siblingDir];
+    const collected = [];
+    while (stack.length > 0) {
+      const dir = stack.pop();
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) stack.push(full);
+        else if (/\.(ts|mjs)$/.test(full)) collected.push(full);
+      }
+    }
+    collected.sort();
+    for (const file of collected) text += `\n${readFileSync(file, "utf8")}`;
+  }
+  return text;
 }
 
 function fail(message) {
@@ -32,14 +59,14 @@ const capabilities = JSON.parse(readText(".pi/capabilities/zob-public-runtime-ca
 const damageRules = JSON.parse(readText(".pi/damage-control-rules.json"));
 const skill = readText(".pi/skills/zob-commit/SKILL.md");
 const gitOps = readText(".pi/extensions/zob-harness/src/domains/git/git-ops.ts");
-const commands = readText(".pi/extensions/zob-harness/src/runtime/commands.ts");
+const commands = readSurface(".pi/extensions/zob-harness/src/runtime/commands.ts");
 const events = readText(".pi/extensions/zob-harness/src/runtime/events.ts");
 const toolsZcommit = readText(".pi/extensions/zob-harness/src/runtime/tools-zcommit.ts");
 const runtime = readText(".pi/extensions/zob-harness/src/runtime/zobHarness.ts");
 const state = readText(".pi/extensions/zob-harness/src/runtime/state.ts");
-const goalTodos = readText(".pi/extensions/zob-harness/src/domains/goal/goal-todos.ts");
-const goalRuntime = readText(".pi/extensions/zob-harness/src/runtime/goal-runtime.ts");
-const toolsDelegation = readText(".pi/extensions/zob-harness/src/runtime/tools-delegation.ts");
+const goalTodos = readSurface(".pi/extensions/zob-harness/src/domains/goal/goal-todos.ts");
+const goalRuntime = readSurface(".pi/extensions/zob-harness/src/runtime/goal-runtime.ts");
+const toolsDelegation = readSurface(".pi/extensions/zob-harness/src/runtime/tools-delegation.ts");
 
 const allowedZcommitCommands = [
   "/zcommit status [paths/globs...]",

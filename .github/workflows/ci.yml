@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Type-check, validate, smoke, lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run check:ci
+
+      - name: Validate package script surface
+        run: npm run validate:script-surface
+
+      # Report-only: the capability registry intentionally references docs/ that
+      # are kept local (gitignored) and are absent from a clean checkout.
+      - name: Validate capability references (report only)
+        run: npm run validate:capability-refs
+        continue-on-error: true
+
+      - name: Verify package contents
+        run: npm run pack:dry-run
+
+      - name: Smoke - harness
+        run: npm run smoke:harness
+
+      - name: Smoke - git ops
+        run: npm run smoke:git-ops
+
+      - name: Smoke - worker pool
+        run: npm run smoke:worker-pool
+
+      - name: Smoke - zpeer
+        run: npm run smoke:zpeer
+
+      - name: Smoke - zagent
+        run: npm run smoke:zagent
+
+      - name: Smoke - zteam hot add
+        run: npm run smoke:zteam-hot-add
+
+      - name: Smoke - zteam tools
+        run: npm run smoke:zteam-tools
+
+      - name: Smoke - zteam lifecycle
+        run: npm run smoke:zteam-lifecycle
+
+      - name: Smoke - context discovery
+        run: npm run smoke:context-discovery
+
+      - name: Smoke - goal todo handoff
+        run: npm run smoke:goal-todo-handoff
+
+      - name: Smoke - intent classifier
+        run: npm run smoke:intent-classifier
+
+      - name: Smoke - harness switch
+        run: npm run smoke:harness-switch
+
+      - name: Smoke - compute profile regression
+        run: npm run smoke:compute-profile-regression
+
+      - name: Validate model catalog
+        run: npm run validate:model-catalog
+
+      - name: Validate model economy
+        run: npm run validate:model-economy
+
+      - name: Validate compute profile policy
+        run: npm run validate:compute-profile-policy
+
+      - name: Validate ProjectDNA scaffold
+        run: npm run validate:project-dna
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test

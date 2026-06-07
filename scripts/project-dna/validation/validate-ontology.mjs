@@ -33,7 +33,9 @@ function resolveRepoPath(input, label) {
 function findForbiddenKeys(value, trail = "$", hits = []) {
   if (!value || typeof value !== "object") return hits;
   if (Array.isArray(value)) {
-    value.forEach((child, index) => findForbiddenKeys(child, `${trail}[${index}]`, hits));
+    for (let index = 0; index < value.length; index += 1) {
+      findForbiddenKeys(value[index], `${trail}[${index}]`, hits);
+    }
     return hits;
   }
   for (const [key, child] of Object.entries(value)) {

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
@@ -15,6 +15,33 @@ function listTsFiles(dir) {
     const full = join(dir, entry);
     return statSync(full).isDirectory() ? listTsFiles(full) : full.endsWith(".ts") ? [full] : [];
   });
+}
+
+// Reads the source-text "surface" for a module: the file at `path` plus, when a
+// move-only refactor split that file into a sibling directory named after it
+// (minus the `.ts`/`.mjs` extension), every `*.ts`/`*.mjs` file under that
+// directory, concatenated recursively. This widens only WHERE guard text is
+// read from (barrel + submodules) without changing any assertion. For files
+// without such a sibling directory it returns the file content unchanged.
+function readSurface(path) {
+  const absPath = resolve(path);
+  let text = readFileSync(absPath, "utf8");
+  const siblingDir = absPath.replace(/\.(ts|mjs)$/, "");
+  if (siblingDir !== absPath && existsSync(siblingDir) && statSync(siblingDir).isDirectory()) {
+    const stack = [siblingDir];
+    const collected = [];
+    while (stack.length > 0) {
+      const dir = stack.pop();
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) stack.push(full);
+        else if (/\.(ts|mjs)$/.test(full)) collected.push(full);
+      }
+    }
+    collected.sort();
+    for (const sub of collected) text += `\n${readFileSync(sub, "utf8")}`;
+  }
+  return text;
 }
 
 for (const file of listTsFiles(srcRoot)) {
@@ -42,7 +69,7 @@ for (const file of listTsFiles(srcRoot)) {
 const goalTodos = await import(pathToFileURL(join(outRoot, "domains", "goal", "goal-todos.js")).href);
 const modeIntent = await import(pathToFileURL(join(outRoot, "runtime", "mode-intent.js")).href);
 const modelAvailability = await import(pathToFileURL(join(outRoot, "domains", "models", "model-availability.js")).href);
-const toolsDelegationSource = readFileSync(join(srcRoot, "runtime", "tools-delegation.ts"), "utf8");
+const toolsDelegationSource = readSurface(join(srcRoot, "runtime", "tools-delegation.ts"));
 assert(!toolsDelegationSource.includes("childGoalTodoErrors"), "delegation runtime must not reference stale childGoalTodoErrors symbol");
 assert(toolsDelegationSource.includes("...childGoalResolution.errors"), "delegation preflight must include structured childGoalResolution.errors");
 assert(toolsDelegationSource.includes("if (childGoal.todo_id && childGoal.todo_path && !resolution.node)"), "delegation preflight should attempt stale todo_id -> explicit todo_path fallback only after the id fails");
