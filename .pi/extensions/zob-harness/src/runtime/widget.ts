@@ -8,7 +8,8 @@ import { isRecord } from "../core/utils/records.js";
 import type { AssistantLikeMessage, ModeName } from "../types.js";
 import { readHarnessReadinessWidgetData } from "../domains/orchestration/widget-readers.js";
 import { buildZpeerPeerRoomSummaries, type ZpeerPeerRoomSummary } from "../domains/coms/coms-v2/zpeer.js";
-import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, summarizeDelegations } from "./delegation-monitor.js";
+import { delegationCost, delegationDurationMs, formatDelegationCost, formatDuration, listWidgetDelegationRuns, summarizeDelegations } from "./delegation-monitor.js";
+import { formatActivitySummary, readDelegationActivitySnapshot } from "./delegation-activity.js";
 import { disposeDelegationMouseSupport } from "./delegation-mouse.js";
 import { formatZcompactHudLine } from "./auto-compaction.js";
 import type { HarnessRuntimeState } from "./state.js";
@@ -339,9 +340,18 @@ export function renderHarnessWidget(pi: ExtensionAPI, state: HarnessRuntimeState
             ? "working"
             : "idle";
         const assistantsCount = delegationSummary.running + delegationSummary.queued + (runtimeTodoSummary?.delegated ?? 0);
-        const assistantsState = assistantsCount > 0
-          ? `${assistantsCount} active`
-          : "none";
+        const widgetDelegationRuns = listWidgetDelegationRuns(state.delegations, renderNowMs);
+        const activeDelegationRun = widgetDelegationRuns.find((run) => run.status === "running" || run.status === "queued") ?? widgetDelegationRuns[0];
+        const activeDelegationSnapshot = activeDelegationRun ? readDelegationActivitySnapshot(activeDelegationRun.sessionPath, ctx.cwd, renderNowMs) : undefined;
+        const activeDelegationActivity = activeDelegationSnapshot?.current ?? activeDelegationSnapshot?.recent.at(-1);
+        const activeDelegationLine = activeDelegationRun && activeDelegationActivity
+          ? `${activeDelegationRun.agent}: ${formatActivitySummary(activeDelegationActivity, { nowMs: renderNowMs })[0] ?? activeDelegationActivity.toolName}`
+          : undefined;
+        const assistantsState = activeDelegationLine
+          ? truncateToWidth(`${assistantsCount > 0 ? `${assistantsCount} active` : "recent"} · ${activeDelegationLine}`, 96, "…")
+          : assistantsCount > 0
+            ? `${assistantsCount} active`
+            : "none";
         const zpeerRoomSummaries = cachedZpeerRoomSummaries(state, ctx, renderNowMs);
         const zpeerLast = state.zobLive.lastEvent
           ? `${state.zobLive.lastEvent.kind} ${state.zobLive.lastEvent.fromAlias ? `@${state.zobLive.lastEvent.fromAlias}` : "?"}→${state.zobLive.lastEvent.toAlias ? `@${state.zobLive.lastEvent.toAlias}` : "?"} ${state.zobLive.lastEvent.status}`

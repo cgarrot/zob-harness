@@ -827,6 +827,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           taskHash: sha256(structuredTask),
           originalUserAskHash: sha256(params.original_user_ask ?? state.activeGoal?.originalUserAsk ?? ""),
           outputContract,
+          background: params.run_in_background === true,
           startedAt,
         });
 
@@ -975,6 +976,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       };
 
       if (params.run_in_background) {
+        updateDelegationRun(state.delegations, runId, { background: true });
+        renderDelegationMonitor();
         const backgroundController = new AbortController();
         const backgroundPromise = runDelegateTaskChild(backgroundController.signal, false);
         const backgroundRun: BackgroundDelegationRuntimeRun = { runId, startedAtMs, promise: backgroundPromise, abortController: backgroundController };

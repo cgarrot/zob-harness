@@ -4,6 +4,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Markdown, truncateToWidth, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 
 import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
+import { formatActivityDuration, formatActivitySummary, readDelegationActivitySnapshot } from "./delegation-activity.js";
 import { sanitizeDelegationText } from "./delegation-markdown.js";
 import { isRecord } from "../core/utils/records.js";
 
@@ -178,6 +179,31 @@ function actionCard(lines: string[], title: string, details: string[], width: nu
   for (const detail of details.filter(Boolean)) {
     lines.push(theme.bg(bgKey, padToWidth(theme.fg("toolOutput", `   ${detail}`), width)));
   }
+}
+
+function renderLiveActivityCard(run: DelegationRunView, repoRoot: string, lines: string[], width: number, theme: Theme, nowMs = Date.now()): void {
+  const snapshot = readDelegationActivitySnapshot(run.sessionPath, repoRoot, nowMs);
+  if (snapshot.recent.length === 0) return;
+  pushSpacer(lines);
+  const bgKey = snapshot.current ? "toolPendingBg" : "toolSuccessBg";
+  lines.push(theme.bg(bgKey, padToWidth(theme.fg(snapshot.current ? "toolTitle" : "success", theme.bold(" Live activity")), width)));
+  if (snapshot.current) {
+    for (const line of formatActivitySummary(snapshot.current, { includeCommand: true, nowMs })) {
+      lines.push(theme.bg(bgKey, padToWidth(theme.fg(line.startsWith("$") ? "toolOutput" : "warning", `   ${line}`), width)));
+    }
+    if (typeof snapshot.quietMs === "number" && snapshot.quietMs >= 120_000) {
+      const quiet = `quiet ${formatActivityDuration(snapshot.quietMs)} since last transcript update`;
+      lines.push(theme.bg(bgKey, padToWidth(theme.fg(snapshot.quietMs >= 300_000 ? "warning" : "muted", `   ${quiet}`), width)));
+    }
+  }
+  const recent = snapshot.recent.slice(-5).filter((activity) => activity.toolCallId !== snapshot.current?.toolCallId);
+  if (recent.length > 0) lines.push(theme.bg(bgKey, padToWidth(theme.fg("muted", "   last actions"), width)));
+  for (const activity of recent) {
+    const colorKey = activity.status === "error" ? "error" : activity.status === "running" ? "warning" : "success";
+    const first = formatActivitySummary(activity, { nowMs })[0];
+    if (first) lines.push(theme.bg(bgKey, padToWidth(theme.fg(colorKey, `   ${first}`), width)));
+  }
+  if (snapshot.note) lines.push(theme.bg(bgKey, padToWidth(theme.fg("muted", `   ${snapshot.note}`), width)));
 }
 
 function failureDetails(run: DelegationRunView, fallback: string): string[] {
@@ -372,6 +398,7 @@ export function renderDelegationFeedLines(run: DelegationRunView | undefined, re
   lines.push(theme.fg("dim", `${statusIcon(run.status)} ${run.agent}${signalText ? ` · ${theme.fg(delegationSignalColor(signalBadge), signalText)}` : ""}${modelLabel ? ` · ${theme.fg("muted", `(${modelLabel})`)}` : ""} · ${run.status}${run.failureKind ? ` · ${run.failureKind}` : ""} · ${formatDuration(delegationDurationMs(run))} · ${formatDelegationCostLabel(run)} · ${formatDelegationContextLabel(run)}`));
   if (run.usage) lines.push(theme.fg("muted", `usage · in ${run.usage.input} · out ${run.usage.output} · cache ${run.usage.cacheRead}/${run.usage.cacheWrite} · context ${run.usage.contextTokens}`));
   if (run.taskPreview) lines.push(theme.fg("muted", `task · ${sanitizeDelegationText(run.taskPreview)}`));
+  renderLiveActivityCard(run, repoRoot, lines, safeWidth, theme);
   let renderedFailureSummary = false;
   if (run.failureKind === "preflight" || run.failureKind === "config") {
     renderedFailureSummary = true;

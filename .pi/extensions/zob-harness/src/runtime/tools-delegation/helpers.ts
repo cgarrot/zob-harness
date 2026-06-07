@@ -40,7 +40,9 @@ import {
   statusIcon,
   updateDelegationRun,
   type DelegationRunMode,
+  type DelegationRunView,
 } from "../delegation-monitor.js";
+import { formatActivityDuration, formatActivitySummary, readDelegationActivitySnapshot } from "../delegation-activity.js";
 import { delegateViewLink } from "../delegation-mouse.js";
 import type { BackgroundDelegationRuntimeRun, HarnessRuntimeState } from "../state.js";
 import { strictGoalErrors, strictGoalSpecErrors } from "../state.js";
@@ -728,6 +730,32 @@ export function formatDelegationCatalogSummary(catalog: Record<string, unknown>)
   return lines.join("\n");
 }
 
+function renderMiniActivityLines(run: DelegationRunView, nowMs: number, expanded: boolean, theme: { fg: (color: any, text: string) => string }): string[] {
+  const lines: string[] = [];
+  const snapshot = readDelegationActivitySnapshot(run.sessionPath, process.cwd(), nowMs);
+  const recent = snapshot.recent.slice(-5);
+  if (recent.length === 0) {
+    if ((run.status === "running" || run.status === "queued") && snapshot.note && snapshot.status !== "missing") {
+      lines.push(`   ${theme.fg("muted", snapshot.note)}`);
+    }
+    return lines;
+  }
+  const label = expanded ? "last actions" : "last";
+  lines.push(`   ${theme.fg("dim", `${label} ${recent.length}`)}`);
+  for (const activity of recent) {
+    const color = activity.status === "running" ? "warning" : activity.status === "error" ? "error" : "success";
+    const includeCommand = activity.status === "running" && activity.toolName.toLowerCase() === "bash";
+    const rendered = formatActivitySummary(activity, { includeCommand, nowMs });
+    const [first, ...rest] = rendered;
+    if (first) lines.push(`   ${theme.fg(color, first)}`);
+    for (const extra of rest.slice(0, expanded ? 2 : 1)) lines.push(`     ${theme.fg("muted", extra)}`);
+  }
+  if (snapshot.current && typeof snapshot.quietMs === "number" && snapshot.quietMs >= 120_000) {
+    lines.push(`   ${theme.fg(snapshot.quietMs >= 300_000 ? "warning" : "muted", `quiet ${formatActivityDuration(snapshot.quietMs)} since last transcript update`)}`);
+  }
+  return lines;
+}
+
 export function renderDelegationToolResultText(source: "delegate_agent" | "delegate_task", details: DelegationDetails | undefined, state: HarnessRuntimeState, toolCallId: string | undefined, isPartial: boolean, expanded: boolean, theme: { fg: (color: any, text: string) => string; bold: (text: string) => string }): string {
   hydrateDelegationRunsFromDetails(source, details, state, toolCallId);
   const nowMs = Date.now();
@@ -754,11 +782,13 @@ export function renderDelegationToolResultText(source: "delegate_agent" | "deleg
       const prefix = index === visibleRuns.length - 1 && !hasMore ? "└─" : "├─";
       const viewHint = delegateViewLink(run.id);
       const kind = run.failureKind ? ` ${run.failureKind}` : "";
+      const background = run.background ? " bg" : "";
       const badge = delegationSignalBadge(run);
       const badgeText = formatDelegationSignalBadge(badge);
       const modelLabel = formatDelegationModelLabel(run);
       const modelSuffix = modelLabel ? ` ${theme.fg("muted", `(${modelLabel})`)}` : "";
-      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
+      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}${background}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
+      lines.push(...renderMiniActivityLines(run, nowMs, expanded, theme));
       if (expanded && (run.errorMessage || run.stopReason || run.gateErrors?.length)) lines.push(`   ${theme.fg("dim", run.errorMessage ?? run.gateErrors?.join("; ") ?? run.stopReason ?? "")}`);
     }
     if (hasMore) lines.push(theme.fg("dim", `└─ … ${monitoredRuns.length - maxRows} more child run(s)`));

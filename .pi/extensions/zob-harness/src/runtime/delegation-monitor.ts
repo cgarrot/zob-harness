@@ -40,6 +40,7 @@ export interface DelegationRunView {
   childChangedPaths?: ChildResult["childChangedPaths"];
   usage?: ChildResult["usage"];
   model?: string;
+  background?: boolean;
 }
 
 export interface DelegationMonitorState {
@@ -73,6 +74,8 @@ const TRANSCRIPT_MAX_BYTES = 240_000;
 const TRANSCRIPT_MAX_LINES = 1_200;
 const WIDGET_COMPLETE_TTL_MS = 30_000;
 const WIDGET_FAILURE_TTL_MS = 120_000;
+const WIDGET_BACKGROUND_COMPLETE_TTL_MS = 10 * 60_000;
+const WIDGET_BACKGROUND_FAILURE_TTL_MS = 30 * 60_000;
 
 function capPreview(text: string | undefined, limit = PREVIEW_LIMIT): string {
   const value = text ?? "";
@@ -362,6 +365,10 @@ export function shouldShowRunInWidget(run: DelegationRunView, nowMs = Date.now()
   if (run.status === "queued" || run.status === "running") return true;
   if (!run.endedAtMs) return false;
   const ageMs = Math.max(0, nowMs - run.endedAtMs);
+  if (run.background) {
+    if (run.status === "complete") return ageMs <= WIDGET_BACKGROUND_COMPLETE_TTL_MS;
+    return ageMs <= WIDGET_BACKGROUND_FAILURE_TTL_MS;
+  }
   if (run.status === "complete") return ageMs <= WIDGET_COMPLETE_TTL_MS;
   return ageMs <= WIDGET_FAILURE_TTL_MS;
 }
@@ -466,6 +473,7 @@ export function updateDelegationRun(state: DelegationMonitorState, id: string, p
   if (patch.errorMessage !== undefined) run.errorMessage = patch.errorMessage;
   if (patch.usage !== undefined) run.usage = patch.usage;
   if (patch.model !== undefined) run.model = patch.model;
+  if (patch.background !== undefined) run.background = patch.background;
   return run;
 }
 

@@ -414,6 +414,8 @@ function restoreDelegationRunsFromEntries(state: HarnessRuntimeState, entries: u
       errorMessage: Array.isArray(data.errors) ? data.errors.map(String).join("; ") : existing?.errorMessage,
       childChangedPaths: normalizeZcommitChildChangedPathRefs(data.childChangedPathRefs) ?? existing?.childChangedPaths,
       usage: usageField(data) ?? existing?.usage,
+      model: stringField(data, "model") ?? existing?.model,
+      background: (typeof data.background === "boolean" ? data.background : undefined) ?? existing?.background,
     };
     if (event === "start") restoredRun.endedAtMs = existing?.endedAtMs;
     restored.set(runId, restoredRun);
