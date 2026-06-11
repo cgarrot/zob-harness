@@ -14,7 +14,7 @@ Use this skill when any of these are true:
 
 - the user ask is non-trivial, multi-step, or evidence-gated;
 - the right mode/tool family is ambiguous;
-- the work may need delegation, orchestration, factory design, context retrieval, ProjectDNA, coms, workspace/merge coordination, autonomous-runtime evidence, or oracle review;
+- the work may need delegation, orchestration, ZTeam/ZAgent creation, tmux-backed agent teams, ZPeer room mapping, factory design, context retrieval, ProjectDNA, coms, workspace/merge coordination, autonomous-runtime evidence, or oracle review;
 - you are about to claim completion for broad or risky work.
 
 Do not use this skill for a small factual answer when no tools are needed.
@@ -34,6 +34,7 @@ Do not use this skill for a small factual answer when no tools are needed.
    - bounded code/doc edit;
    - multi-step goal;
    - multi-agent orchestration;
+   - ZTeam/ZAgent team, tmux-backed team, ZPeer rooms, aliases, or room membership;
    - factory/repeated workflow;
    - context/reference lookup;
    - validation/oracle;
@@ -52,6 +53,7 @@ Do not use this skill for a small factual answer when no tools are needed.
 | goal/TODO | Long-running, multi-step, delegated, factory, or evidence-gated work | `create_goal`, `add_goal_todos`, `get_goal_todos`, `resolve_goal_todo`; skill `zob-goal-todo-tree` |
 | delegation | Specialist review, parallel discovery, implementation handoff, independent QA, or uncertain broad work | `zob_delegation_catalog`, `delegate_task`, `delegate_agent`; skill `zob-delegation-routing` |
 | orchestration | Lead/Worker lanes, Chief Vision coordination, parent-owned dispatch, multi-agent workgraph | `/zmode orchestrator`, `orchestrate_run`, `chain_run`, goal/TODO tools |
+| zteam/zagent | Owner asks for full Pi-session agents, ZTeams, ZAgents, tmux-backed teams, ZPeer rooms/aliases/membership, `/zteam launch-plan`, hot-add/remove, or team launchers | `/zteam`, `/zagent`, `zob_zteam_hot_add`, `zob_zteam_remove`; skills `zob-zagent-creator`, `zob-coms-v2-live`, `zob-coms-safety` |
 | compute | Complexity, budget, model class, max profile, or multi-agent sizing matters | `zob_compute_preview`, `zob_compute_resolve_profile`, `zob_compute_plan_workflow`, `zob_compute_validate_profile`; skill `zob-compute-profile` |
 | context / ProjectDNA | Need bounded repo/reference context, scan artifacts, cited context packs, or writeback proposals | `zob_context_search`, `zob_context_validate_scope`, `zob_context_readiness`, `zob_project_dna_query`, `zob_project_dna_federated_query`, `zob_project_dna_readiness`; skills `zob-context-discovery`, `zob-project-dna` |
 | factory | Repeated workflow, smoke/pilot/batch gates, manifests, checkpoints, sentinels | `factory_run`, factory quarantine tools, autonomous factory read-only smokes; skill `zob-factory` |
@@ -68,6 +70,7 @@ Do not use this skill for a small factual answer when no tools are needed.
 - Do not delegate if direct answer or local inspection is enough.
 - Do not run compute profiling for a small obvious edit.
 - Do not use coms/goal-room when no other agent/run is involved.
+- Do not create custom tmux/file-room communication when the request needs full-session ZAgents, ZTeams, ZPeer rooms, aliases, or membership; route to the ZTeam/ZAgent workflow and validate with `/zteam launch-plan <team-id>`.
 - Do not invoke factory tooling unless the workflow is repeatable or explicitly factory-shaped.
 - Do not treat dry-run, readonly smoke, plan-only orchestration, or mocked dispatch as final autonomous production readiness.
 - Do not use workspace/merge queue for single-agent non-overlapping edits unless sandbox governance is required.
@@ -85,6 +88,7 @@ TOOL ROUTING VERDICT
   - goal/TODO: use | delegate | skip — reason
   - delegation: use | delegate | skip — reason
   - orchestration: use | delegate | skip — reason
+  - zteam/zagent: use | delegate | skip — reason
   - compute: use | delegate | skip — reason
   - context/ProjectDNA: use | delegate | skip — reason
   - factory: use | delegate | skip — reason
