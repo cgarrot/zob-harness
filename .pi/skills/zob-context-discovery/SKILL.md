@@ -18,7 +18,7 @@ Use this skill for:
 2. When ColGREP is installed and ready, exploratory or natural-language repo discovery MUST start with `zob_context_search`/ColGREP before broad grep/find. This includes prompts like “explore this repo”, “where is this mechanism?”, or “find the design/flow”.
 3. If `zob_context_search` is not exposed in the current session/toolset but `bash` is available, use the compact local wrapper before broad grep: `npm run --silent zob:context:query -- --query "<natural language query>" --max-results 6 --max-context-lines 1`.
 4. Do not treat missing native-tool exposure as permission to immediately use broad `rg`/`grep`; the wrapper is the ColGREP path for those sessions.
-5. Run one exploratory context search, then read returned refs; retry only when results are empty or clearly irrelevant.
+5. Reuse `zob_context_search`/ColGREP at context pivot points, not only once at startup: new subsystem/domain, ambiguous or broad file area, `fallback_status` suggesting narrower paths, repeated low-signal grep/find, unfamiliar code before edits, or unknown validation/test failure.
 6. Use grep/find/read after semantic discovery for exact proof, known identifiers/strings, final citations, and line refs. If the exact identifier/path/string is already known, grep/read may be used directly.
 7. When ColGREP is missing, unavailable, or not indexed, fall back to grep/find/read. Missing ColGREP is not a blocker for normal ZOB work.
 8. Do not auto-install ColGREP, run network/package-manager installer commands, or mutate user tooling without explicit owner approval.

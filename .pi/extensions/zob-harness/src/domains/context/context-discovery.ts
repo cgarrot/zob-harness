@@ -14,6 +14,7 @@ export interface ContextDiscoveryConfig {
     maxResults: number;
     maxContextLines: number;
     maxFileBytes: number;
+    colgrepTimeoutMs: number;
   };
   promptInjection: {
     enabled: boolean;
@@ -48,11 +49,14 @@ const DEFAULT_CONFIG: ContextDiscoveryConfig = {
   fallbackProvider: "grep",
   includePaths: [".pi/extensions", ".pi/skills", ".pi/capabilities", "scripts", "docs", "README.md", "AGENTS.md"],
   excludePaths: [".env", "**/.env", ".env.*", "**/*secret*", "**/*key*", "*.pem", ".pi/sessions", ".pi/agent-sessions", "node_modules", "dist", "build"],
-  limits: { maxResults: 6, maxContextLines: 1, maxFileBytes: 1024 * 1024 },
+  limits: { maxResults: 6, maxContextLines: 1, maxFileBytes: 1024 * 1024, colgrepTimeoutMs: 8_000 },
   promptInjection: { enabled: true, includeInstallHint: true },
   loadedFrom: "defaults",
 };
 const TEXT_EXTENSIONS = new Set(["", ".cjs", ".css", ".js", ".json", ".md", ".mjs", ".sh", ".ts", ".tsx", ".txt", ".yaml", ".yml"]);
+const COLGREP_DEFAULT_TIMEOUT_MS = 8_000;
+const COLGREP_MAX_OUTPUT_BYTES = 1024 * 1024;
+const FALLBACK_CANDIDATE_BUDGET = 500;
 
 function clampInteger(value: unknown, fallback: number, min: number, max: number): number {
   const numberValue = typeof value === "number" ? value : Number(value);
@@ -62,6 +66,35 @@ function clampInteger(value: unknown, fallback: number, min: number, max: number
 
 function shellQuote(value: string): string {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function escapeRegExpLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function extractFallbackSearchTerms(query: string): string[] {
+  const rawTerms = query.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? [];
+  const usefulTerms = rawTerms.filter((term) => term.length >= 3 || /\d/u.test(term) || term.includes("_") || term.includes("-"));
+  return [...new Set(usefulTerms)].sort((left, right) => right.length - left.length || left.localeCompare(right)).slice(0, 12);
+}
+
+function fallbackLineScore(lineLower: string, queryLower: string, terms: string[]): number {
+  let score = queryLower.length > 0 && lineLower.includes(queryLower) ? 100 : 0;
+  for (const term of terms) {
+    if (lineLower.includes(term)) score += Math.min(10, term.length);
+  }
+  return score;
+}
+
+function getColgrepTimeoutMs(config: ContextDiscoveryConfig): number {
+  return clampInteger(process.env.ZOB_CONTEXT_COLGREP_TIMEOUT_MS ?? config.limits.colgrepTimeoutMs, COLGREP_DEFAULT_TIMEOUT_MS, 500, 30_000);
+}
+
+function buildFallbackVerificationCommand(query: string, roots: string[], searchTerms: string[], mode: ContextSearchMode, pattern?: string): string {
+  const rootArgs = roots.map(shellQuote).join(" ") || ".";
+  if (mode === "regex") return `grep -R -n -E ${shellQuote(pattern ?? query)} ${rootArgs}`;
+  const grepPattern = searchTerms.length > 0 ? searchTerms.slice(0, 10).map(escapeRegExpLiteral).join("|") : escapeRegExpLiteral(query);
+  return `grep -R -n -E ${shellQuote(grepPattern)} ${rootArgs}`;
 }
 
 function globToRegExp(pattern: string): RegExp {
@@ -144,10 +177,10 @@ export function buildActiveSearchBackendPromptSnippet(repoRoot: string): string 
   const detection = detectColgrep(repoRoot);
   const scope = `${config.loadedFrom}; roots=${config.includePaths.slice(0, 6).join(",")}; excludes=${config.excludePaths.length}`;
   if (detection.ready) {
-    return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: colgrep\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- For exploratory, natural-language, or "where is this mechanism?" repo discovery, start with zob_context_search/ColGREP before grep/find.\n- If zob_context_search is not listed in your available tools but bash is available, run npm run --silent zob:context:query -- --query "<natural language query>" --max-results 6 --max-context-lines 1 before rg/grep; the wrapper returns compact refs by default.\n- Do not conclude the native tool is unavailable and immediately use broad rg/grep; use the wrapper above as the ColGREP path.\n- Run one exploratory context search, then read the returned refs; retry only if results=0 or clearly irrelevant.\n- Use grep/read after semantic discovery for exact proof, known identifiers, final citations, and line refs.\n- Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.\n- Search output must stay bounded and avoid forbidden paths/secrets.`;
+    return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: colgrep\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- For exploratory, natural-language, or "where is this mechanism?" repo discovery, start with zob_context_search/ColGREP before grep/find.\n- If zob_context_search is not listed in your available tools but bash is available, run npm run --silent zob:context:query -- --query "<natural language query>" --max-results 6 --max-context-lines 1 before rg/grep; the wrapper returns compact refs by default.\n- Do not conclude the native tool is unavailable and immediately use broad rg/grep; use the wrapper above as the ColGREP path.\n- Reuse zob_context_search/ColGREP at context pivot points: new subsystem/domain, ambiguous or broad file area, fallback_status suggesting narrower paths, repeated low-signal grep/find, unfamiliar code before edits, or unknown validation/test failure.\n- Use grep/read after semantic discovery for exact proof, known identifiers, final citations, and line refs; use grep/read directly when exact identifiers or paths are already known.\n- Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.\n- Search output must stay bounded and avoid forbidden paths/secrets.`;
   }
   const installHint = config.promptInjection.includeInstallHint ? `\n- Optional ColGREP setup hint: ${detection.guidance}` : "";
-  return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: grep fallback\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- Prefer zob_context_search when listed; if not listed and bash is available, npm run --silent zob:context:query -- --query "<query>" still gives the same bounded compact fallback path.${installHint}\n- Missing ColGREP is not a blocker; do not auto-install it.\n- Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.`;
+  return `\n\nZOB ACTIVE SEARCH BACKEND\n- active search backend: grep fallback\n- prompt injection: enabled by ${scope}; bounded per turn from current repo config, not a global/stale context pack.\n- Prefer zob_context_search when listed; if not listed and bash is available, npm run --silent zob:context:query -- --query "<query>" still gives the same bounded compact fallback path.${installHint}\n- Reuse the active context path at pivots such as new subsystem/domain, ambiguous file area, fallback_status suggesting narrower paths, repeated low-signal grep/find, unfamiliar code before edits, or unknown validation/test failure.\n- Missing ColGREP is not a blocker; do not auto-install it.\n- Use grep/read for exact proof and when exact identifiers or paths are already known; never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned.`;
 }
 
 function safeSearchRoots(repoRoot: string, config: ContextDiscoveryConfig, requestedPaths?: string[]): { roots: string[]; rejected: string[] } {
@@ -211,12 +244,9 @@ function extractJsonResults(repoRoot: string, stdout: string, config: ContextDis
   }
 }
 
-const COLGREP_TIMEOUT_MS = 30_000;
-const COLGREP_MAX_OUTPUT_BYTES = 1024 * 1024;
-
 type ColgrepRunResult = { ok: boolean; results: NormalizedContextResult[]; error?: string };
 
-async function runColgrep(repoRoot: string, query: string, roots: string[], config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): Promise<ColgrepRunResult> {
+async function runColgrep(repoRoot: string, query: string, roots: string[], config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number, timeoutMs: number): Promise<ColgrepRunResult> {
   const args = ["--json", "-k", String(maxResults), "-n", String(maxContextLines), query, ...roots];
   return await new Promise<ColgrepRunResult>((resolve) => {
     let stdout = "";
@@ -231,8 +261,8 @@ async function runColgrep(repoRoot: string, query: string, roots: string[], conf
     };
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      finish({ ok: false, results: [], error: `colgrep timed out after ${String(COLGREP_TIMEOUT_MS)}ms; retry with narrower paths or max_results.` });
-    }, COLGREP_TIMEOUT_MS);
+      finish({ ok: false, results: [], error: `ColGREP exceeded ${String(timeoutMs)}ms; bounded grep fallback used. Retry with narrower paths for semantic ranking.` });
+    }, timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -254,40 +284,62 @@ async function runColgrep(repoRoot: string, query: string, roots: string[], conf
   });
 }
 
-function fallbackSearch(repoRoot: string, params: Required<Pick<ContextSearchParams, "query" | "mode">> & Pick<ContextSearchParams, "pattern" | "paths">, config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): { results: NormalizedContextResult[]; rejectedPaths: string[]; roots: string[] } {
+function fallbackSearch(repoRoot: string, params: Required<Pick<ContextSearchParams, "query" | "mode">> & Pick<ContextSearchParams, "pattern" | "paths">, config: ContextDiscoveryConfig, maxResults: number, maxContextLines: number): { results: NormalizedContextResult[]; rejectedPaths: string[]; roots: string[]; searchTerms: string[] } {
   const { roots, rejected } = safeSearchRoots(repoRoot, config, params.paths);
   const files: string[] = [];
   for (const root of roots) collectFiles(repoRoot, root, config, files);
   const needle = params.mode === "regex" ? params.pattern ?? params.query : params.query;
+  const queryLower = params.query.toLowerCase();
+  const searchTerms = params.mode === "regex" ? [] : extractFallbackSearchTerms(params.query);
   let regex: RegExp | undefined;
   if (params.mode === "regex") {
     try { regex = new RegExp(needle, "iu"); } catch { regex = undefined; }
   }
   const results: NormalizedContextResult[] = [];
+  const rankedResults: NormalizedContextResult[] = [];
+  const pushRankedResult = (result: NormalizedContextResult): void => {
+    rankedResults.push(result);
+    if (rankedResults.length > FALLBACK_CANDIDATE_BUDGET) {
+      rankedResults.sort((left, right) => (right.score ?? 0) - (left.score ?? 0) || left.ref.localeCompare(right.ref));
+      rankedResults.length = FALLBACK_CANDIDATE_BUDGET;
+    }
+  };
   for (const path of [...new Set(files)].sort()) {
-    if (results.length >= maxResults) break;
+    if ((params.mode === "files" || params.mode === "regex") && results.length >= maxResults) break;
     if (params.mode === "files") {
-      if (!path.toLowerCase().includes(params.query.toLowerCase())) continue;
+      if (!path.toLowerCase().includes(queryLower)) continue;
       results.push({ path, ref: path, preview: path });
       continue;
     }
     const lines = readFileSync(join(repoRoot, path), "utf8").split(/\r?\n/u);
     for (let index = 0; index < lines.length; index += 1) {
-      const matched = regex ? regex.test(lines[index]) : lines[index].toLowerCase().includes(params.query.toLowerCase());
+      const lineText = lines[index];
+      const score = regex ? undefined : fallbackLineScore(lineText.toLowerCase(), queryLower, searchTerms);
+      const matched = regex ? regex.test(lineText) : (score ?? 0) > 0;
       if (!matched) continue;
       const start = Math.max(0, index - maxContextLines);
       const end = Math.min(lines.length, index + maxContextLines + 1);
-      results.push({
+      const result = {
         path,
         line: index + 1,
         ref: `${path}:${index + 1}`,
-        preview: lines[index].trim().slice(0, 240),
+        preview: lineText.trim().slice(0, 240),
         context: lines.slice(start, end).map((text, offset) => ({ line: start + offset + 1, text: text.slice(0, 240) })),
-      });
-      if (results.length >= maxResults) break;
+        score,
+      } satisfies NormalizedContextResult;
+      if (regex) {
+        results.push(result);
+        if (results.length >= maxResults) break;
+      } else {
+        pushRankedResult(result);
+      }
     }
   }
-  return { results, rejectedPaths: rejected, roots };
+  if (params.mode !== "files" && params.mode !== "regex") {
+    rankedResults.sort((left, right) => (right.score ?? 0) - (left.score ?? 0) || left.ref.localeCompare(right.ref));
+    results.push(...rankedResults.slice(0, maxResults));
+  }
+  return { results, rejectedPaths: rejected, roots, searchTerms };
 }
 
 export async function runContextSearch(repoRoot: string, input: ContextSearchParams): Promise<Record<string, unknown>> {
@@ -296,14 +348,16 @@ export async function runContextSearch(repoRoot: string, input: ContextSearchPar
   const mode = input.mode ?? "auto";
   const maxResults = clampInteger(input.max_results, config.limits.maxResults, 1, 50);
   const maxContextLines = clampInteger(input.max_context_lines, config.limits.maxContextLines, 0, 5);
+  const colgrepTimeoutMs = getColgrepTimeoutMs(config);
   const detection = detectColgrep(repoRoot);
   const { roots, rejected } = safeSearchRoots(repoRoot, config, input.paths);
   let provider = detection.ready ? "colgrep" : "grep-fallback";
   let fallback = !detection.ready;
   let fallbackReason = detection.ready ? undefined : detection.guidance;
+  let fallbackSearchTerms: string[] = [];
   let results: NormalizedContextResult[] = [];
   if (detection.ready && mode !== "regex" && mode !== "files") {
-    const colgrep = await runColgrep(repoRoot, query, roots, config, maxResults, maxContextLines);
+    const colgrep = await runColgrep(repoRoot, query, roots, config, maxResults, maxContextLines, colgrepTimeoutMs);
     if (colgrep.ok) results = colgrep.results;
     else {
       provider = "grep-fallback";
@@ -316,8 +370,14 @@ export async function runContextSearch(repoRoot: string, input: ContextSearchPar
     fallbackReason = `${mode} mode uses exact grep/find fallback for deterministic results.`;
   }
   if (fallback || results.length === 0) {
+    if (!fallback) {
+      provider = "grep-fallback";
+      fallback = true;
+      fallbackReason = "ColGREP returned no compact refs; tokenized grep fallback used.";
+    }
     const fallbackResult = fallbackSearch(repoRoot, { query, mode, pattern: input.pattern, paths: input.paths }, config, maxResults, maxContextLines);
     results = fallbackResult.results;
+    fallbackSearchTerms = fallbackResult.searchTerms;
   }
   const refs = results.map((item) => item.ref);
   return {
@@ -334,10 +394,11 @@ export async function runContextSearch(repoRoot: string, input: ContextSearchPar
     results,
     searchedRoots: roots,
     rejectedPaths: rejected,
-    limits: { maxResults, maxContextLines },
+    limits: { maxResults, maxContextLines, colgrepTimeoutMs },
+    fallbackSearchTerms,
     recommendedVerification: refs.length > 0
-      ? [`read ${results[0]?.path ?? roots[0] ?? "."}`, "After reading, grep exact identifiers/strings found in returned refs for final proof."]
-      : [`grep -R -n ${shellQuote(query)} ${roots.map(shellQuote).join(" ") || "."}`, "find relevant safe paths, then read exact files"],
+      ? [`read ${results[0]?.path ?? roots[0] ?? "."}`, "Then grep exact identifiers/strings for proof; rerun zob_context_search at context pivots or when fallback_status suggests narrower paths."]
+      : [buildFallbackVerificationCommand(query, roots, fallbackSearchTerms, mode, input.pattern), "If low-signal or ambiguous, rerun zob_context_search with narrower paths/query, then read exact files."],
     safety: { repoRelativeOnly: true, forbiddenPathsExcluded: config.excludePaths, rawPromptOrConversationPersisted: false, autoInstall: false },
   };
 }

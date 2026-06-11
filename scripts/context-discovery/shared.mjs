@@ -36,6 +36,7 @@ export const defaultConfig = {
     maxResults: 6,
     maxContextLines: 1,
     maxFileBytes: 1024 * 1024,
+    colgrepTimeoutMs: 8_000,
   },
   promptInjection: {
     enabled: true,
@@ -63,6 +64,29 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
+function escapeRegExpLiteral(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function extractFallbackSearchTerms(query) {
+  const rawTerms = String(query ?? "").toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? [];
+  const usefulTerms = rawTerms.filter((term) => term.length >= 3 || /\d/u.test(term) || term.includes("_") || term.includes("-"));
+  return [...new Set(usefulTerms)].sort((left, right) => right.length - left.length || left.localeCompare(right)).slice(0, 12);
+}
+
+function fallbackLineScore(lineLower, queryLower, terms) {
+  let score = queryLower.length > 0 && lineLower.includes(queryLower) ? 100 : 0;
+  for (const term of terms) {
+    if (lineLower.includes(term)) score += Math.min(10, term.length);
+  }
+  return score;
+}
+
+function buildFallbackVerification(query, includePaths, terms) {
+  const pattern = terms.length > 0 ? terms.slice(0, 10).map(escapeRegExpLiteral).join("|") : escapeRegExpLiteral(query);
+  return `grep -R -n -E ${shellQuote(pattern)} ${includePaths.map(shellQuote).join(" ")}`;
+}
+
 export function commandExists(command) {
   if (process.env.ZOB_CONTEXT_FORCE_FALLBACK === "1") {
     return false;
@@ -71,6 +95,7 @@ export function commandExists(command) {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 2_000,
   });
   return result.status === 0 && result.stdout.trim().length > 0;
 }
@@ -90,6 +115,7 @@ export function detectColgrep() {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 5_000,
   });
 
   return {
@@ -213,43 +239,51 @@ export function fallbackSearch({ query, config, maxResults, maxContextLines }) {
   }
 
   const wanted = String(query ?? "").toLowerCase();
-  const results = [];
-  for (const relPath of [...new Set(files)].sort()) {
-    if (results.length >= maxResults) {
-      break;
+  const searchTerms = extractFallbackSearchTerms(query);
+  const rankedResults = [];
+  const pushRankedResult = (result) => {
+    rankedResults.push(result);
+    if (rankedResults.length > 500) {
+      rankedResults.sort((left, right) => (right.score ?? 0) - (left.score ?? 0) || left.ref.localeCompare(right.ref));
+      rankedResults.length = 500;
     }
+  };
+  for (const relPath of [...new Set(files)].sort()) {
     const content = readFileSync(join(repoRoot, relPath), "utf8");
     const lines = content.split(/\r?\n/u);
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-      if (!lines[lineIndex].toLowerCase().includes(wanted)) {
+      const lineText = lines[lineIndex];
+      const score = fallbackLineScore(lineText.toLowerCase(), wanted, searchTerms);
+      if (score <= 0) {
         continue;
       }
       const start = Math.max(0, lineIndex - maxContextLines);
       const end = Math.min(lines.length, lineIndex + maxContextLines + 1);
-      results.push({
+      pushRankedResult({
         path: relPath,
         line: lineIndex + 1,
         ref: `${relPath}:${lineIndex + 1}`,
-        preview: lines[lineIndex].trim().slice(0, 240),
+        preview: lineText.trim().slice(0, 240),
         context: lines.slice(start, end).map((text, offset) => ({ line: start + offset + 1, text: text.slice(0, 240) })),
+        score,
       });
-      if (results.length >= maxResults) {
-        break;
-      }
     }
   }
+  rankedResults.sort((left, right) => (right.score ?? 0) - (left.score ?? 0) || left.ref.localeCompare(right.ref));
+  const results = rankedResults.slice(0, maxResults);
 
   return {
     provider: "grep-fallback",
     fallback: true,
     query,
+    searchTerms,
     maxResults,
     maxContextLines,
     resultCount: results.length,
     results,
     recommendedVerification: results.length
-      ? [`grep -n ${shellQuote(query)} ${shellQuote(results[0].path)}`, `read ${results[0].path}`]
-      : [`grep -R -n ${shellQuote(query)} ${config.includePaths.map(shellQuote).join(" ")}`],
+      ? [`read ${results[0].path}`, "Then grep exact identifiers/strings for proof; rerun zob_context_search at context pivots or when fallback_status suggests narrower paths."]
+      : [buildFallbackVerification(query, config.includePaths, searchTerms), "If low-signal or ambiguous, rerun with narrower paths/query, then read exact files."],
   };
 }
 
@@ -293,8 +327,8 @@ export function normalizeColgrepResults(stdout, { query, config, maxResults, max
     resultCount: results.length,
     results,
     recommendedVerification: results.length
-      ? [`read ${results[0].path}`, "After reading, grep exact identifiers/strings found in returned refs for final proof."]
-      : ["No compact ColGREP refs parsed; retry with a narrower query or inspect ColGREP status."],
+      ? [`read ${results[0].path}`, "Then grep exact identifiers/strings for proof; rerun zob_context_search at context pivots or when fallback_status suggests narrower paths."]
+      : ["No compact ColGREP refs parsed; retry with a narrower query/path or inspect ColGREP status before broad grep."],
   };
 }
 

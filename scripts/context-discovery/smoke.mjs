@@ -32,6 +32,31 @@ if (parsed.provider !== "grep-fallback" || parsed.fallback !== true || parsed.re
   process.exit(1);
 }
 
+const tokenQuery = ["ColGREP", "forbidden", "sessions", "compact", "refs"].join(" ");
+const tokenResult = spawnSync(process.execPath, ["scripts/context-discovery/query.mjs", "--query", tokenQuery, "--json", "--max-results", "3"], {
+  cwd: process.cwd(),
+  env,
+  encoding: "utf8",
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let tokenParsed;
+try {
+  tokenParsed = JSON.parse(tokenResult.stdout);
+} catch {
+  tokenParsed = {};
+}
+const tokenizedFallbackOk = tokenResult.status === 0
+  && Array.isArray(tokenParsed.searchTerms)
+  && tokenParsed.searchTerms.includes("colgrep")
+  && Array.isArray(tokenParsed.results)
+  && tokenParsed.results.length > 0
+  && !String(tokenParsed.recommendedVerification?.[0] ?? "").includes(tokenQuery);
+if (!tokenizedFallbackOk) {
+  console.error("context-discovery smoke FAIL: tokenized fallback did not avoid exact long-query grep guidance");
+  console.error(JSON.stringify({ status: tokenResult.status, stderr: tokenResult.stderr, tokenParsed }, null, 2));
+  process.exit(1);
+}
+
 const constantsSource = readFileSync(".pi/extensions/zob-harness/src/core/constants.ts", "utf8");
 const runtimeSource = readFileSync(".pi/extensions/zob-harness/src/domains/context/context-discovery.ts", "utf8");
 const querySource = readFileSync("scripts/context-discovery/query.mjs", "utf8");
@@ -41,11 +66,17 @@ const requiredPromptFragments = [
   "start with zob_context_search/ColGREP before grep/find",
   "npm run --silent zob:context:query -- --query",
   "Do not conclude the native tool is unavailable and immediately use broad rg/grep",
-  "Run one exploratory context search, then read the returned refs",
+  "Reuse zob_context_search/ColGREP at context pivot points",
+  "fallback_status suggesting narrower paths",
   "Use grep/read after semantic discovery",
+  "use grep/read directly when exact identifiers or paths are already known",
   "Never run broad grep/find over .pi unless .pi/sessions and .pi/agent-sessions are explicitly excluded/pruned",
   "unit?.file",
   "normalizeBackendPath(repoRoot, rawPath)",
+];
+const forbiddenPromptFragments = [
+  "Run one exploratory context search, then read the returned refs",
+  "Run one exploratory context search, then read returned refs",
 ];
 const requiredWrapperFragments = [
   "normalizeColgrepResults",
@@ -56,7 +87,8 @@ const requiredAsyncRuntimeFragments = [
   "spawn(\"colgrep\"",
   "export async function runContextSearch",
   "await runColgrep",
-  "COLGREP_TIMEOUT_MS = 30_000",
+  "COLGREP_DEFAULT_TIMEOUT_MS = 8_000",
+  "bounded grep fallback used",
 ];
 const forbiddenWrapperFragments = [
   "console.log(result.raw)",
@@ -72,9 +104,10 @@ if (!contextReadToolsLine.includes('"zob_context_search"')) {
 }
 
 const missingPromptFragments = requiredPromptFragments.filter((fragment) => !runtimeSource.includes(fragment));
-if (missingPromptFragments.length > 0) {
-  console.error("context-discovery smoke FAIL: runtime prompt hardening fragments missing");
-  console.error(JSON.stringify({ missingPromptFragments }, null, 2));
+const presentForbiddenPromptFragments = forbiddenPromptFragments.filter((fragment) => runtimeSource.includes(fragment));
+if (missingPromptFragments.length > 0 || presentForbiddenPromptFragments.length > 0) {
+  console.error("context-discovery smoke FAIL: runtime prompt hardening fragments missing or obsolete one-search rule present");
+  console.error(JSON.stringify({ missingPromptFragments, presentForbiddenPromptFragments }, null, 2));
   process.exit(1);
 }
 if (missingWrapperFragments.length > 0 || presentForbiddenWrapperFragments.length > 0) {
