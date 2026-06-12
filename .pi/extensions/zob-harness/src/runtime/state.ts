@@ -19,6 +19,7 @@ import type { ZobModeIntent } from "./mode-intent.js";
 import type { ZAgentRoomBinding } from "../domains/coms/zagents.js";
 import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
 import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../domains/git/git-ops.js";
+import type { StopRestoreCandidate } from "./stop-restore.js";
 
 export interface DelegationMouseRuntimeState {
   tui?: TUI;
@@ -153,6 +154,7 @@ export interface HarnessRuntimeState {
   runtimeGoalLastAccountedAtMs?: number;
   activeRuleResolution?: RuleResolution;
   lastUserInputText?: string;
+  stopRestoreCandidate?: StopRestoreCandidate;
   lastModeIntent?: ZobModeIntent & { at: number; accepted: boolean; validationReason: string };
   delegations: DelegationMonitorState;
   delegationMouse: DelegationMouseRuntimeState;
@@ -181,6 +183,7 @@ export function createHarnessRuntimeState(): HarnessRuntimeState {
     runtimeGoalLastAccountedAtMs: undefined,
     activeRuleResolution: undefined,
     lastUserInputText: undefined,
+    stopRestoreCandidate: undefined,
     lastModeIntent: undefined,
     delegations: createDelegationMonitorState(),
     delegationMouse: { enabled: false, opening: false, mouseReleaseEpoch: 0 },

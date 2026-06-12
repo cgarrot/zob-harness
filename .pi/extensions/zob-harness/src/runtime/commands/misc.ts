@@ -15,6 +15,7 @@ import type { HarnessRuntimeState } from "../state.js";
 import { renderHarnessWidget } from "../widget.js";
 import type { HarnessCommandContext } from "./types.js";
 import { daemonInputFromState, daemonRuntimeLedgerEntry, stopDaemonLoop } from "./daemon.js";
+import { findStopRestoreUserEntryId, markStopRestoreRestored, shouldRestoreStopPrompt, type StopRestoreDecision, type StopRestoreRewindResult } from "../stop-restore.js";
 
 function abortForegroundWork(ctx: HarnessCommandContext): boolean {
   const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
@@ -52,6 +53,8 @@ function stopCommandLedgerEntry(input: {
   daemonWasRunning: boolean;
   runtimeGoalPaused: boolean;
   runtimeGoalId?: string;
+  stopRestoreDecision?: StopRestoreDecision;
+  stopRestoreRewind?: StopRestoreRewindResult;
 }): Record<string, unknown> {
   return {
     schema: "zob.stop-command.v1",
@@ -63,11 +66,49 @@ function stopCommandLedgerEntry(input: {
     daemonWasRunning: input.daemonWasRunning,
     runtimeGoalPaused: input.runtimeGoalPaused,
     runtimeGoalId: input.runtimeGoalId,
+    editorPromptRestored: input.stopRestoreDecision?.restore === true,
+    editorPromptRestoreReason: input.stopRestoreDecision?.reason,
+    editorPromptHash: input.stopRestoreDecision?.promptHash,
+    assistantOutputObservedBeforeStop: input.stopRestoreDecision?.assistantOutputObserved,
+    editorPromptRewindAttempted: input.stopRestoreRewind?.attempted,
+    editorPromptRewindSucceeded: input.stopRestoreRewind?.succeeded,
+    editorPromptRewindReason: input.stopRestoreRewind?.reason,
+    editorPromptRewindTargetId: input.stopRestoreRewind?.targetEntryId,
     bodyStored: false,
     promptBodiesStored: false,
     outputBodiesStored: false,
     generatedAt: new Date().toISOString(),
   };
+}
+
+async function restoreStopPromptAndRewind(ctx: HarnessCommandContext, state: HarnessRuntimeState, decision: StopRestoreDecision): Promise<StopRestoreRewindResult> {
+  if (!decision.restore || !decision.promptText) {
+    return { attempted: false, succeeded: false, reason: decision.reason };
+  }
+  try {
+    if (typeof ctx.waitForIdle === "function") await ctx.waitForIdle();
+  } catch {
+    ctx.ui.setEditorText(decision.promptText);
+    markStopRestoreRestored(state.stopRestoreCandidate);
+    return { attempted: true, succeeded: false, reason: "wait_for_idle_failed" };
+  }
+  const targetEntryId = findStopRestoreUserEntryId(state.stopRestoreCandidate, ctx.sessionManager.getEntries());
+  if (!targetEntryId) {
+    ctx.ui.setEditorText(decision.promptText);
+    markStopRestoreRestored(state.stopRestoreCandidate);
+    return { attempted: true, succeeded: false, reason: "user_entry_not_found" };
+  }
+  try {
+    const navigation = await ctx.navigateTree(targetEntryId, { summarize: false });
+    ctx.ui.setEditorText(decision.promptText);
+    markStopRestoreRestored(state.stopRestoreCandidate);
+    if (navigation.cancelled) return { attempted: true, succeeded: false, reason: "navigate_cancelled", targetEntryId };
+    return { attempted: true, succeeded: true, reason: "rewound_to_prompt_checkpoint", targetEntryId };
+  } catch {
+    ctx.ui.setEditorText(decision.promptText);
+    markStopRestoreRestored(state.stopRestoreCandidate);
+    return { attempted: true, succeeded: false, reason: "navigate_failed", targetEntryId };
+  }
 }
 
 export function registerNewCommand(pi: ExtensionAPI, state: HarnessRuntimeState): void {
@@ -116,11 +157,17 @@ export function registerStopCommand(pi: ExtensionAPI, state: HarnessRuntimeState
       const daemonWasRunning = state.daemon.loop.status === "running";
       const runtimeGoalId = state.runtimeGoal?.goalId;
       const foregroundAbortRequested = abortForegroundWork(ctx);
+      const stopRestoreDecision = shouldRestoreStopPrompt(state.stopRestoreCandidate, {
+        foregroundAbortRequested,
+        idleBeforeStop,
+        pendingMessagesBeforeStop,
+      });
       const background = abortBackgroundDelegations(state);
       stopDaemonLoop(state, "slash_stop");
       const pausedGoal = pauseRuntimeGoalForStop(pi, state, "stopped by /stop; use /goal resume to continue");
       const daemonState = buildDaemonRuntimeState(daemonInputFromState(state));
       state.daemon.lastStatus = daemonState;
+      const stopRestoreRewind = await restoreStopPromptAndRewind(ctx, state, stopRestoreDecision);
       pi.appendEntry("zob-daemon-runtime", daemonRuntimeLedgerEntry(daemonState));
       pi.appendEntry("zob-stop", stopCommandLedgerEntry({
         foregroundAbortRequested,
@@ -131,9 +178,11 @@ export function registerStopCommand(pi: ExtensionAPI, state: HarnessRuntimeState
         daemonWasRunning,
         runtimeGoalPaused: Boolean(pausedGoal && pausedGoal.goalId === runtimeGoalId && pausedGoal.status === "paused"),
         runtimeGoalId,
+        stopRestoreDecision,
+        stopRestoreRewind,
       }));
       renderHarnessWidget(pi, state, ctx);
-      ctx.ui.notify(`ZOB stop: foreground=${foregroundAbortRequested ? "aborted" : "idle"} background_aborted=${background.abortedCount} daemon=${daemonWasRunning ? "stopped" : "already_stopped"} goal=${pausedGoal?.status ?? "none"}`, "warning");
+      ctx.ui.notify(`ZOB stop: foreground=${foregroundAbortRequested ? "aborted" : "idle"} input=${stopRestoreDecision.restore ? "restored" : "unchanged"} rewind=${stopRestoreRewind.succeeded ? "yes" : "no"} background_aborted=${background.abortedCount} daemon=${daemonWasRunning ? "stopped" : "already_stopped"} goal=${pausedGoal?.status ?? "none"}`, "warning");
     },
   });
 }

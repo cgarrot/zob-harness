@@ -52,6 +52,8 @@ export type { PlanLaunchStatus, PlanTodoCanonicalItem, PlanTodoCanonicalManifest
 export { ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "./src/core/constants.js";
 export { ZOB_COMPACTION_DETAILS_SCHEMA, ZOB_COMPACTION_ENTRY_TYPE, ZOB_COMPACTION_HARD_CAP_TOKENS, ZOB_COMPACTION_LEDGER_SCHEMA, ZOB_COMPACTION_SUMMARY_SCHEMA, ZOB_COMPACTION_TARGET_TOKENS, buildDeterministicZobCompactionResult, buildDeterministicZobCompactionSummary, buildZobCompactionDetails, buildZobCompactionInstructions, buildZobCompactionLedgerEntry, buildZobCompactionStateCapsule, withZobCompactionDetails, zobCompactionBodyFreeViolations } from "./src/runtime/compaction-policy.js";
 export type { ZobCompactionDetails, ZobCompactionFileRefsInput, ZobCompactionInstructionInput, ZobCompactionLedgerEntry, ZobCompactionStateCapsule } from "./src/runtime/compaction-policy.js";
+export { assistantMessageHasVisibleOutput, createStopRestoreCandidate, findStopRestoreUserEntryId, markStopRestoreAssistantMessage, markStopRestoreRestored, markStopRestoreToolVisible, shouldRestoreStopPrompt } from "./src/runtime/stop-restore.js";
+export type { StopRestoreCandidate, StopRestoreCandidateInput, StopRestoreDecision, StopRestoreDecisionInput, StopRestoreRewindResult } from "./src/runtime/stop-restore.js";
 export { isAdaptiveZmodeAlias, renderAdaptiveZmodeTemplate, resolveAdaptiveZmodeEntrypoint, validateAdaptiveZmodeEntrypoint } from "./src/runtime/adaptive-zmode.js";
 export type { AdaptiveZmodeAlias, AdaptiveZmodeEntrypoint } from "./src/runtime/adaptive-zmode.js";
 export {

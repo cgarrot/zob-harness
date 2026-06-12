@@ -39,6 +39,7 @@ import { extractModeIntent, stripModeIntentMarkup, validateModeIntent, type ZobM
 import { capturePlanArtifact } from "./plan-capture.js";
 import { redactPlanTodosBlockForDisplay } from "../domains/plan/plan-todos.js";
 import { applyMode, renderHarnessWidget } from "./widget.js";
+import { createStopRestoreCandidate, markStopRestoreAssistantMessage, markStopRestoreToolVisible } from "./stop-restore.js";
 
 function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" | "unregister"): void {
   try {
@@ -937,6 +938,15 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
         return { action: "continue" as const };
       }
       state.lastUserInputText = event.text;
+      const streamingBehavior = (event as { streamingBehavior?: unknown }).streamingBehavior;
+      const stopRestoreCandidate = createStopRestoreCandidate({
+        text: event.text,
+        source: event.source,
+        streamingBehavior: streamingBehavior === "steer" || streamingBehavior === "followUp" ? streamingBehavior : undefined,
+        leafId: ctx.sessionManager.getLeafId(),
+      });
+      if (stopRestoreCandidate) state.stopRestoreCandidate = stopRestoreCandidate;
+      else if (!streamingBehavior) state.stopRestoreCandidate = undefined;
       if (!event.text.trim().startsWith("/") && state.autonomy.enabled) {
         const readiness = scoreMissionReadiness(event.text, { mode: state.autonomy.mode, policy: state.autonomy.policy });
         state.autonomy.lastReadiness = readiness;
@@ -1000,6 +1010,36 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       : fallbackReason;
     ctx.ui.notify(`ZOB auto-mode: ${previousMode} → ${nextMode} (${reason})`, "info");
     return { action: "continue" as const };
+  });
+
+  pi.on("message_start", async (event, ctx) => {
+    if (!isRecord(event.message)) return undefined;
+    if (event.message.role === "user") {
+      const text = textFromMessage(event.message as AssistantLikeMessage);
+      const stopRestoreCandidate = createStopRestoreCandidate({
+        text,
+        source: "interactive",
+        leafId: ctx.sessionManager.getLeafId(),
+      });
+      if (stopRestoreCandidate) state.stopRestoreCandidate = stopRestoreCandidate;
+      return undefined;
+    }
+    if (event.message.role === "assistant") {
+      markStopRestoreAssistantMessage(state.stopRestoreCandidate, event.message as AssistantLikeMessage);
+    }
+    return undefined;
+  });
+
+  pi.on("message_update", async (event) => {
+    if (isRecord(event.message) && event.message.role === "assistant") {
+      markStopRestoreAssistantMessage(state.stopRestoreCandidate, event.message as AssistantLikeMessage);
+    }
+    return undefined;
+  });
+
+  pi.on("tool_execution_start", async () => {
+    markStopRestoreToolVisible(state.stopRestoreCandidate);
+    return undefined;
   });
 
   pi.on("tool_call", async (event, ctx) => {
@@ -1072,6 +1112,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
 
   pi.on("message_end", async (event, ctx) => {
     if (!isRecord(event.message) || event.message.role !== "assistant") return undefined;
+    markStopRestoreAssistantMessage(state.stopRestoreCandidate, event.message as AssistantLikeMessage);
     const text = textFromMessage(event.message as AssistantLikeMessage);
     const visibleText = stripModeIntentMarkup(text);
     let capturedPlanPath: string | undefined;
