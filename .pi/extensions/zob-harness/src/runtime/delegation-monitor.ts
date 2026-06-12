@@ -1,5 +1,5 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
 import type { ChildResult, DelegationFailureKind } from "../types.js";
 import { isRecord } from "../core/utils/records.js";
@@ -29,6 +29,7 @@ export interface DelegationRunView {
   endedAtMs?: number;
   outputPreview: string;
   stderrPreview: string;
+  cwd?: string;
   sessionPath?: string;
   exitCode?: number;
   gatePassed?: boolean;
@@ -255,6 +256,29 @@ export function formatDelegationModelLabel(run: DelegationRunView | { model?: st
   return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
 }
 
+function delegationCwdValue(run: DelegationRunView | ChildResult | { cwd?: string } | undefined, repoRoot: string): string | undefined {
+  if (!run?.cwd) return undefined;
+  const resolvedRoot = resolve(repoRoot);
+  const resolvedCwd = resolve(run.cwd);
+  const rel = resolvedCwd === resolvedRoot ? "." : relative(resolvedRoot, resolvedCwd);
+  const inside = rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !rel.startsWith(sep));
+  return inside ? rel || "." : resolvedCwd;
+}
+
+function truncateLabel(label: string, limit: number): string {
+  return label.length <= limit ? label : `${label.slice(0, limit - 1)}…`;
+}
+
+export function formatDelegationCwdLabel(run: DelegationRunView | ChildResult | { cwd?: string } | undefined, repoRoot: string, limit = 48): string {
+  const value = delegationCwdValue(run, repoRoot);
+  return value ? truncateLabel(`cwd ${value}`, limit) : "";
+}
+
+export function formatDelegationWorkspaceLabel(run: DelegationRunView | ChildResult | { cwd?: string } | undefined, repoRoot: string, limit = 72): string {
+  const value = delegationCwdValue(run, repoRoot);
+  return value ? truncateLabel(`workspace · ${value}`, limit) : "";
+}
+
 function stripSignalControlSequences(text: string): string {
   return text
     .replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\)/g, "")
@@ -429,6 +453,7 @@ export function startDelegationRun(state: DelegationMonitorState, input: {
   agent: string;
   task: string;
   startedAtMs: number;
+  cwd?: string;
 }): DelegationRunView {
   const existingIndex = state.runs.findIndex((run) => run.id === input.id);
   const run: DelegationRunView = {
@@ -443,6 +468,7 @@ export function startDelegationRun(state: DelegationMonitorState, input: {
     startedAtMs: input.startedAtMs,
     outputPreview: "",
     stderrPreview: "",
+    cwd: input.cwd,
   };
   if (existingIndex >= 0) state.runs[existingIndex] = run;
   else state.runs.push(run);
@@ -463,6 +489,7 @@ export function updateDelegationRun(state: DelegationMonitorState, id: string, p
   if (patch.endedAtMs !== undefined) run.endedAtMs = patch.endedAtMs;
   if (patch.outputPreview !== undefined) run.outputPreview = capPreview(patch.outputPreview);
   if (patch.stderrPreview !== undefined) run.stderrPreview = capPreview(patch.stderrPreview);
+  if (patch.cwd !== undefined) run.cwd = patch.cwd;
   if (patch.sessionPath !== undefined) run.sessionPath = patch.sessionPath;
   if (patch.exitCode !== undefined) run.exitCode = patch.exitCode;
   if (patch.gatePassed !== undefined) run.gatePassed = patch.gatePassed;
@@ -539,6 +566,7 @@ export function buildDelegationLogLines(run: DelegationRunView | undefined, repo
     `[delegation ${run.id}]`,
     `agent: ${run.agent}`,
     run.model ? `model: ${run.model}` : undefined,
+    formatDelegationWorkspaceLabel(run, repoRoot) || undefined,
     `status: ${run.status}`,
     `duration: ${formatDuration(delegationDurationMs(run))}`,
     run.sessionPath ? `session: ${run.sessionPath}` : "session: not captured yet",

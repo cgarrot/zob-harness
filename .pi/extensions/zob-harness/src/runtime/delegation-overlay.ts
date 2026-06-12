@@ -2,7 +2,7 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 
 import type { DelegationMonitorState, DelegationRunView, DelegationSortMode } from "./delegation-monitor.js";
-import { buildDelegationGroups, delegationCost, delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCost, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon } from "./delegation-monitor.js";
+import { buildDelegationGroups, delegationCost, delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCost, formatDelegationCostLabel, formatDelegationCwdLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDelegationWorkspaceLabel, formatDuration, statusIcon } from "./delegation-monitor.js";
 import { delegationFeedFingerprint, renderDelegationFeedLines } from "./delegation-feed.js";
 import { delegateCloseButton, delegateSelectMarker } from "./delegation-click-markers.js";
 import { disableDelegationMouseMode, enableDelegationMouseMode, handleDelegationMouseInput } from "./delegation-mouse.js";
@@ -247,8 +247,9 @@ export class DelegationOverlayComponent implements Component {
     const headerLeft = `${th.fg(this.activePane === "list" ? "accent" : "muted", this.activePane === "list" ? "▶ Agents" : "  Agents")} ${th.fg("muted", delegateCloseButton())}`;
     const selectedBadge = delegationSignalBadge(selected);
     const selectedBadgeText = formatDelegationSignalBadge(selectedBadge);
+    const selectedWorkspaceLabel = formatDelegationWorkspaceLabel(selected, this.repoRoot, 42);
     const selectedTitle = selected
-      ? `${th.fg(statusColor(selected.status), `${statusIcon(selected.status)} ${selected.agent}`)}${selectedBadgeText ? ` ${th.fg(delegationSignalColor(selectedBadge), selectedBadgeText)}` : ""}${formatDelegationModelLabel(selected) ? ` ${th.fg("muted", `(${formatDelegationModelLabel(selected)})`)}` : ""} ${th.fg("dim", formatDuration(delegationDurationMs(selected)))} ${th.fg("accent", formatDelegationCostLabel(selected))} ${th.fg("muted", formatDelegationContextLabel(selected))}`
+      ? `${th.fg(statusColor(selected.status), `${statusIcon(selected.status)} ${selected.agent}`)}${selectedBadgeText ? ` ${th.fg(delegationSignalColor(selectedBadge), selectedBadgeText)}` : ""}${formatDelegationModelLabel(selected) ? ` ${th.fg("muted", `(${formatDelegationModelLabel(selected)})`)}` : ""}${selectedWorkspaceLabel ? ` ${th.fg("muted", selectedWorkspaceLabel)}` : ""} ${th.fg("dim", formatDuration(delegationDurationMs(selected)))} ${th.fg("accent", formatDelegationCostLabel(selected))} ${th.fg("muted", formatDelegationContextLabel(selected))}`
       : th.fg("warning", "No delegation selected");
     const headerRight = `${th.fg(this.activePane === "feed" ? "accent" : "muted", this.activePane === "feed" ? "▶ Feed" : "  Feed")} ${selectedTitle}`;
     lines.push(this.row(padToWidth(headerLeft, listWidth) + th.fg("dim", "│") + padToWidth(headerRight, logWidth), inner));
@@ -432,7 +433,8 @@ export class DelegationOverlayComponent implements Component {
     const badge = formatDelegationSignalBadge(delegationSignalBadge(run));
     const modelLabel = formatDelegationModelLabel(run);
     const modelSuffix = modelLabel ? ` (${modelLabel})` : "";
-    const base = `${row.label}${badge ? ` ${badge}` : ""}${modelSuffix} ${duration} ${cost} ${context} [view]`;
+    const cwdSuffix = formatDelegationCwdLabel(run, this.repoRoot, 28);
+    const base = `${row.label}${badge ? ` ${badge}` : ""}${modelSuffix}${cwdSuffix ? ` ${cwdSuffix}` : ""} ${duration} ${cost} ${context} [view]`;
     const labeled = `${truncateToWidth(base, width - (selected ? 2 : 0), "…")}${delegateSelectMarker(run.id)}`;
     const colored = th.fg(statusColor(run.status), labeled);
     return selected ? th.bg("selectedBg", padToWidth(colored, width)) : colored;

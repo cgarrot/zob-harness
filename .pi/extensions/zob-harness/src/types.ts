@@ -81,6 +81,7 @@ export interface ChildResult {
   exitCode: number;
   output: string;
   stderr: string;
+  cwd?: string;
   model?: string;
   sessionPath?: string;
   ledgerRunId?: string;

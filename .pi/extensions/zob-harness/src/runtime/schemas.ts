@@ -45,6 +45,7 @@ const TaskItem = Type.Object({
 const DelegateParams = Type.Object({
   agent: Type.Optional(Type.String({ description: "Agent name for single-agent mode" })),
   task: Type.Optional(Type.String({ description: "Task for single-agent mode" })),
+  cwd: Type.Optional(Type.String({ description: "Default cwd for delegate_agent child Pi processes. Must stay inside repo; tasks[].cwd and chain[].cwd override this value." })),
   tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel tasks. Max 8, 4 concurrent." })),
   chain: Type.Optional(Type.Array(TaskItem, { description: "Sequential chain. {previous} is replaced by prior output." })),
   scope: Type.Optional(AgentScopeSchema),

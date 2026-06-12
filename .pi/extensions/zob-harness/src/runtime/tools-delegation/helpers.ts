@@ -32,7 +32,9 @@ import {
   delegationSignalColor,
   extractDelegationSignalBadge,
   finishDelegationRun,
+  formatDelegationCwdLabel,
   formatDelegationModelLabel,
+  formatDelegationWorkspaceLabel,
   formatDelegationSignalBadge,
   formatDuration,
   hasActiveDelegations,
@@ -625,6 +627,7 @@ export function hydrateDelegationRunsFromDetails(source: "delegate_agent" | "del
         agent: result.agent,
         task: result.task || "restored from delegate tool result",
         startedAtMs: nowMs - Math.max(1, index + 1),
+        cwd: result.cwd,
       });
     }
     finishDelegationRun(state.delegations, result.ledgerRunId, {
@@ -634,6 +637,7 @@ export function hydrateDelegationRunsFromDetails(source: "delegate_agent" | "del
       index,
       agent: result.agent,
       model: result.model,
+      cwd: result.cwd,
       status: result.stopReason === "aborted" ? "aborted" : isFailed(result) ? "failed" : "complete",
       endedAtMs: existing?.endedAtMs ?? nowMs,
       outputPreview: result.output,
@@ -730,6 +734,16 @@ export function formatDelegationCatalogSummary(catalog: Record<string, unknown>)
   return lines.join("\n");
 }
 
+function formatWorkspaceSummaryLine(items: Array<DelegationRunView | ChildResult>, repoRoot: string): string {
+  const workspaces = [...new Set(items.map((item) => formatDelegationWorkspaceLabel(item, repoRoot, 72)).filter(Boolean))];
+  if (workspaces.length === 0) return "";
+  if (workspaces.length === 1) return workspaces[0] ?? "";
+  const values = workspaces.map((label) => label.replace(/^workspace · /, ""));
+  const visible = values.slice(0, 3).join(", ");
+  const suffix = values.length > 3 ? `, +${values.length - 3} more` : "";
+  return `workspaces · ${visible}${suffix}`;
+}
+
 function renderMiniActivityLines(run: DelegationRunView, nowMs: number, expanded: boolean, theme: { fg: (color: any, text: string) => string }): string[] {
   const lines: string[] = [];
   const snapshot = readDelegationActivitySnapshot(run.sessionPath, process.cwd(), nowMs);
@@ -770,8 +784,10 @@ export function renderDelegationToolResultText(source: "delegate_agent" | "deleg
   const mode = details?.mode ?? (source === "delegate_task" ? "single" : "single");
   const lines = [
     `${theme.fg("toolTitle", theme.bold(source))} ${theme.fg("accent", mode)} ${isPartial ? theme.fg("warning", "running") : theme.fg(failCount > 0 ? "error" : "success", `${okCount}/${results.length || monitoredRuns.length || 1} ok`)}`,
-    `${theme.fg("dim", "running")} ${theme.fg(runningCount > 0 ? "warning" : "dim", String(runningCount))} ${theme.fg("dim", "blocked")} ${theme.fg(blockedCount > 0 ? "warning" : "dim", String(blockedCount))} ${theme.fg("dim", "gate")} ${theme.fg(gateCount > 0 ? "warning" : "dim", String(gateCount))} ${theme.fg("dim", "runtime")} ${theme.fg(runtimeCount > 0 ? "error" : "dim", String(runtimeCount))} ${theme.fg("dim", "details")} ${theme.fg("muted", "/zstatus delegations")}`,
   ];
+  const workspaceSummary = formatWorkspaceSummaryLine(monitoredRuns.length > 0 ? monitoredRuns : results, process.cwd());
+  if (workspaceSummary) lines.push(theme.fg("accent", workspaceSummary));
+  lines.push(`${theme.fg("dim", "running")} ${theme.fg(runningCount > 0 ? "warning" : "dim", String(runningCount))} ${theme.fg("dim", "blocked")} ${theme.fg(blockedCount > 0 ? "warning" : "dim", String(blockedCount))} ${theme.fg("dim", "gate")} ${theme.fg(gateCount > 0 ? "warning" : "dim", String(gateCount))} ${theme.fg("dim", "runtime")} ${theme.fg(runtimeCount > 0 ? "error" : "dim", String(runtimeCount))} ${theme.fg("dim", "details")} ${theme.fg("muted", "/zstatus delegations")}`);
 
   if (monitoredRuns.length > 0) {
     const maxRows = expanded ? 12 : 5;
@@ -787,7 +803,9 @@ export function renderDelegationToolResultText(source: "delegate_agent" | "deleg
       const badgeText = formatDelegationSignalBadge(badge);
       const modelLabel = formatDelegationModelLabel(run);
       const modelSuffix = modelLabel ? ` ${theme.fg("muted", `(${modelLabel})`)}` : "";
-      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}${background}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
+      const cwdLabel = formatDelegationCwdLabel(run, process.cwd(), 36);
+      const cwdSuffix = cwdLabel ? ` ${theme.fg("muted", cwdLabel)}` : "";
+      lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${statusIcon(run.status)} ${run.agent}${kind}${background}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix}${cwdSuffix} ${theme.fg("dim", formatDuration(delegationDurationMs(run, nowMs)))} ${theme.fg("muted", viewHint)}`);
       lines.push(...renderMiniActivityLines(run, nowMs, expanded, theme));
       if (expanded && (run.errorMessage || run.stopReason || run.gateErrors?.length)) lines.push(`   ${theme.fg("dim", run.errorMessage ?? run.gateErrors?.join("; ") ?? run.stopReason ?? "")}`);
     }
@@ -808,7 +826,9 @@ export function renderDelegationToolResultText(source: "delegate_agent" | "deleg
     const badgeText = formatDelegationSignalBadge(badge);
     const modelLabel = formatDelegationModelLabel(result);
     const modelSuffix = modelLabel ? ` ${theme.fg("muted", `(${modelLabel})`)}` : "";
-    lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${failed ? "✗" : "✓"} ${result.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix} ${theme.fg("dim", result.ledgerRunId ?? "")} ${theme.fg("muted", viewHint)}`);
+    const cwdLabel = formatDelegationCwdLabel(result, process.cwd(), 36);
+    const cwdSuffix = cwdLabel ? ` ${theme.fg("muted", cwdLabel)}` : "";
+    lines.push(`${theme.fg("dim", prefix)} ${theme.fg(color, `${failed ? "✗" : "✓"} ${result.agent}${kind}`)}${badgeText ? ` ${theme.fg(delegationSignalColor(badge), badgeText)}` : ""}${modelSuffix}${cwdSuffix} ${theme.fg("dim", result.ledgerRunId ?? "")} ${theme.fg("muted", viewHint)}`);
     if (expanded && result.output.trim()) lines.push(`   ${theme.fg("muted", result.output.split("\n")[0] ?? "")}`);
   }
   if (hasMore) lines.push(theme.fg("dim", `└─ … ${results.length - maxRows} more result(s)`));

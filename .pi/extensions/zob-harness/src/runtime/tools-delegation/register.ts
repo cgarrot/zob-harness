@@ -32,6 +32,7 @@ import {
   delegationSignalColor,
   extractDelegationSignalBadge,
   finishDelegationRun,
+  formatDelegationCwdLabel,
   formatDelegationModelLabel,
   formatDelegationSignalBadge,
   formatDuration,
@@ -109,6 +110,8 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       "If agent routing is uncertain, call zob_delegation_catalog before the first delegation.",
       "Use delegate_agent for broad discovery, external research, skeptical review, or independent QA before making risky edits.",
       "When using delegate_agent, give each child a bounded six-part contract and a concrete final output shape.",
+      "Optional cwd spawns the child inside that repo-local working directory; tasks[].cwd and chain[].cwd override delegate_agent top-level cwd defaults.",
+      "cwd only selects the child working directory; it does not replace allowed_paths or write-scope grants.",
       "If effective tools include edit/write, provide non-empty repo-relative-only allowed_paths; use repo-local reports/... snapshot/context_ref refs for external context.",
     ],
     parameters: DelegateParams,
@@ -169,6 +172,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const startedAt = new Date(startedAtMs).toISOString();
         const requestedTools = parseToolList(params.tools);
         const effectiveThinking = item.thinking ?? params.thinking;
+        const cwdResult = resolveChildCwd(ctx.cwd, item.cwd ?? params.cwd);
         startDelegationRun(state.delegations, {
           id: runId,
           parentToolCallId: toolCallId,
@@ -178,6 +182,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           agent: item.agent,
           task: taskText,
           startedAtMs,
+          cwd: cwdResult.cwd,
         });
         renderDelegationMonitor();
         const agent = byName.get(item.agent.toLowerCase());
@@ -193,6 +198,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             gateErrors: ["unknown agent"],
             failureKind: "config",
             usage: usageEmpty(),
+            cwd: cwdResult.cwd,
           };
           const endedAtMs = Date.now();
           const endedAt = new Date(endedAtMs).toISOString();
@@ -203,7 +209,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             ...delegationLedgerMeta("delegate_agent", toolCallId, monitor.mode, monitor.index),
             agent: item.agent,
             taskHash: sha256(taskText),
-            cwd: resolveChildCwd(ctx.cwd, item.cwd).cwd,
+            cwd: cwdResult.cwd,
             tools: requestedTools ?? [],
             errors: ["unknown agent"],
             failureKind: result.failureKind,
@@ -216,7 +222,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             mode: state.activeMode,
             agent: item.agent,
             model: params.model,
-            cwd: resolveChildCwd(ctx.cwd, item.cwd).cwd,
+            cwd: cwdResult.cwd,
             tools: requestedTools ?? [],
             taskHash: sha256(taskText),
             outputContract: inferOutputContract(item.agent),
@@ -240,14 +246,14 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             failureKind: result.failureKind,
             errorMessage: "Configuration blocked; no child launched: unknown agent",
             model: params.model,
+            cwd: cwdResult.cwd,
           });
           recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
           return result;
         }
 
-        updateDelegationRun(state.delegations, runId, { agent: agent.name });
-        const cwdResult = resolveChildCwd(ctx.cwd, item.cwd);
+        updateDelegationRun(state.delegations, runId, { agent: agent.name, cwd: cwdResult.cwd });
         const effectiveTools = requestedTools ?? agent.tools ?? [];
         const preflightErrors = [
           ...strictGoalErrors(state),
@@ -275,6 +281,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             gateErrors: preflightErrors,
             failureKind: classifyConfigOrPreflight(preflightErrors),
             usage: usageEmpty(),
+            cwd: cwdResult.cwd,
           };
           const endedAtMs = Date.now();
           const endedAt = new Date(endedAtMs).toISOString();
@@ -321,6 +328,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             failureKind: result.failureKind,
             errorMessage: `${result.failureKind === "config" ? "Configuration blocked" : "Preflight blocked"}; no child launched: ${preflightErrors.join("; ")}`,
             model: params.model ?? agent.model,
+            cwd: cwdResult.cwd,
           });
           recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
@@ -349,6 +357,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const childPathPolicy = { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths };
         const beforeChildDirty = toolsEnableWrites(effectiveChildTools) ? captureZcommitChildDirtySnapshot(ctx.cwd, childPathPolicy) : undefined;
         const result = await runChildAgent(ctx, agent, taskText, cwdResult.cwd, signal, params.model, requestedTools?.join(","), (partial) => {
+          partial.cwd = cwdResult.cwd;
           updateDelegationRun(state.delegations, runId, {
             status: partial.stopReason === "aborted" ? "aborted" : "running",
             agent: partial.agent,
@@ -356,6 +365,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             outputPreview: partial.output,
             stderrPreview: partial.stderr,
             sessionPath: partial.sessionPath,
+            cwd: cwdResult.cwd,
             stopReason: partial.stopReason,
             errorMessage: partial.errorMessage,
             usage: partial.usage,
@@ -363,6 +373,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           renderDelegationMonitor();
           update?.(partial);
         }, childPathPolicy, effectiveThinking);
+        result.cwd = cwdResult.cwd;
         result.childChangedPaths = captureChildDirtyDelta(ctx.cwd, childPathPolicy, beforeChildDirty);
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
@@ -480,6 +491,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           childChangedPaths: result.childChangedPaths,
           usage: result.usage,
           model: result.model,
+          cwd: cwdResult.cwd,
         });
         if (shouldRunAgenticClaimValidation(effectiveChildGoal, claimRecord)) {
           await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: effectiveChildGoal, claimRecord, parentRunId: runId, appendDelegationLedger, signal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
@@ -491,7 +503,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       if (params.agent && params.task) {
         startMonitorTicker();
         try {
-          const result = await runOne({ agent: params.agent, task: params.task, thinking: params.thinking, child_goal: params.child_goal }, { mode: "single", index: 0 }, (partial) => {
+          const result = await runOne({ agent: params.agent, task: params.task, cwd: params.cwd, thinking: params.thinking, child_goal: params.child_goal }, { mode: "single", index: 0 }, (partial) => {
             onUpdate?.({ content: [{ type: "text", text: partial.output || partial.stderr || "running..." }], details: makeDetails("single", [partial]) });
           });
           return {
@@ -519,7 +531,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             return result;
           });
           const successCount = results.filter((result) => !isFailed(result)).length;
-          const summaries = results.map((result) => `### ${result.agent} — ${isFailed(result) ? "FAILED/INCOMPLETE" : "OK"}\n\n${capOutput(formatChildResultText(result))}`);
+          const summaries = results.map((result) => `### ${result.agent} — ${isFailed(result) ? "FAILED/INCOMPLETE" : "OK"}${formatDelegationCwdLabel(result, ctx.cwd) ? ` · ${formatDelegationCwdLabel(result, ctx.cwd)}` : ""}\n\n${capOutput(formatChildResultText(result))}`);
           return {
             content: [{ type: "text", text: `Parallel delegation: ${successCount}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }],
             details: makeDetails("parallel", results),
@@ -542,7 +554,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             results.push(result);
             if (isFailed(result)) {
               return {
-                content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${result.agent}):\n\n${formatChildResultText(result)}` }],
+                content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${result.agent}${formatDelegationCwdLabel(result, ctx.cwd) ? ` · ${formatDelegationCwdLabel(result, ctx.cwd)}` : ""}):\n\n${formatChildResultText(result)}` }],
                 details: makeDetails("chain", results),
               };
             }
@@ -572,6 +584,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       "Use delegate_task when you need strict preflight rather than a freeform delegated prompt.",
       "Normally omit output_contract; the harness infers it from the selected agent. Do not invent output contract ids.",
       "Normally omit required_tools; the harness infers the selected agent's declared tools. Only set required_tools to intentionally narrow tools.",
+      "Optional cwd spawns the child inside that repo-local working directory; it only selects cwd and does not replace allowed_paths or write-scope grants.",
       "If effective tools include edit/write, set top-level original_user_ask to the original human request; context or task text does not satisfy the strict write preflight gate.",
       "Use canonical JSON keys expected_outcome, must_do, must_not_do, context, original_user_ask, allowed_paths, forbidden_paths; safe aliases are accepted only when non-conflicting.",
       "Accepted aliases: expectedOutcome, mustDo, mustNotDo/must_not/mustNot, originalUserAsk, allowedPaths, forbiddenPaths, requiredTools, outputContract, runInBackground, childGoal, loadSkills.",
@@ -598,6 +611,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       const effectiveChildGoal = childGoalResolution.childGoal;
       const startedAtMs = Date.now();
       const startedAt = new Date(startedAtMs).toISOString();
+      const cwdResult = resolveChildCwd(ctx.cwd, params.cwd);
       const appendDelegationLedger = (entry: Record<string, unknown>): void => {
         appendLedgerFile(ctx.cwd, entry);
         pi.appendEntry("zob-delegation", entry);
@@ -635,6 +649,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         agent: params.agent,
         task: params.task,
         startedAtMs,
+        cwd: cwdResult.cwd,
       });
       renderDelegationMonitor();
       startMonitorTicker();
@@ -652,6 +667,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: ["unknown agent"],
           failureKind: "config",
           usage: usageEmpty(),
+          cwd: cwdResult.cwd,
         };
         const endedAtMs = Date.now();
         const endedAt = new Date(endedAtMs).toISOString();
@@ -662,7 +678,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           ...delegationLedgerMeta("delegate_task", toolCallId, "single", 0),
           agent: params.agent,
           taskHash: sha256(params.task),
-          cwd: resolveChildCwd(ctx.cwd, params.cwd).cwd,
+          cwd: cwdResult.cwd,
           tools: params.required_tools ?? [],
           errors: ["unknown agent"],
           failureKind: result.failureKind,
@@ -675,7 +691,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           mode: state.activeMode,
           agent: params.agent,
           model: params.model,
-          cwd: resolveChildCwd(ctx.cwd, params.cwd).cwd,
+          cwd: cwdResult.cwd,
           tools: params.required_tools ?? [],
           taskHash: sha256(params.task),
           outputContract: params.output_contract ?? inferOutputContract(params.agent),
@@ -699,13 +715,14 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           failureKind: result.failureKind,
           errorMessage: "Configuration blocked; no child launched: unknown agent",
           model: params.model,
+          cwd: cwdResult.cwd,
         });
         recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
         return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
       }
 
-      updateDelegationRun(state.delegations, runId, { agent: agent.name });
+      updateDelegationRun(state.delegations, runId, { agent: agent.name, cwd: cwdResult.cwd });
       const requestedOutputContract = params.output_contract ?? inferOutputContract(agent.name);
       const effectiveTools = params.required_tools?.length ? params.required_tools : agent.tools ?? [];
 
@@ -728,7 +745,6 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         .filter((part): part is string => typeof part === "string")
         .join("\n");
 
-      const cwdResult = resolveChildCwd(ctx.cwd, params.cwd);
       const preflightErrors = [
         ...normalized.errors,
         ...strictGoalErrors(state),
@@ -759,6 +775,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           gateErrors: preflightErrors,
           failureKind: classifyConfigOrPreflight(preflightErrors),
           usage: usageEmpty(),
+          cwd: cwdResult.cwd,
         };
         const endedAtMs = Date.now();
         const endedAt = new Date(endedAtMs).toISOString();
@@ -805,6 +822,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           failureKind: result.failureKind,
           errorMessage: delegateTaskPreflightHelp(preflightErrors).replace(/\n/g, " "),
           model: params.model ?? agent.model,
+          cwd: cwdResult.cwd,
         });
         recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
@@ -834,6 +852,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const childPathPolicy = { allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths };
         const beforeChildDirty = toolsEnableWrites(effectiveTools) ? captureZcommitChildDirtySnapshot(ctx.cwd, childPathPolicy) : undefined;
         const result = await runChildAgent(ctx, agent, structuredTask, cwdResult.cwd, childSignal, params.model, effectiveTools.join(","), (partial) => {
+          partial.cwd = cwdResult.cwd;
           updateDelegationRun(state.delegations, runId, {
             status: partial.stopReason === "aborted" ? "aborted" : "running",
             agent: partial.agent,
@@ -841,6 +860,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             outputPreview: partial.output,
             stderrPreview: partial.stderr,
             sessionPath: partial.sessionPath,
+            cwd: cwdResult.cwd,
             stopReason: partial.stopReason,
             errorMessage: partial.errorMessage,
             usage: partial.usage,
@@ -848,6 +868,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           renderDelegationMonitor();
           if (emitToolUpdates) onUpdate?.({ content: [{ type: "text", text: partial.output || partial.stderr || "running..." }], details: { mode: "single", results: [partial], agents: agents.map((candidate) => candidate.name) } });
         }, childPathPolicy, params.thinking);
+        result.cwd = cwdResult.cwd;
         result.childChangedPaths = captureChildDirtyDelta(ctx.cwd, childPathPolicy, beforeChildDirty);
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
@@ -966,6 +987,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           childChangedPaths: result.childChangedPaths,
           usage: result.usage,
           model: result.model,
+          cwd: cwdResult.cwd,
         });
         if (shouldRunAgenticClaimValidation(effectiveChildGoal, claimRecord)) {
           await runAgenticTodoClaimValidation({ ctx, pi, state, childGoal: effectiveChildGoal, claimRecord, parentRunId: runId, appendDelegationLedger, signal: childSignal, modelOverride: params.model, allowedPaths: params.allowed_paths, forbiddenPaths: params.forbidden_paths });
@@ -1092,6 +1114,7 @@ ${formatChildResultText(result)}` : result.output || "(no output)" }],
         failureKind: result.failureKind,
         stopReason: result.stopReason,
         stopCondition: result.stopCondition,
+        cwd: result.cwd,
         sessionPath: result.sessionPath,
       });
       const resultDetails = (result: ChildResult) => includeResult ? { result } : { resultSummary: compactResult(result), resultIncluded: false };

@@ -3,7 +3,7 @@ import { resolve, sep } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Markdown, truncateToWidth, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 
-import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
+import { delegationDurationMs, delegationSignalBadge, delegationSignalColor, formatDelegationContextLabel, formatDelegationCostLabel, formatDelegationCwdLabel, formatDelegationModelLabel, formatDelegationSignalBadge, formatDelegationWorkspaceLabel, formatDuration, statusIcon, type DelegationRunView } from "./delegation-monitor.js";
 import { formatActivityDuration, formatActivitySummary, readDelegationActivitySnapshot } from "./delegation-activity.js";
 import { sanitizeDelegationText } from "./delegation-markdown.js";
 import { isRecord } from "../core/utils/records.js";
@@ -109,6 +109,7 @@ export function delegationFeedFingerprint(run: DelegationRunView | undefined, re
     run.usage?.contextTokens ?? "",
     (run.gateErrors ?? []).join(";"),
     run.model ?? "",
+    run.cwd ?? "",
   ].join("|");
 }
 
@@ -395,7 +396,10 @@ export function renderDelegationFeedLines(run: DelegationRunView | undefined, re
   const signalBadge = delegationSignalBadge(run);
   const signalText = formatDelegationSignalBadge(signalBadge);
   const modelLabel = formatDelegationModelLabel(run);
-  lines.push(theme.fg("dim", `${statusIcon(run.status)} ${run.agent}${signalText ? ` · ${theme.fg(delegationSignalColor(signalBadge), signalText)}` : ""}${modelLabel ? ` · ${theme.fg("muted", `(${modelLabel})`)}` : ""} · ${run.status}${run.failureKind ? ` · ${run.failureKind}` : ""} · ${formatDuration(delegationDurationMs(run))} · ${formatDelegationCostLabel(run)} · ${formatDelegationContextLabel(run)}`));
+  const cwdLabel = formatDelegationCwdLabel(run, repoRoot);
+  const workspaceLabel = formatDelegationWorkspaceLabel(run, repoRoot, Math.max(24, safeWidth - 2));
+  lines.push(theme.fg("dim", `${statusIcon(run.status)} ${run.agent}${signalText ? ` · ${theme.fg(delegationSignalColor(signalBadge), signalText)}` : ""}${modelLabel ? ` · ${theme.fg("muted", `(${modelLabel})`)}` : ""}${cwdLabel ? ` · ${theme.fg("muted", cwdLabel)}` : ""} · ${run.status}${run.failureKind ? ` · ${run.failureKind}` : ""} · ${formatDuration(delegationDurationMs(run))} · ${formatDelegationCostLabel(run)} · ${formatDelegationContextLabel(run)}`));
+  if (workspaceLabel) lines.push(theme.fg("accent", workspaceLabel));
   if (run.usage) lines.push(theme.fg("muted", `usage · in ${run.usage.input} · out ${run.usage.output} · cache ${run.usage.cacheRead}/${run.usage.cacheWrite} · context ${run.usage.contextTokens}`));
   if (run.taskPreview) lines.push(theme.fg("muted", `task · ${sanitizeDelegationText(run.taskPreview)}`));
   renderLiveActivityCard(run, repoRoot, lines, safeWidth, theme);
