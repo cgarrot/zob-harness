@@ -19,8 +19,11 @@ export function summarizeGoalTodos(todoState: GoalTodoState, goalId?: string): G
   const validationFailed = nodes.filter((node) => node.validation?.status === "failed" || node.validation?.status === "blocked" || node.validation?.status === "warn").length;
   const needsUser = nodes.filter((node) => node.status === "needs_user").length;
   const needsOracle = nodes.filter((node) => node.status === "needs_oracle").length;
-  const nextAgent = nodes.find((node) => node.owner === "agent" && (node.status === "ready" || node.status === "planned" || node.status === "in_progress"));
-  const nextUser = nodes.find((node) => ACTIONABLE_STATUSES.has(node.status) && (node.owner === "user" || node.status === "needs_user"));
+  const hasOpenChildren = (node: GoalTodoNode): boolean => nodes.some((candidate) => candidate.parentId === node.id && OPEN_REQUIRED_STATUSES.has(candidate.status));
+  const agentCandidates = nodes.filter((node) => node.owner === "agent" && (node.status === "ready" || node.status === "planned" || node.status === "in_progress"));
+  const nextAgent = agentCandidates.find((node) => !hasOpenChildren(node)) ?? agentCandidates[0];
+  const userCandidates = nodes.filter((node) => ACTIONABLE_STATUSES.has(node.status) && (node.owner === "user" || node.status === "needs_user"));
+  const nextUser = userCandidates.find((node) => !hasOpenChildren(node)) ?? userCandidates[0];
   return {
     goalId,
     total: nodes.length,

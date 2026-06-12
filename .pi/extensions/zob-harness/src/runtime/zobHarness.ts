@@ -11,6 +11,7 @@ import { registerDelegationTools } from "./tools-delegation.js";
 import { registerMissionControlTools } from "./tools-mission-control.js";
 import { registerFactoryTools } from "./tools-factory.js";
 import { registerProjectDnaTools } from "./tools-project-dna.js";
+import { registerPlanTools } from "./tools-plan.js";
 import { registerOrchestrationTools } from "./tools-orchestration.js";
 import { registerGoalRuntimeEvents, registerGoalRuntimeTools } from "./goal-runtime.js";
 import { registerGoalRoomTools } from "./tools-goal-room.js";
@@ -52,6 +53,8 @@ export default function zobHarness(pi: ExtensionAPI): void {
   registerComputeTools(pi);
 
   registerProjectDnaTools(pi);
+
+  registerPlanTools(pi, state);
 
   registerAutonomousTools(pi);
 

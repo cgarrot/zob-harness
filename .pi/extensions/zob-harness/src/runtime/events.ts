@@ -37,6 +37,7 @@ import type { HarnessRuntimeState, ZobLiveLastEvent } from "./state.js";
 import { bashLooksLikeFileMutation, inferModeFromUserIntent, restoreHarnessState } from "./state.js";
 import { extractModeIntent, stripModeIntentMarkup, validateModeIntent, type ZobModeIntent } from "./mode-intent.js";
 import { capturePlanArtifact } from "./plan-capture.js";
+import { redactPlanTodosBlockForDisplay } from "../domains/plan/plan-todos.js";
 import { applyMode, renderHarnessWidget } from "./widget.js";
 
 function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" | "unregister"): void {
@@ -458,6 +459,24 @@ function stripModeIntentFromMessage<T extends { content?: unknown }>(message: T)
   return { ...message, content: mapped.length > 0 ? mapped : "" } as T;
 }
 
+
+function transformAssistantTextMessage<T extends { content?: unknown }>(message: T, transform: (text: string) => string): { message: T; changed: boolean } {
+  const content = message.content;
+  if (typeof content === "string") {
+    const next = transform(content);
+    return { message: next === content ? message : { ...message, content: next } as T, changed: next !== content };
+  }
+  if (!Array.isArray(content)) return { message, changed: false };
+  let changed = false;
+  const mapped = content.map((part) => {
+    if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return part;
+    const nextText = transform(part.text);
+    if (nextText !== part.text) changed = true;
+    return { ...part, text: nextText };
+  }).filter((part) => !(isRecord(part) && part.type === "text" && typeof part.text === "string" && part.text.trim().length === 0));
+  return { message: changed ? { ...message, content: mapped.length > 0 ? mapped : "" } as T : message, changed };
+}
+
 function modeIntentContent(intent: ZobModeIntent, previousMode: string, accepted: boolean, validationReason: string): string {
   const status = accepted ? `${previousMode} → ${intent.mode}` : `${intent.mode} ignored`;
   return `${status} · ${intent.confidence}${intent.risk ? `/${intent.risk}` : ""} · ${intent.reason} · ${validationReason}`;
@@ -855,6 +874,32 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     return new Text(`${line}${expandedLine}`, 0, 0);
   });
 
+  pi.registerMessageRenderer("zob-plan-launch-result", (message, { expanded }, theme) => {
+    const details = isRecord(message.details) ? message.details : {};
+    const status = typeof details.status === "string" ? details.status : "preview";
+    const planId = typeof details.planId === "string" ? details.planId : undefined;
+    const planPath = typeof details.planPath === "string" ? details.planPath : undefined;
+    const sidecarPath = typeof details.sidecarPath === "string" ? details.sidecarPath : undefined;
+    const todoCount = typeof details.todoCount === "number" ? details.todoCount : undefined;
+    const errors = Array.isArray(details.errors) ? details.errors.filter((item): item is string => typeof item === "string") : [];
+    const content = typeof message.content === "string" ? message.content : "";
+    const statusColor = status === "blocked" ? "warning" : status === "launched" ? "success" : "accent";
+    const title = status === "blocked" ? "⚠ ZOB plan blocked" : status === "launched" ? "🚀 ZOB plan launched" : "✅ ZOB plan preview";
+    const lines = [
+      [theme.fg(statusColor, title), planId ? theme.fg("accent", planId) : undefined, todoCount !== undefined ? theme.fg("muted", `${todoCount} TODO${todoCount === 1 ? "" : "s"}`) : undefined].filter(Boolean).join(theme.fg("dim", " · ")),
+    ];
+    if (planPath) lines.push(`${theme.fg("dim", "plan:")} ${theme.fg("muted", planPath)}`);
+    if (sidecarPath) lines.push(`${theme.fg("dim", "sidecar:")} ${theme.fg("muted", sidecarPath)}`);
+    if (errors.length > 0) lines.push(theme.fg("warning", errors.join("\n")));
+    if (expanded && content) lines.push(theme.fg("dim", content));
+    else if (content) {
+      const preview = content.split(/\r?\n/).slice(0, 8).join("\n");
+      lines.push(theme.fg("dim", preview));
+      if (content.split(/\r?\n/).length > 8) lines.push(theme.fg("dim", "… expand for full plan tree"));
+    }
+    return new Text(lines.join("\n"), 0, 0);
+  });
+
   pi.registerMessageRenderer("zob-mode-intent", (message, { expanded }, theme) => {
     const details = isRecord(message.details) ? message.details : {};
     const intent = isRecord(details.intent) ? details.intent : {};
@@ -1029,17 +1074,25 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     if (!isRecord(event.message) || event.message.role !== "assistant") return undefined;
     const text = textFromMessage(event.message as AssistantLikeMessage);
     const visibleText = stripModeIntentMarkup(text);
+    let capturedPlanPath: string | undefined;
     try {
       const capture = capturePlanArtifact(ctx.cwd, { assistantText: visibleText, userText: state.lastUserInputText, mode: state.activeMode });
-      if (capture.captured && capture.relativePath) ctx.ui.notify(`ZOB plan saved: ${capture.relativePath}`, "info");
+      if (capture.captured && capture.relativePath) {
+        capturedPlanPath = capture.relativePath;
+        ctx.ui.notify(`ZOB plan saved: ${capture.relativePath}`, "info");
+      }
     } catch {
       // Plan capture is best-effort and must not break assistant message handling.
     }
     const intent = extractModeIntent(text);
     if (intent) handleSameAgentModeIntent(pi, state, ctx, intent, text);
     await maybeRunZcommitMessageEndAutomation(pi, state, ctx);
-    if (!intent) return undefined;
-    return { message: stripModeIntentFromMessage(event.message) };
+    const transformed = transformAssistantTextMessage(event.message, (partText) => {
+      const withoutIntent = stripModeIntentMarkup(partText);
+      return redactPlanTodosBlockForDisplay(withoutIntent, { planPath: capturedPlanPath }).text;
+    });
+    if (!intent && !transformed.changed) return undefined;
+    return { message: transformed.message };
   });
 
   pi.on("session_before_compact", async (event, ctx) => {

@@ -79,16 +79,17 @@ For clearly long, multi-step, delegated, factory, or oracle-gated work, create a
 
 When creating TODOs:
 
-0. For an initial plan, batch top-level items with `add_goal_todos`; use `get_goal_todos` or `/goal todo tree` only when the full tree is needed.
-1. Keep TODOs atomic and evidence-oriented.
-2. Prefer 3-9 top-level TODOs for a normal feature.
-3. Use subtodos when a step is too broad, needs delegation, or would require multiple agents/parallel writable work.
-4. Split-before-parallel: create distinct child leaves and acceptance criteria before dispatching concurrent workers.
-5. Mark required vs optional explicitly.
-6. Assign owner: `agent`, `user`, `oracle`, `subagent`, `factory`, or `orchestration`.
-7. Add acceptance criteria for critical TODOs.
-8. Add expected evidence refs or validation commands where possible.
-9. Avoid over-splitting; respect depth/fanout caps.
+0. If the user asks to run a saved captured plan, prefer `zob_plan_launch`/`/plan launch` so TODOs come from the validated `.todos.json` sidecar; do not recreate the saved TODO tree from prose unless launch reports `needs_manifest`/`invalid_manifest` and the user explicitly asks for repair.
+1. For an initial plan, batch top-level items with `add_goal_todos`; use `get_goal_todos` or `/goal todo tree` only when the full tree is needed.
+2. Keep TODOs atomic and evidence-oriented.
+3. Prefer 3-9 top-level TODOs for a normal feature.
+4. Use subtodos when a step is too broad, needs delegation, or would require multiple agents/parallel writable work.
+5. Split-before-parallel: create distinct child leaves and acceptance criteria before dispatching concurrent workers.
+6. Mark required vs optional explicitly.
+7. Assign owner: `agent`, `user`, `oracle`, `subagent`, `factory`, or `orchestration`.
+8. Add acceptance criteria for critical TODOs.
+9. Add expected evidence refs or validation commands where possible.
+10. Avoid over-splitting; respect depth/fanout caps.
 
 ## Status meanings
 

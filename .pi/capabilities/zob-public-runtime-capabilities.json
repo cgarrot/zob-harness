@@ -322,6 +322,25 @@
       "noShipNotes": "Imports chain report TODOs into goal state; no source edits."
     },
     {
+      "name": "zob_plan_launch",
+      "family": "plan",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md",
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Launches a saved plan TODO sidecar into runtime goal/TODO metadata; does not edit source files and must not recreate TODOs from prose. Blocks on active-goal/relaunch conflicts unless explicitly gated."
+    },
+    {
       "name": "create_goal",
       "family": "goal",
       "modes": [
@@ -1850,6 +1869,35 @@
         "AGENTS.md"
       ],
       "noShipNotes": "Lists specialist agents only."
+    },
+    {
+      "name": "plan",
+      "family": "plan",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md",
+        ".pi/skills/zob-goal-todo-tree/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Inspects or launches saved plan TODO sidecars; launch mutates runtime goal/TODO metadata only."
+    },
+    {
+      "name": "plans",
+      "family": "plan",
+      "modes": [
+        "all"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-harness/SKILL.md"
+      ],
+      "docRefs": [
+        "AGENTS.md"
+      ],
+      "noShipNotes": "Lists captured plan artifacts and launchability metadata only."
     }
   ]
 }

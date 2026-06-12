@@ -11,6 +11,7 @@ import { registerAutonomyCommand } from "./commands/autonomy.js";
 import { registerComputeCommands } from "./commands/compute.js";
 import { registerProjectDnaCommand } from "./commands/project-dna.js";
 import { registerGoalCommands } from "./commands/goal.js";
+import { registerPlanCommands } from "./commands/plans.js";
 import { registerNewCommand, registerStopCommand, registerStatusCommands, registerRulesStatusCommand, registerContractCommand, registerAgentsCommand } from "./commands/misc.js";
 
 export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
@@ -44,6 +45,8 @@ export function registerHarnessCommands(pi: ExtensionAPI, state: HarnessRuntimeS
   registerComputeCommands(pi, state);
 
   registerProjectDnaCommand(pi, state);
+
+  registerPlanCommands(pi, state);
 
   registerRulesStatusCommand(pi, state);
 
