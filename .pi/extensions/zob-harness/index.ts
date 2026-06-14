@@ -46,7 +46,7 @@ export type { ZobModeIntent, ZobModeIntentConfidence, ZobModeIntentRisk, ZobMode
 export { capturePlanArtifact, extractPlanTitle, listCapturedPlanEntries, shouldCapturePlanResponse, updateCapturedPlanEntry } from "./src/runtime/plan-capture.js";
 export type { PlanCaptureInput, PlanCaptureResult, PlanIndexEntry } from "./src/runtime/plan-capture.js";
 export { launchCapturedPlan, previewCapturedPlanLaunch, resolveCapturedPlanForLaunch } from "./src/runtime/plan-launch.js";
-export type { PlanLaunchInput, PlanLaunchResult, PlanLaunchSelector } from "./src/runtime/plan-launch.js";
+export type { PlanActiveGoalStrategy, PlanLaunchInput, PlanLaunchResult, PlanLaunchSelector } from "./src/runtime/plan-launch.js";
 export { PLAN_TODOS_BLOCK_END, PLAN_TODOS_BLOCK_START, PLAN_TODOS_CANONICAL_SCHEMA, PLAN_TODOS_DISPLAY_CARD_END, PLAN_TODOS_DISPLAY_CARD_START, PLAN_TODOS_INPUT_SCHEMA, PLAN_TODOS_SIDECAR_SCHEMA, buildPlanTodoSidecar, canonicalManifestHash, compileMarkdownPlanTodoManifest, extractAndNormalizePlanTodoManifest, extractPlanTodosJson, formatPlanTodoManifestDisplayCard, formatPlanTodoManifestTree, normalizePlanTodoManifest, planTodoSidecarRelativePath, readPlanTodoSidecar, redactPlanTodosBlockForDisplay, validatePlanTodoSidecar, writePlanTodoSidecar } from "./src/domains/plan/plan-todos.js";
 export type { PlanLaunchStatus, PlanTodoCanonicalItem, PlanTodoCanonicalManifest, PlanTodoDisplayCardOptions, PlanTodoDisplayRedactionResult, PlanTodoManifestQuality, PlanTodoManifestResult, PlanTodoManifestSource, PlanTodoSidecar } from "./src/domains/plan/plan-todos.js";
 export { ZOB_COMPACTION_CONTINUITY_CONTRACT, ZOB_TOOL_ROUTING_CONTRACT } from "./src/core/constants.js";
@@ -129,6 +129,158 @@ export { createWorkerPoolOwnerDecision, createWorkerPoolOwnerRequest, createWork
 export type { WorkerPoolAssignmentInput, WorkerPoolAssignmentRecord, WorkerPoolCommunicationPolicyInput, WorkerPoolCommunicationPolicyMode, WorkerPoolCommunicationPolicyRecord, WorkerPoolConflictRecord, WorkerPoolDecision, WorkerPoolOwnerDecisionInput, WorkerPoolOwnerDecisionRecord, WorkerPoolOwnerRequestInput, WorkerPoolOwnerRequestRecord, WorkerPoolPlanInput, WorkerPoolPlanRecord, WorkerPoolStatusInput } from "./src/domains/governance/worker-pool.js";
 export { decideMergeCandidate, isMergeCandidateRecord, isMergeDecisionRecord, listMergeQueue, mergeQueueBodyFreeViolations, submitMergeCandidate } from "./src/domains/governance/merge-queue.js";
 export type { MergeCandidateInput, MergeCandidatePriority, MergeCandidateRecord, MergeCandidateRisk, MergeDecision, MergeDecisionInput, MergeDecisionRecord, MergeQueueListInput } from "./src/domains/governance/merge-queue.js";
+export {
+  GENERIC_WORKLIST_REDUCER_ID,
+  buildDirective,
+  evaluateEvidenceForDirective,
+  genericWorklistReducer,
+  listWorklistReducerIds,
+  registerWorklistReducer,
+  resolveWorklistReducer,
+} from "./src/domains/worklist/reducer-contract.js";
+export type { BuildDirectiveInput, WorklistReducer } from "./src/domains/worklist/reducer-contract.js";
+// WS-EH1: the typed evidence pillar (canonical-evidence-model PART II). The
+// EvidenceContract + registry + shapes + body-free validator. Backward compatible
+// (WorklistDeps.evidence is now EvidenceInput with optional gates/deps).
+export {
+  emptyEvidenceInput,
+  evidenceBodyFreeViolations,
+  gateVerdictIsValid,
+  listEvidenceContractIds,
+  normalizeEvidenceInput,
+  registerEvidenceContract,
+  resolveEvidenceContract,
+} from "./src/domains/worklist/evidence-contract.js";
+export type {
+  DepEntry,
+  EvidenceContract,
+  EvidenceInput,
+  EvidenceKind,
+  EvidenceVerdict,
+  GateEntry,
+  TaskView,
+} from "./src/domains/worklist/evidence-contract.js";
+export {
+  FORBIDDEN_PLAINTEXT_KEYS,
+  WORKLIST_DIRECTIVE_SCHEMA,
+  WORKLIST_EVENT_SCHEMA,
+  WORKLIST_LEASE_SCHEMA,
+  WORKLIST_PROJECTION_SCHEMA,
+  directiveHash,
+} from "./src/domains/worklist/types.js";
+export type {
+  Directive,
+  ProjectedDirective,
+  WorklistDeps,
+  WorklistEvent,
+  WorklistEventInput,
+  WorklistLease,
+  WorklistLeaseStatus,
+  WorklistProjection,
+  WorklistValidation,
+} from "./src/domains/worklist/types.js";
+export {
+  appendWorklistEvent,
+  claimWorklistDirective,
+  isWorklistEvent,
+  isWorklistLease,
+  listWorklistDirectives,
+  listWorklistEvents,
+  listWorklistLeases,
+  openWorklistStore,
+  projectWorklist,
+  recoverStaleWorklistLeases,
+  satisfyWorklistDirective,
+  validateWorklist,
+  worklistBodyFreeViolations,
+} from "./src/domains/worklist/store.js";
+export type { WorklistClaimOptions, WorklistStore, WorklistStoreOptions } from "./src/domains/worklist/store.js";
+export {
+  DEFAULT_RESEND_INTERVAL_MS,
+  DIRECTIVE_DELIVERY_REASON_DIRECTIVE_SATISFIED,
+  DIRECTIVE_DELIVERY_REASON_IN_FLIGHT,
+  DIRECTIVE_DELIVERY_REASON_NEW,
+  DIRECTIVE_DELIVERY_REASON_NO_HASH,
+  DIRECTIVE_DELIVERY_REASON_REDELIVER,
+  DIRECTIVE_DELIVERY_REASON_SEEN_ACTED,
+  DIRECTIVE_READY_NOTIFICATION_SCHEMA,
+  WORKLIST_DIRECTIVE_DELIVERY_ACTED_SCHEMA,
+  WORKLIST_DIRECTIVE_DELIVERY_LEDGER_SCHEMA,
+  deliverDirectiveNotification,
+  deliverDirectives,
+  listDeliveries,
+  loadDirectiveDeliveryLedger,
+  markDirectiveActed,
+  markDirectiveDeliveredActed,
+  planDirectiveDelivery,
+  reconcileDirectiveLedger,
+  recordDirectiveDelivery,
+} from "./src/domains/worklist/delivery.js";
+export type {
+  DeliverDirectiveNotificationOptions,
+  DirectiveDeliveryLedger,
+  DirectiveDeliveryPlan,
+  DirectiveDeliveryRecord,
+  DirectiveDeliveryResult,
+  DirectiveReadyNotification,
+} from "./src/domains/worklist/delivery.js";
+export {
+  DECISION_TIMEOUT_DEFAULT_MS,
+  ESCALATE_TO_HUMAN_DEFAULT_MS,
+  ESCALATE_TO_LLM_DEFAULT_MS,
+  ESCALATION_LEVEL_ACT_NOW,
+  ESCALATION_LEVEL_AUTO,
+  ESCALATION_LEVEL_HUMAN_BLOCK,
+  ESCALATION_LEVEL_NUDGE_LLM,
+  ESCALATION_LEVEL_WAIT,
+  WATCHDOG_ESCALATION_SCHEMA,
+  WATCHDOG_EVALUATION_SCHEMA,
+  WATCHDOG_TICK_RESULT_SCHEMA,
+  computeWatchdogEscalation,
+  evaluateWorklistWatchdog,
+  listWatchdogEscalations,
+  runWorklistWatchdogTick,
+} from "./src/domains/worklist/watchdog.js";
+export type {
+  WatchdogBudgets,
+  WatchdogEscalation,
+  WatchdogEscalationEntry,
+  WatchdogEscalationEvent,
+  WatchdogEvaluation,
+  WatchdogTickDeps,
+  WatchdogTickResult,
+} from "./src/domains/worklist/watchdog.js";
+export {
+  DAG_STATUSES,
+  WORKLIST_DAG_SCHEMA,
+  WORKLIST_DAG_STATE_SCHEMA,
+  buildDag,
+  buildDagOrThrow,
+  butterflySeedNext,
+  computeDownstreamImpact,
+  dagBodyFreeViolations,
+  dagFingerprint,
+  dependencySatisfied,
+  detectCycle,
+  isCrossScopeRef,
+  nodeDepsSatisfied,
+  parseCrossScopeRef,
+  readyNodes,
+  readDagState,
+  resolveCrossScopeDependency,
+  writeDagState,
+} from "./src/domains/worklist/dag.js";
+export type {
+  CrossScopeResolver,
+  DagBuildResult,
+  DagGraph,
+  DagNode,
+  DagNodeInput,
+  DagNodeStatus,
+  DagState,
+  DownstreamImpact,
+} from "./src/domains/worklist/dag.js";
+export { registerWorklistTools } from "./src/runtime/tools-worklist.js";
 export { DEFAULT_PROMOTION_GATES, advancePromotionCandidate, appendPromotionLedger, createPromotionCandidate, promotionCandidateDir, promotionCandidateRef, promotionReportsDir, summarizePromotionCandidates, transitionAllowed, validatePromotionCandidate, writePromotionCandidate } from "./src/domains/promotion/candidate.js";
 export { addPromotionComsMessageRef, buildPromotionComsMessageRef, buildPromotionComsThread, validatePromotionComsMessageRef, validatePromotionComsReadiness, validatePromotionComsThread, writePromotionComsThread } from "./src/domains/promotion/coms.js";
 export { applyDocumentationPromotionInQuarantine, prepareDocumentationPromotion, validateDocumentationPromotion, validateDocumentationPromotionCandidate } from "./src/domains/promotion/documentation.js";

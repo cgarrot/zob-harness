@@ -21,6 +21,7 @@ import { registerWorkerPoolTools } from "./tools-worker-pool.js";
 import { registerMergeQueueTools } from "./tools-merge-queue.js";
 import { registerZcommitTools } from "./tools-zcommit.js";
 import { registerZagentTools } from "./tools-zagent.js";
+import { registerWorklistTools } from "./tools-worklist.js";
 import { renderHarnessWidget } from "./widget.js";
 
 export default function zobHarness(pi: ExtensionAPI): void {
@@ -45,6 +46,8 @@ export default function zobHarness(pi: ExtensionAPI): void {
   registerZcommitTools(pi, state);
 
   registerZagentTools(pi, state);
+
+  registerWorklistTools(pi);
 
   registerMissionControlTools(pi);
 

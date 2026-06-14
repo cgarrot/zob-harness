@@ -338,7 +338,7 @@
         ".pi/extensions/zob-harness/src/AGENTS.md",
         "AGENTS.md"
       ],
-      "noShipNotes": "Launches a saved plan TODO sidecar into runtime goal/TODO metadata; does not edit source files and must not recreate TODOs from prose. Blocks on active-goal/relaunch conflicts unless explicitly gated."
+      "noShipNotes": "Launches a saved plan TODO sidecar into runtime goal/TODO metadata; does not edit source files and must not recreate TODOs from prose. Safely auto-attaches to a non-complete active goal by default, remains idempotent for the same launched goal, and blocks true relaunch conflicts unless explicitly gated."
     },
     {
       "name": "create_goal",
@@ -971,6 +971,25 @@
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
       "noShipNotes": "Lists metadata-only merge queue; no raw diffs or source writes."
+    },
+    {
+      "name": "zob_worklist",
+      "family": "worklist",
+      "modes": [
+        "plan",
+        "implement",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-worklist/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/domains/worklist/AGENTS.md",
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Append-only metadata-only/body-free/network-disabled worklist blackboard; claim/satisfy by content hash (lease-gated, idempotent); observe is true only when no directive is open; never stores raw bodies or dispatches live transport."
     },
     {
       "name": "zob_coms_readiness",

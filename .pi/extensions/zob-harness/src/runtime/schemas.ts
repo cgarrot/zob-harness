@@ -679,6 +679,44 @@ const AutonomousValidateSmokeParams = Type.Object({
   run_id: Type.String({ description: "Autonomous read-only smoke run id under reports/autonomous-runs/<run_id> to validate. Read-only; no artifacts are generated." }),
 });
 
+const DagNodeStatusEnum = StringEnum(["pending", "in_progress", "done", "blocked", "invalidated"] as const, {
+  description: "Worklist DAG node status. 'done' satisfies downstream dependents; 'invalidated'/'blocked' cascade; 'pending' is seedable.",
+});
+const DagNodeSchema = Type.Object({
+  id: Type.String({ description: "DAG node id (slug-safe, no colons/slashes). Unique within the graph." }),
+  scope: Type.Optional(Type.String({ description: "Node scope. Defaults to the graph's primary scope." })),
+  depends_on: Type.Optional(Type.Array(Type.String(), { description: "Dependency refs: local node ids and/or cross-scope 'scope:nodeId' refs." })),
+  unblocks: Type.Optional(Type.Array(Type.String(), { description: "Optional explicit reverse-edge hints. Canonical edge source is depends_on." })),
+  status: Type.Optional(DagNodeStatusEnum),
+  owner: Type.Optional(Type.String({ description: "Owner role id for the node. Nullable." })),
+});
+
+const WorklistActionEnum = StringEnum(["append", "directives", "claim", "satisfy", "validate", "deliver", "observe", "escalate", "dag"] as const, { description: "zob_worklist subcommand. 'dag' (WS-H4) operates the generic dependency DAG: build/impact/seed/save/load." });
+const ZobWorklistParams = Type.Object({
+  action: WorklistActionEnum,
+  scope: Type.String({ description: "Path-safe worklist blackboard scope id (e.g. a run/goal id). Events/leases/directives are stored under .pi/worklist/<scope>/. Must be path-safe." }),
+  reducer_id: Type.Optional(Type.String({ description: "append: registered WorklistReducer id. Defaults to 'generic'. Must be homogeneous within a scope." })),
+  kind: Type.Optional(Type.String({ description: "append: reducer-defined event kind (the generic reducer understands OPEN/CLOSE/NOTE)." })),
+  ref: Type.Optional(Type.String({ description: "append: safe repo-relative correlation ref (e.g. a task-id pointer). No bodies." })),
+  owner: Type.Optional(Type.String({ description: "append: owner role id for the work item." })),
+  reason_ref: Type.Optional(Type.String({ description: "append: safe repo-relative reason pointer. Raw rationale is not stored." })),
+  unblock_path: Type.Optional(Type.String({ description: "append: safe repo-relative unblock pointer." })),
+  evidence_refs: Type.Optional(Type.Array(Type.String(), { description: "append: safe repo-relative evidence refs. No bodies, no secrets." })),
+  deadline: Type.Optional(Type.String({ description: "append: ISO-8601 deadline for the work item." })),
+  directive_hash: Type.Optional(Type.String({ description: "claim/satisfy: target directive content hash (sha256)." })),
+  claimant: Type.Optional(Type.String({ description: "claim/satisfy: role id claiming/satisfying the directive." })),
+  lease_ms: Type.Optional(Type.Number({ description: "claim: positive lease duration in milliseconds. Capped at 24h. Default 5 minutes." })),
+  resend_interval_ms: Type.Optional(Type.Number({ description: "deliver: resend cooldown in milliseconds for lost-nudge re-delivery. Default 120000." })),
+  decision_timeout_ms: Type.Optional(Type.Number({ description: "observe/escalate (WS-H3 watchdog): decision window in ms before the resolver/watcher auto-acts. Default 300000 (5 min). Mirrors transposer DECISION_TIMEOUT_DEFAULT_MS." })),
+  escalate_to_llm_ms: Type.Optional(Type.Number({ description: "observe/escalate (WS-H3 watchdog): elapsed-since-anchor in ms at which an LLM nudge is sent. Default 600000 (10 min). Mirrors transposer ESCALATE_TO_LLM_DEFAULT_MS." })),
+  escalate_to_human_ms: Type.Optional(Type.Number({ description: "observe/escalate (WS-H3 watchdog): elapsed-since-anchor in ms at which a human no_ship block is raised. Default 900000 (15 min). Mirrors transposer ESCALATE_TO_HUMAN_DEFAULT_MS." })),
+  dag_op: Type.Optional(StringEnum(["build", "impact", "seed", "save", "load"] as const, { description: "dag: WS-H4 dependency-DAG operation. build=validate+cycle-check; impact=computeDownstreamImpact; seed=butterflySeedNext; save=write dag.json; load=read dag.json." })),
+  dag_nodes: Type.Optional(Type.Array(DagNodeSchema, { description: "dag(build/impact/seed/save): the DAG nodes {id,scope?,depends_on?,unblocks?,status?,owner?}." })),
+  dag_node_id: Type.Optional(Type.String({ description: "dag(impact): the local node id whose status is changing (the impact trigger)." })),
+  dag_status: Type.Optional(DagNodeStatusEnum),
+  dag_accepted_node_id: Type.Optional(Type.String({ description: "dag(seed): the accepted (now-done) node id whose dependents to seed next (generalizes nonCompletePhaseAfter)." })),
+});
+
 export {
   AgentScopeSchema,
   ThinkingLevelSchema,
@@ -718,6 +756,7 @@ export {
   ZteamRemoveParams,
   ZobGoalRoomSendParams,
   ZobGoalRoomListParams,
+  ZobWorklistParams,
   GovernedRequestExtractParams,
   WorkerPoolPlanParams,
   WorkerPoolStatusParams,
