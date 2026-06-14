@@ -118,6 +118,59 @@ function coveringFilesEntry(relPath) {
   });
 }
 
+function hasGlobPattern(relPath) {
+  return /[*?[{]/u.test(relPath);
+}
+
+function globToRegExp(relPath) {
+  let pattern = "^";
+  for (let index = 0; index < relPath.length; index += 1) {
+    const char = relPath[index];
+    const next = relPath[index + 1];
+
+    if (char === "*" && next === "*") {
+      const afterGlobstar = relPath[index + 2];
+      if (afterGlobstar === "/") {
+        pattern += "(?:.*/)?";
+        index += 2;
+      } else {
+        pattern += ".*";
+        index += 1;
+      }
+      continue;
+    }
+
+    if (char === "*") {
+      pattern += "[^/]*";
+      continue;
+    }
+
+    if (char === "?") {
+      pattern += "[^/]";
+      continue;
+    }
+
+    pattern += char.replace(/[\\^$+?.()|[\]{}]/gu, "\\$&");
+  }
+
+  return new RegExp(`${pattern}$`, "u");
+}
+
+function expandGitVisibleGlob(relPath) {
+  const result = runGit(["ls-files", "--cached", "--others", "--exclude-standard"]);
+  if (result.status !== 0) {
+    throw new Error(`git ls-files failed while expanding ${relPath}: ${result.stderr.trim()}`);
+  }
+
+  const pattern = globToRegExp(relPath);
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(normalizeRepoPath)
+    .filter((entry) => entry && !hasGlobPattern(entry) && pattern.test(entry));
+}
+
 const refs = new Map();
 for (const [scriptName, command] of Object.entries(scripts)) {
   if (typeof command !== "string") {
@@ -143,6 +196,40 @@ const failures = [];
 const rows = [];
 
 for (const [relPath, scriptNames] of [...refs.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+  if (hasGlobPattern(relPath)) {
+    const matches = expandGitVisibleGlob(relPath);
+    if (!matches.length) {
+      failures.push(`${relPath}: glob matched no git-visible files; referenced by ${scriptNames.join(", ")}`);
+    }
+
+    for (const match of matches) {
+      const absoluteMatch = `${repoRoot}/${match}`;
+      const exists = existsSync(absoluteMatch);
+      const file = exists && statSync(absoluteMatch).isFile();
+      const ignored = exists ? isIgnored(match) : false;
+      const tracking = exists && !ignored ? gitTrackingState(match) : "not-checked";
+
+      if (!exists) {
+        failures.push(`${relPath}: matched missing file ${match}; referenced by ${scriptNames.join(", ")}`);
+      } else if (!file) {
+        failures.push(`${relPath}: matched non-file ${match}; referenced by ${scriptNames.join(", ")}`);
+      }
+
+      if (exists && ignored) {
+        failures.push(`${relPath}: matched ignored file ${match}; referenced by ${scriptNames.join(", ")}`);
+      }
+
+      if (exists && !ignored && tracking === "untracked") {
+        failures.push(
+          `${relPath}: matched untracked file ${match} and not visible as a new pending add; referenced by ${scriptNames.join(", ")}`,
+        );
+      }
+    }
+
+    rows.push({ relPath, scriptNames, coveredBy: "glob", tracking: `${matches.length} match(es)` });
+    continue;
+  }
+
   const absolutePath = `${repoRoot}/${relPath}`;
   const exists = existsSync(absolutePath);
   const file = exists && statSync(absolutePath).isFile();
