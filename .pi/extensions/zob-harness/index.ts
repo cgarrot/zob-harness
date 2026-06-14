@@ -281,6 +281,77 @@ export type {
   DownstreamImpact,
 } from "./src/domains/worklist/dag.js";
 export { registerWorklistTools } from "./src/runtime/tools-worklist.js";
+// WS-PH1 (environment-precondition PART II keystone): the typed EnvironmentContract
+// pillar (the 4th pillar alongside computeWorklist/EvidenceContract). The contract
+// shape + registry + PURE primitives (no node:fs/node:child_process); the body +
+// snapshotEnvironment IO are project-registered (WS-PH4). Metadata-only / body-free
+// / network-disabled: Precondition/PreconditionVerdict/EnvironmentSnapshot carry
+// paths, counts, channel names, command strings only; FORBIDDEN_PLAINTEXT_KEYS
+// applies (reused from the worklist domain).
+export {
+  commandPresent,
+  dirEmpty,
+  pathWritable,
+  toolchainInstalled,
+} from "./src/domains/environment/primitives.js";
+export type {
+  CommandPresentResult,
+  DirEmptyResult,
+  PathWritableResult,
+  ToolchainInstalledResult,
+} from "./src/domains/environment/primitives.js";
+export {
+  environmentBodyFreeViolations,
+  listEnvironmentContractIds,
+  registerEnvironmentContract,
+  resolveEnvironmentContract,
+} from "./src/domains/environment/environment-contract.js";
+export type {
+  EnvironmentContract,
+  PreconditionScope,
+} from "./src/domains/environment/environment-contract.js";
+export type {
+  CheckPhase,
+  EnvironmentSnapshot,
+  Precondition,
+  PreconditionKind,
+  PreconditionVerdict,
+} from "./src/domains/environment/types.js";
+// WS-PH2 (environment-precondition PART II): the launch-time gate primitive.
+// runLaunchGate snapshots once, evaluates all check_phase:"launch" preconditions,
+// returns { ok, verdicts, fix_packet, shouldStart } with shouldStart === ok BY
+// CONSTRUCTION (fail-closed, no opt-out). Pure over (contract, snapshot); never
+// starts anything itself (mechanism in harness, action in app). Idempotent +
+// re-runnable (re-snapshots on re-call). Metadata-only / body-free / network-
+// disabled. No node:fs/node:child_process (the purity grep returns nothing).
+export { runLaunchGate } from "./src/domains/environment/launch-gate.js";
+export type {
+  FixPacketEntry,
+  LaunchGateOptions,
+  LaunchGateResult,
+} from "./src/domains/environment/launch-gate.js";
+// WS-PH3 (environment-precondition PART II — SAFETY-CRITICAL slice): the auto-resolve
+// framework. applyAutoResolve applies ONLY allowlisted + REVERSIBLE strategies;
+// REFUSES reversible:false ALWAYS (structurally unresolvable); SKIPS requires_network
+// unless options.network===true; dispatches via PROJECT-REGISTERED
+// ResolutionStrategyFn (the harness NEVER hardcodes a shell command); REFUSES
+// missing-strategy + no-allowlist-match (fail-safe); DRY-RUN-FIRST (after_state:null,
+// io.exec guarded). Incapable-by-construction of irreversible ops: the allowlist
+// filter rejects reversible:false BEFORE dispatch. node:fs is used ONLY for the
+// audit-log writer (appendFileSync); no node:child_process / direct spawn.
+// Metadata-only / body-free / network-disabled (environmentBodyFreeViolations per entry).
+export { AUTO_RESOLVE_AUDIT_SCHEMA, applyAutoResolve, registerResolutionStrategy } from "./src/domains/environment/auto-resolve.js";
+export type {
+  AutoResolveAllowlist,
+  AutoResolveAuditEntry,
+  AutoResolveEntry,
+  AutoResolveIO,
+  AutoResolveOptions,
+  AutoResolveOutcome,
+  AutoResolveResult,
+  AutoResolveVerdict,
+  ResolutionStrategyFn,
+} from "./src/domains/environment/auto-resolve.js";
 export { DEFAULT_PROMOTION_GATES, advancePromotionCandidate, appendPromotionLedger, createPromotionCandidate, promotionCandidateDir, promotionCandidateRef, promotionReportsDir, summarizePromotionCandidates, transitionAllowed, validatePromotionCandidate, writePromotionCandidate } from "./src/domains/promotion/candidate.js";
 export { addPromotionComsMessageRef, buildPromotionComsMessageRef, buildPromotionComsThread, validatePromotionComsMessageRef, validatePromotionComsReadiness, validatePromotionComsThread, writePromotionComsThread } from "./src/domains/promotion/coms.js";
 export { applyDocumentationPromotionInQuarantine, prepareDocumentationPromotion, validateDocumentationPromotion, validateDocumentationPromotionCandidate } from "./src/domains/promotion/documentation.js";
