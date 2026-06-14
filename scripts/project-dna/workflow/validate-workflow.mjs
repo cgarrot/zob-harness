@@ -8,7 +8,7 @@ const semanticCaptureModes = new Set(["full_capture", "architecture_only", "targ
 const rawKeyDenylist = new Set(["body", "prompt", "output", "content", "diff", "patch"]);
 
 function usage() {
-  console.error("Usage: node scripts/project-dna/validate-workflow.mjs --plan reports/project-dna-scans/project-dna-factory-smoke/agentic-plan.json [--manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json]");
+  console.error("Usage: node scripts/project-dna/validate-workflow.mjs --plan .pi/reports/project-dna-scans/project-dna-factory-smoke/agentic-plan.json [--manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json]");
 }
 
 function parseArgs(argv) {
@@ -136,7 +136,7 @@ try {
   const planPath = repoPath(args.plan, "--plan");
   if (!existsSync(planPath)) throw new Error(`missing plan: ${args.plan}`);
   const normalizedPlan = args.plan.split(sep).join("/");
-  if (!normalizedPlan.startsWith("reports/project-dna-scans/")) throw new Error("--plan must be under reports/project-dna-scans");
+  if (!normalizedPlan.startsWith(".pi/reports/project-dna-scans/") && !normalizedPlan.startsWith("reports/project-dna-scans/")) throw new Error("--plan must be under .pi/reports/project-dna-scans or legacy reports/project-dna-scans");
   const plan = JSON.parse(readFileSync(planPath, "utf8"));
   let errors = validatePlan(plan);
   if (args.manifest) {

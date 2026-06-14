@@ -4,7 +4,8 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-const RUNS_ROOT = "reports/agentic-spec-runs";
+const RUNS_ROOT = ".pi/reports/agentic-spec-runs";
+const LEGACY_RUNS_ROOT = "reports/agentic-spec-runs";
 const TEAM_SCRIPT = ".pi/zteams/agentic-spec-run.tmux.sh";
 const DEFAULT_AGENT = "spec-chief";
 const args = process.argv.slice(2);
@@ -43,7 +44,7 @@ function help() {
     usage: [
       "node scripts/spec-run.mjs init --mission <text>|--mission-file <path> --source <path> [--source <path>] [--name name] [--run-id id] [--owner owner] [--prepare-only]",
       "node scripts/spec-run.mjs auto-pilot --mission <text>|--mission-file <path> --source <path> [--timeout-ms 14400000] [--poll-ms 30000] [--no-submit] [--no-wait] [--no-close]",
-      "node scripts/spec-run.mjs send-kickoff reports/agentic-spec-runs/<run_id> --session agentic-spec-run-<run_id> --agent spec-chief --submit",
+      "node scripts/spec-run.mjs send-kickoff .pi/reports/agentic-spec-runs/<run_id> --session agentic-spec-run-<run_id> --agent spec-chief --submit",
       "node scripts/spec-run.mjs answer <run_id> Q-001 --text '<answer>' --answered-by owner",
       "node scripts/spec-run.mjs validate <run_id>",
     ],
@@ -352,7 +353,13 @@ async function mkdirs(root, children) {
 function sessionName(runId) { return `agentic-spec-run-${safeRunId(runId)}`; }
 function safeRunId(value) { return String(value || "").trim().replace(/[^A-Za-z0-9_-]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 120) || "spec-run"; }
 function timestamp() { return new Date().toISOString().replace(/[-:TZ.]/gu, "").slice(0, 14); }
-function resolveRunDir(runIdOrDir) { return String(runIdOrDir || "").startsWith(RUNS_ROOT) ? runIdOrDir : path.join(RUNS_ROOT, safeRunId(runIdOrDir)); }
+function resolveRunDir(runIdOrDir) {
+  const value = String(runIdOrDir || "");
+  if (value.startsWith(RUNS_ROOT) || value.startsWith(LEGACY_RUNS_ROOT)) return value;
+  const primary = path.join(RUNS_ROOT, safeRunId(value));
+  const legacy = path.join(LEGACY_RUNS_ROOT, safeRunId(value));
+  return existsSync(primary) || !existsSync(legacy) ? primary : legacy;
+}
 function validateSessionOverride(requestedSession, expectedSession) { const session = requestedSession || expectedSession; return session === expectedSession ? { status: "pass", no_ship: false, session, expected_session: expectedSession } : { status: "blocked", no_ship: true, session, expected_session: expectedSession, reason: "session_must_equal_isolated_agentic_spec_run_session" }; }
 function isPassingCompletion(value) { return value?.no_ship === false && ["pass", "complete", "completed"].includes(String(value?.status || value?.verdict || "").toLowerCase()); }
 function isBlockingCompletion(value) { return value?.no_ship === true || ["blocked", "fail", "failed", "needs_human"].includes(String(value?.status || value?.verdict || "").toLowerCase()); }

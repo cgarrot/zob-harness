@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { artifactPath, artifactRootPath, artifactRef, legacyArtifactPath } from "../core/artifact-roots.js";
 import type { ModeName } from "../types.js";
 import { sha256 } from "../core/utils/hashing.js";
 import { safeFileStem } from "../core/utils/paths.js";
@@ -72,19 +73,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function plansDir(repoRoot: string): string {
-  return join(repoRoot, "plans");
+  return artifactRootPath(repoRoot, "plans");
 }
 
 function planIndexPath(repoRoot: string): string {
-  return join(plansDir(repoRoot), "index.json");
+  return artifactPath(repoRoot, "plans", "index.json");
+}
+
+function legacyPlanIndexPath(repoRoot: string): string {
+  return legacyArtifactPath(repoRoot, "plans", "index.json");
 }
 
 function planIndexMarkdownPath(repoRoot: string): string {
-  return join(plansDir(repoRoot), "index.md");
+  return artifactPath(repoRoot, "plans", "index.md");
 }
 
 function planReadmePath(repoRoot: string): string {
-  return join(plansDir(repoRoot), "README.md");
+  return artifactPath(repoRoot, "plans", "README.md");
 }
 
 function normalizePlanText(text: string): string {
@@ -171,8 +176,7 @@ function asPlanIndexEntry(value: unknown): PlanIndexEntry | undefined {
   };
 }
 
-function readPlanIndex(repoRoot: string, now: Date): PlanIndex {
-  const indexPath = planIndexPath(repoRoot);
+function readPlanIndexFile(indexPath: string, now: Date): PlanIndex {
   if (!existsSync(indexPath)) return emptyPlanIndex(now);
   try {
     const parsed = JSON.parse(readFileSync(indexPath, "utf8"));
@@ -187,12 +191,30 @@ function readPlanIndex(repoRoot: string, now: Date): PlanIndex {
   }
 }
 
+function readPlanIndex(repoRoot: string, now: Date): PlanIndex {
+  const primary = readPlanIndexFile(planIndexPath(repoRoot), now);
+  const legacy = readPlanIndexFile(legacyPlanIndexPath(repoRoot), now);
+  if (legacy.entries.length === 0) return primary;
+  const seen = new Set<string>();
+  const entries = [...primary.entries, ...legacy.entries].filter((entry) => {
+    const key = entry.plan_id || entry.relative_path || entry.body_hash;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return {
+    schema: PLAN_INDEX_SCHEMA,
+    updated_at: primary.updated_at >= legacy.updated_at ? primary.updated_at : legacy.updated_at,
+    entries,
+  };
+}
+
 function escapeMarkdownTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 function markdownLink(entry: PlanIndexEntry): string {
-  const href = entry.relative_path.replace(/^plans\//, "");
+  const href = entry.relative_path.startsWith(".pi/plans/") ? entry.relative_path.replace(/^\.pi\/plans\//, "") : entry.relative_path.startsWith("plans/") ? `../../${entry.relative_path}` : entry.relative_path;
   return `[${escapeMarkdownTableCell(entry.title)}](${href})`;
 }
 
@@ -205,7 +227,7 @@ function renderPlanIndexMarkdown(index: PlanIndex): string {
   return [
     "# ZOB Plans Index",
     "",
-    "Visible auto-captured planning artifacts. Source user prompts are stored as hashes only; captured assistant plans are stored in the linked Markdown files. Launchable plans have a validated `.todos.json` sidecar used by `zob_plan_launch`.",
+    "Visible auto-captured planning artifacts. New captures are stored under `.pi/plans`; legacy `plans/` entries remain readable. Source user prompts are stored as hashes only; captured assistant plans are stored in the linked Markdown files. Launchable plans have a validated `.todos.json` sidecar used by `zob_plan_launch`.",
     "",
     "| Date | Plan | Mode | Status | Launch | Todos | Hash |",
     "|---|---|---|---|---|---|---|",
@@ -220,7 +242,7 @@ function ensurePlansReadme(repoRoot: string): void {
   writeFileSync(readmePath, [
     "# ZOB Plans",
     "",
-    "This directory stores visible planning artifacts automatically captured by the ZOB harness.",
+    "This directory stores visible planning artifacts automatically captured by the ZOB harness. New artifacts live under `.pi/plans`; legacy root `plans/` artifacts remain readable by plan launch tools.",
     "",
     "- `index.md` is the human-readable index.",
     "- `index.json` is the machine-readable duplicate-detection manifest.",
@@ -313,7 +335,7 @@ export function capturePlanArtifact(repoRoot: string, input: PlanCaptureInput): 
   const dateDir = createdAt.slice(0, 10);
   const planId = safeFileStem(`plan-${createdAt.replace(/\D/g, "").slice(0, 14)}-${bodyHash.slice(0, 8)}`);
   const slug = safeFileStem(title).toLowerCase();
-  const relativePath = `plans/${dateDir}/${planId}-${slug}.md`;
+  const relativePath = artifactRef("plans", dateDir, `${planId}-${slug}.md`);
   const absolutePath = join(repoRoot, relativePath);
   const userRequestHash = sha256(userText);
   const assistantOutputHash = sha256(assistantText);
@@ -375,7 +397,7 @@ export function ensureCapturedPlanTodoSidecar(repoRoot: string, planId: string, 
   const now = options.now ?? new Date();
   const index = readPlanIndex(repoRoot, now);
   const position = index.entries.findIndex((entry) => entry.plan_id === planId);
-  if (position < 0) return { created: false, errors: [`Plan not found in plans/index.json: ${planId}`], warnings: [] };
+  if (position < 0) return { created: false, errors: [`Plan not found in .pi/plans/index.json or legacy plans/index.json: ${planId}`], warnings: [] };
   const entry = index.entries[position]!;
   const sidecarPath = entry.todo_manifest_path ?? planTodoSidecarRelativePath(entry.relative_path);
   if (entry.todo_manifest_path && (entry.launch_status === "launchable" || entry.launch_status === "launched")) {
@@ -453,7 +475,7 @@ export function updateCapturedPlanEntry(repoRoot: string, planId: string, patch:
   const now = new Date();
   const index = readPlanIndex(repoRoot, now);
   const position = index.entries.findIndex((entry) => entry.plan_id === planId);
-  if (position < 0) throw new Error(`Plan not found in plans/index.json: ${planId}`);
+  if (position < 0) throw new Error(`Plan not found in .pi/plans/index.json or legacy plans/index.json: ${planId}`);
   const entry: PlanIndexEntry = { ...index.entries[position]!, ...patch, plan_id: index.entries[position]!.plan_id };
   index.entries[position] = entry;
   index.updated_at = now.toISOString();

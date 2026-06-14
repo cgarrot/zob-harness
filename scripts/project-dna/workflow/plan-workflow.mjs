@@ -9,7 +9,7 @@ const semanticCaptureModes = new Set(["full_capture", "architecture_only", "targ
 const rawKeyDenylist = new Set(["body", "prompt", "output", "content", "diff", "patch"]);
 
 function usage() {
-  console.error("Usage: node scripts/project-dna/plan-workflow.mjs --manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json [--scan-dir reports/project-dna-scans/project-dna-factory-smoke] --out reports/project-dna-scans/project-dna-factory-smoke/agentic-plan.json");
+  console.error("Usage: node scripts/project-dna/plan-workflow.mjs --manifest .pi/factories/project-dna/example-project-dna-manifest-v2.json [--scan-dir .pi/reports/project-dna-scans/project-dna-factory-smoke] --out .pi/reports/project-dna-scans/project-dna-factory-smoke/agentic-plan.json");
 }
 
 function parseArgs(argv) {
@@ -37,7 +37,7 @@ function repoPath(path, label) {
 
 function assertReportPath(path, label) {
   const normalized = path.split(sep).join("/");
-  if (!normalized.startsWith("reports/project-dna-scans/")) throw new Error(`${label} must stay under reports/project-dna-scans: ${path}`);
+  if (!normalized.startsWith(".pi/reports/project-dna-scans/") && !normalized.startsWith("reports/project-dna-scans/")) throw new Error(`${label} must stay under .pi/reports/project-dna-scans or legacy reports/project-dna-scans: ${path}`);
 }
 
 function isInsideOrEqual(parent, child) {
@@ -214,7 +214,7 @@ function main() {
     manifestPath: args.manifest,
     manifestHash: sha256(manifestText),
     manifestEmbedded: false,
-    scanDir: args.scanDir ?? `reports/project-dna-scans/${manifest.run_id}`,
+    scanDir: args.scanDir ?? `.pi/reports/project-dna-scans/${manifest.run_id}`,
     requestedComputeProfile: manifest.requested_compute_profile,
     effectiveComputeProfile: profile,
     requestedCaptureMode: manifest.capture_mode_policy.semantic_mode,

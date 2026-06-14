@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { artifactPath, artifactRef, firstExistingArtifactPath } from "../../../core/artifact-roots.js";
 import { runFactoryRun } from "../../factory/run.js";
 import { sha256 } from "../../../core/utils/hashing.js";
 import { safeFileStem } from "../../../core/utils/paths.js";
@@ -12,7 +13,7 @@ export function writeAutonomousRuntimeDryRunReport(repoRoot: string, input: Auto
   const report = buildAutonomousRuntimeDryRun(repoRoot, input);
   const runId = String(report.runId);
   const safeRunId = safeFileStem(runId);
-  const runDir = join(repoRoot, "reports", "autonomous-runs", safeRunId);
+  const runDir = artifactPath(repoRoot, "reports", "autonomous-runs", safeRunId);
   mkdirSync(runDir, { recursive: true });
   const specGatePath = join(runDir, "spec-gate.json");
   const contextScopePath = join(runDir, "context-scope.json");
@@ -44,25 +45,25 @@ export function writeAutonomousRuntimeDryRunReport(repoRoot: string, input: Auto
   if (report.status === "dry_run_plan_ready") writeFileSync(join(runDir, "DRY_RUN_READY.sentinel"), "dry-run-ready\n");
   return {
     ...report,
-    specGatePath: `reports/autonomous-runs/${safeRunId}/spec-gate.json`,
-    contextScopePath: `reports/autonomous-runs/${safeRunId}/context-scope.json`,
-    contextLookupPath: `reports/autonomous-runs/${safeRunId}/context-lookup.json`,
-    contextPackPath: `reports/autonomous-runs/${safeRunId}/context-pack.json`,
-    runtimeGatesPath: `reports/autonomous-runs/${safeRunId}/runtime-gates.json`,
-    modelRoutingPlanPath: `reports/autonomous-runs/${safeRunId}/model-routing-plan.json`,
-    runGraphPath: `reports/autonomous-runs/${safeRunId}/run-graph.json`,
-    factorySelectionPath: `reports/autonomous-runs/${safeRunId}/factory-selection.json`,
-    proofPlanPath: `reports/autonomous-runs/${safeRunId}/proof-plan.json`,
-    reportPath: `reports/autonomous-runs/${safeRunId}/dry-run-report.json`,
-    validationPath: `reports/autonomous-runs/${safeRunId}/validation.json`,
-    finalReportPath: `reports/autonomous-runs/${safeRunId}/final-report.md`,
-    sentinelPath: report.status === "dry_run_plan_ready" ? `reports/autonomous-runs/${safeRunId}/DRY_RUN_READY.sentinel` : undefined,
+    specGatePath: artifactRef("reports", "autonomous-runs", safeRunId, "spec-gate.json"),
+    contextScopePath: artifactRef("reports", "autonomous-runs", safeRunId, "context-scope.json"),
+    contextLookupPath: artifactRef("reports", "autonomous-runs", safeRunId, "context-lookup.json"),
+    contextPackPath: artifactRef("reports", "autonomous-runs", safeRunId, "context-pack.json"),
+    runtimeGatesPath: artifactRef("reports", "autonomous-runs", safeRunId, "runtime-gates.json"),
+    modelRoutingPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "model-routing-plan.json"),
+    runGraphPath: artifactRef("reports", "autonomous-runs", safeRunId, "run-graph.json"),
+    factorySelectionPath: artifactRef("reports", "autonomous-runs", safeRunId, "factory-selection.json"),
+    proofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "proof-plan.json"),
+    reportPath: artifactRef("reports", "autonomous-runs", safeRunId, "dry-run-report.json"),
+    validationPath: artifactRef("reports", "autonomous-runs", safeRunId, "validation.json"),
+    finalReportPath: artifactRef("reports", "autonomous-runs", safeRunId, "final-report.md"),
+    sentinelPath: report.status === "dry_run_plan_ready" ? artifactRef("reports", "autonomous-runs", safeRunId, "DRY_RUN_READY.sentinel") : undefined,
   };
 }
 export function writeAutonomousReadOnlySmokeRunReport(repoRoot: string, input: AutonomousReadOnlySmokeRunInput): Record<string, unknown> {
   const runId = safeFileStem(input.runId ?? `autonomous-readonly-smoke-${sha256(input.userNeed || "missing-spec").slice(0, 12)}`);
   const safeRunId = safeFileStem(runId);
-  const runDir = join(repoRoot, "reports", "autonomous-runs", safeRunId);
+  const runDir = artifactPath(repoRoot, "reports", "autonomous-runs", safeRunId);
   const smokeAutonomySentinelPath = join(runDir, "SMOKE_AUTONOMY_PASSED.sentinel");
   if (existsSync(smokeAutonomySentinelPath)) throw new Error(`Autonomous smoke run already passed; choose a fresh run_id to avoid stale sentinel reuse: ${runId}`);
   const dryRun = writeAutonomousRuntimeDryRunReport(repoRoot, {
@@ -75,7 +76,7 @@ export function writeAutonomousReadOnlySmokeRunReport(repoRoot: string, input: A
   const selectedFactory = typeof factorySelection.selectedFactory === "string" ? factorySelection.selectedFactory : undefined;
   const manifestPath = selectedFactory ? `.pi/factories/${selectedFactory}/smoke-manifest.json` : undefined;
   const factoryRunId = safeFileStem(input.factoryRunId ?? `autonomous-smoke-${safeRunId}`);
-  const factoryRunAlreadyExists = existsSync(join(repoRoot, "reports", "factory-runs", factoryRunId));
+  const factoryRunAlreadyExists = existsSync(firstExistingArtifactPath(repoRoot, "reports", "factory-runs", factoryRunId));
   const blockers = [
     ...(dryRun.status === "dry_run_plan_ready" ? [] : ["dry_run_not_ready"]),
     ...(isRecord(dryRun.validation) && Array.isArray(dryRun.validation.blockers) ? dryRun.validation.blockers.filter((blocker): blocker is string => typeof blocker === "string") : []),
@@ -99,7 +100,7 @@ export function writeAutonomousReadOnlySmokeRunReport(repoRoot: string, input: A
     budget: { strictRequested: true, strictEnabled: false, maxRuns: 1, estimatedRuns: 1, maxParallelChildren: 1, estimatedParallelChildren: 1 },
     model_routing: { enabled: false, risk: input.risk ?? "medium", contextTokens: input.maxContextTokens },
   }) : undefined;
-  const factoryRunDir = join(repoRoot, "reports", "factory-runs", factoryRunId);
+  const factoryRunDir = firstExistingArtifactPath(repoRoot, "reports", "factory-runs", factoryRunId);
   const factoryValidationPath = join(factoryRunDir, "validation.json");
   const factoryValidationRead = readJsonArtifact(factoryValidationPath);
   const factoryValidation = isRecord(factoryValidationRead.parsed) ? factoryValidationRead.parsed : {};
@@ -164,12 +165,12 @@ export function writeAutonomousReadOnlySmokeRunReport(repoRoot: string, input: A
     checks: oracleChecks,
     failedChecks: oracleChecks.filter((check) => check.passed !== true).map((check) => check.name),
     evidenceRefs: [
-      `reports/autonomous-runs/${safeRunId}/spec-gate.json`,
-      `reports/autonomous-runs/${safeRunId}/context-pack.json`,
-      `reports/autonomous-runs/${safeRunId}/runtime-gates.json`,
-      `reports/autonomous-runs/${safeRunId}/model-routing-plan.json`,
-      `reports/autonomous-runs/${safeRunId}/factory-selection.json`,
-      `reports/autonomous-runs/${safeRunId}/factory-run-ref.json`,
+      artifactRef("reports", "autonomous-runs", safeRunId, "spec-gate.json"),
+      artifactRef("reports", "autonomous-runs", safeRunId, "context-pack.json"),
+      artifactRef("reports", "autonomous-runs", safeRunId, "runtime-gates.json"),
+      artifactRef("reports", "autonomous-runs", safeRunId, "model-routing-plan.json"),
+      artifactRef("reports", "autonomous-runs", safeRunId, "factory-selection.json"),
+      artifactRef("reports", "autonomous-runs", safeRunId, "factory-run-ref.json"),
       relativeFactoryRunPath(factoryRunId, "validation.json"),
       relativeFactoryRunPath(factoryRunId, "SMOKE_PASSED.sentinel"),
       relativeFactoryRunPath(factoryRunId, "DONE.sentinel"),
@@ -303,23 +304,23 @@ export function writeAutonomousReadOnlySmokeRunReport(repoRoot: string, input: A
     finalNoShipOracle,
     completionGate,
     validation,
-    factoryRunRefPath: `reports/autonomous-runs/${safeRunId}/factory-run-ref.json`,
-    oracleReviewPath: `reports/autonomous-runs/${safeRunId}/oracle-review.json`,
-    promotionPlanPath: `reports/autonomous-runs/${safeRunId}/promotion-plan.json`,
-    promotionProofPlanPath: `reports/autonomous-runs/${safeRunId}/promotion-proof-plan.json`,
-    schedulerPlanPath: `reports/autonomous-runs/${safeRunId}/scheduler-plan.json`,
-    schedulerProofPlanPath: `reports/autonomous-runs/${safeRunId}/scheduler-proof-plan.json`,
-    missionControlPlanPath: `reports/autonomous-runs/${safeRunId}/mission-control-plan.json`,
-    missionControlProofPlanPath: `reports/autonomous-runs/${safeRunId}/mission-control-proof-plan.json`,
-    sandboxApplyPlanPath: `reports/autonomous-runs/${safeRunId}/sandbox-apply-plan.json`,
-    strictBudgetProofPlanPath: `reports/autonomous-runs/${safeRunId}/strict-budget-proof-plan.json`,
-    modelRoutingProofPlanPath: `reports/autonomous-runs/${safeRunId}/model-routing-proof-plan.json`,
-    currentSourceFingerprintPath: `reports/autonomous-runs/${safeRunId}/current-source-fingerprint.json`,
-    finalE2EProofPlanPath: `reports/autonomous-runs/${safeRunId}/final-e2e-proof-plan.json`,
-    finalNoShipOraclePath: `reports/autonomous-runs/${safeRunId}/final-no-ship-oracle.json`,
-    completionGatePath: `reports/autonomous-runs/${safeRunId}/completion-gate.json`,
-    validationPath: `reports/autonomous-runs/${safeRunId}/validation.json`,
-    finalReportPath: `reports/autonomous-runs/${safeRunId}/final-report.md`,
-    smokeSentinelPath: structuralOraclePassed ? `reports/autonomous-runs/${safeRunId}/SMOKE_AUTONOMY_PASSED.sentinel` : undefined,
+    factoryRunRefPath: artifactRef("reports", "autonomous-runs", safeRunId, "factory-run-ref.json"),
+    oracleReviewPath: artifactRef("reports", "autonomous-runs", safeRunId, "oracle-review.json"),
+    promotionPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "promotion-plan.json"),
+    promotionProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "promotion-proof-plan.json"),
+    schedulerPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "scheduler-plan.json"),
+    schedulerProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "scheduler-proof-plan.json"),
+    missionControlPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "mission-control-plan.json"),
+    missionControlProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "mission-control-proof-plan.json"),
+    sandboxApplyPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "sandbox-apply-plan.json"),
+    strictBudgetProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "strict-budget-proof-plan.json"),
+    modelRoutingProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "model-routing-proof-plan.json"),
+    currentSourceFingerprintPath: artifactRef("reports", "autonomous-runs", safeRunId, "current-source-fingerprint.json"),
+    finalE2EProofPlanPath: artifactRef("reports", "autonomous-runs", safeRunId, "final-e2e-proof-plan.json"),
+    finalNoShipOraclePath: artifactRef("reports", "autonomous-runs", safeRunId, "final-no-ship-oracle.json"),
+    completionGatePath: artifactRef("reports", "autonomous-runs", safeRunId, "completion-gate.json"),
+    validationPath: artifactRef("reports", "autonomous-runs", safeRunId, "validation.json"),
+    finalReportPath: artifactRef("reports", "autonomous-runs", safeRunId, "final-report.md"),
+    smokeSentinelPath: structuralOraclePassed ? artifactRef("reports", "autonomous-runs", safeRunId, "SMOKE_AUTONOMY_PASSED.sentinel") : undefined,
   };
 }

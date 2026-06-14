@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 
+import { isArtifactRef } from "../../core/artifact-roots.js";
 import { sha256 } from "../../core/utils/hashing.js";
 import { isRecord } from "../../core/utils/records.js";
 import type { GoalTodoOwner, GoalTodoPolicy, GoalTodoPriority, GoalTodoStatus } from "../goal/goal-todo-types.js";
@@ -562,7 +563,7 @@ export function safePlanArtifactPath(repoRoot: string, relativePath: string, ext
   const rel = relative(root, absolutePath).split("\\").join("/");
   const errors: string[] = [];
   if (rel.startsWith("../") || rel === ".." || rel.startsWith("/")) errors.push(`plan artifact path must stay inside repo: ${relativePath}`);
-  if (!rel.startsWith("plans/")) errors.push(`plan artifact path must be under plans/: ${relativePath}`);
+  if (!isArtifactRef(rel, "plans", { legacy: true })) errors.push(`plan artifact path must be under .pi/plans/ or legacy plans/: ${relativePath}`);
   if (!rel.endsWith(extension)) errors.push(`plan artifact path must end with ${extension}: ${relativePath}`);
   return { absolutePath, relativePath: rel, errors };
 }

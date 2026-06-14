@@ -35,7 +35,7 @@ function resolveRepoPath(input, label, allowMissing = false) {
 
 function assertReportPath(input, label) {
   const normalized = input.split(sep).join("/");
-  if (!normalized.startsWith("reports/project-dna-scans/")) throw new Error(`${label} must stay under reports/project-dna-scans`);
+  if (!normalized.startsWith(".pi/reports/project-dna-scans/") && !normalized.startsWith("reports/project-dna-scans/")) throw new Error(`${label} must stay under .pi/reports/project-dna-scans or legacy reports/project-dna-scans`);
 }
 
 function main() {

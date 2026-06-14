@@ -1,7 +1,8 @@
 
 
 export const FACTORY_NAME = "harness-intake-agent-team";
-export const RUNS_ROOT = "reports/factory-runs";
+export const RUNS_ROOT = ".pi/reports/factory-runs";
+export const LEGACY_RUNS_ROOT = "reports/factory-runs";
 export const SCHEMA_PREFIX = "zob.harness-intake";
 export const repoRoot = process.cwd();
 

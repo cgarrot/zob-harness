@@ -65,8 +65,43 @@ function planTextWithFenceInfoString(): string {
   return planText().replace("```json", "```json zob.plan-todos.v1");
 }
 
+function planTextVariant(label: string): string {
+  return planText()
+    .replace("# Plan d’implémentation", `# Plan d’implémentation ${label}`)
+    .replace("Implémenter le lancement de plans sauvegardés", `Implémenter le lancement de plans sauvegardés ${label}`);
+}
+
 function realMarkdownOnlyCapturedPlan(): string {
-  return readFileSync(join(process.cwd(), "plans/2026-06-12/plan-20260612092042-e423f33d-plan-d-impl-mentation.md"), "utf8");
+  return [
+    "# Ajouter cwd optionnel au lancement des sub-agents",
+    "",
+    "1. API",
+    "   - Ajouter cwd à delegate_agent.",
+    "   - Valider les chemins relatifs.",
+    "   - Documenter le contrat.",
+    "2. Validation",
+    "   - Couvrir les entrées invalides.",
+    "   - Tester le cwd absent.",
+    "   - Tester le cwd relatif.",
+    "3. Spawn",
+    "   - Transmettre cwd au processus enfant.",
+    "   - Préserver l'environnement existant.",
+    "   - Gérer les erreurs de spawn.",
+    "4. Affichage",
+    "   - Montrer cwd dans l'overlay.",
+    "   - Résumer le dossier cible.",
+    "   - Masquer les chemins sensibles.",
+    "5. Docs / prompts",
+    "   - Mettre à jour l'aide.",
+    "   - Ajuster les prompts.",
+    "   - Ajouter un exemple.",
+    "6. Tests",
+    "   - Ajouter un smoke ciblé.",
+    "   - Vérifier la régression.",
+    "   - `npm run check -- --pretty false`",
+    "   - `npm run smoke:harness`",
+    "   - `npm run pi:check`",
+  ].join("\n");
 }
 
 function seedLegacyNeedsManifestPlan(root: string): { planId: string; relativePath: string; sidecarPath: string } {
@@ -119,8 +154,8 @@ test("extractPlanTodosJson: accepts fenced manifests with an info string", () =>
 
 test("redactPlanTodosBlockForDisplay: replaces raw manifest JSON with compact launchable card", () => {
   const redacted = redactPlanTodosBlockForDisplay(planTextWithFenceInfoString(), {
-    planPath: "plans/2026-06-12/example.md",
-    sidecarPath: "plans/2026-06-12/example.todos.json",
+    planPath: ".pi/plans/2026-06-12/example.md",
+    sidecarPath: ".pi/plans/2026-06-12/example.todos.json",
   });
   assert.equal(redacted.changed, true);
   assert.ok(redacted.text.includes("ZOB plan launchable"));
@@ -153,6 +188,8 @@ test("capturePlanArtifact: writes launchable fallback sidecar for real markdown-
   assert.equal(entry.launch_status, "launchable");
   assert.equal(entry.todo_manifest_source, "markdown_fallback");
   assert.equal(entry.todo_manifest_quality, "fallback_structured");
+  assert.ok(entry.relative_path.startsWith(".pi/plans/"));
+  assert.ok(entry.todo_manifest_path?.startsWith(".pi/plans/"));
   assert.ok(entry.todo_manifest_path?.endsWith(".todos.json"));
   assert.equal(entry.todo_count, 23);
   const loaded = readPlanTodoSidecar(root, entry.todo_manifest_path!);
@@ -208,6 +245,8 @@ test("capturePlanArtifact: writes launchable .todos.json sidecar and index metad
   const entry = entries[0]!;
   assert.equal(entry.launch_status, "launchable");
   assert.equal(entry.todo_count, 3);
+  assert.ok(entry.relative_path.startsWith(".pi/plans/"));
+  assert.ok(entry.todo_manifest_path?.startsWith(".pi/plans/"));
   assert.ok(entry.todo_manifest_path?.endsWith(".todos.json"));
   const sidecarText = readFileSync(join(root, entry.todo_manifest_path!), "utf8");
   assert.match(sidecarText, /zob\.plan-todos\.sidecar\.v1/);
@@ -241,4 +280,87 @@ test("launchCapturedPlan: materializes saved TODO/sub-TODO sidecar without re-pl
   const entry = listCapturedPlanEntries(root)[0]!;
   assert.equal(entry.launch_status, "launched");
   assert.equal(entry.launched_goal_id, result.goalId);
+});
+
+test("launchCapturedPlan: auto-attaches latest launchable plan to an active goal by default", () => {
+  const root = repo();
+  capturePlanArtifact(root, { assistantText: planTextVariant("initial"), userText: "premier plan", mode: "plan", now: new Date("2026-06-12T10:10:00.000Z") });
+  const firstEntry = listCapturedPlanEntries(root)[0]!;
+  const state = createHarnessRuntimeState();
+  const ctx = { cwd: root, ui: { notify: () => undefined } } as any;
+  const first = launchCapturedPlan(pi, state, ctx, { plan_id: firstEntry.plan_id, queue_continuation: false });
+  assert.equal(first.status, "launched");
+  assert.ok(first.goalId);
+  assert.equal(state.goalTodos.nodes.length, 3);
+
+  capturePlanArtifact(root, { assistantText: planTextVariant("followup"), userText: "plan suivant", mode: "plan", now: new Date("2026-06-12T10:11:00.000Z") });
+  const secondEntry = listCapturedPlanEntries(root)[0]!;
+  const second = launchCapturedPlan(pi, state, ctx, { selector: "latest_launchable", queue_continuation: false });
+  assert.equal(second.status, "launched");
+  assert.equal(second.goalId, first.goalId);
+  assert.match(second.summary, /plan attached to active goal/);
+  assert.equal(state.goalTodos.nodes.length, 6);
+  const loaded = readPlanTodoSidecar(root, secondEntry.todo_manifest_path!);
+  assert.equal(loaded.sidecar?.launched_goal_id, first.goalId);
+});
+
+test("launchCapturedPlan: active_goal_strategy=block preserves strict active-goal blocking", () => {
+  const root = repo();
+  capturePlanArtifact(root, { assistantText: planTextVariant("initial"), userText: "premier plan", mode: "plan", now: new Date("2026-06-12T10:20:00.000Z") });
+  const firstEntry = listCapturedPlanEntries(root)[0]!;
+  const state = createHarnessRuntimeState();
+  const ctx = { cwd: root, ui: { notify: () => undefined } } as any;
+  const first = launchCapturedPlan(pi, state, ctx, { plan_id: firstEntry.plan_id, queue_continuation: false });
+  assert.equal(first.status, "launched");
+
+  capturePlanArtifact(root, { assistantText: planTextVariant("blocked"), userText: "plan suivant", mode: "plan", now: new Date("2026-06-12T10:21:00.000Z") });
+  const secondEntry = listCapturedPlanEntries(root)[0]!;
+  const blocked = launchCapturedPlan(pi, state, ctx, { selector: "latest_launchable", active_goal_strategy: "block", queue_continuation: false });
+  assert.equal(blocked.status, "blocked");
+  assert.match(blocked.summary, /active_goal_strategy=block/);
+  assert.equal(state.goalTodos.nodes.length, 3);
+  const loaded = readPlanTodoSidecar(root, secondEntry.todo_manifest_path!);
+  assert.equal(loaded.sidecar?.launch_status, "launchable");
+  assert.equal(loaded.sidecar?.launched_goal_id, undefined);
+});
+
+test("launchCapturedPlan: relaunching a plan already launched in the active goal is idempotent", () => {
+  const root = repo();
+  capturePlanArtifact(root, { assistantText: planTextVariant("idempotent"), userText: "fais un plan", mode: "plan", now: new Date("2026-06-12T10:30:00.000Z") });
+  const entry = listCapturedPlanEntries(root)[0]!;
+  const state = createHarnessRuntimeState();
+  const ctx = { cwd: root, ui: { notify: () => undefined } } as any;
+  const first = launchCapturedPlan(pi, state, ctx, { plan_id: entry.plan_id, queue_continuation: false });
+  assert.equal(first.status, "launched");
+  assert.equal(state.goalTodos.nodes.length, 3);
+
+  const second = launchCapturedPlan(pi, state, ctx, { plan_id: entry.plan_id, queue_continuation: false });
+  assert.equal(second.status, "already_launched");
+  assert.equal(second.goalId, first.goalId);
+  assert.deepEqual(second.createdTodos, []);
+  assert.match(second.summary, /no TODOs duplicated/);
+  assert.equal(state.goalTodos.nodes.length, 3);
+});
+
+test("launchCapturedPlan: blocks a launched plan when the active goal is different", () => {
+  const root = repo();
+  capturePlanArtifact(root, { assistantText: planTextVariant("first"), userText: "premier plan", mode: "plan", now: new Date("2026-06-12T10:40:00.000Z") });
+  const firstEntry = listCapturedPlanEntries(root)[0]!;
+  const stateA = createHarnessRuntimeState();
+  const ctx = { cwd: root, ui: { notify: () => undefined } } as any;
+  const first = launchCapturedPlan(pi, stateA, ctx, { plan_id: firstEntry.plan_id, queue_continuation: false });
+  assert.equal(first.status, "launched");
+
+  capturePlanArtifact(root, { assistantText: planTextVariant("second"), userText: "second plan", mode: "plan", now: new Date("2026-06-12T10:41:00.000Z") });
+  const secondEntry = listCapturedPlanEntries(root)[0]!;
+  const stateB = createHarnessRuntimeState();
+  const second = launchCapturedPlan(pi, stateB, ctx, { plan_id: secondEntry.plan_id, queue_continuation: false });
+  assert.equal(second.status, "launched");
+  assert.notEqual(second.goalId, first.goalId);
+
+  const blocked = launchCapturedPlan(pi, stateB, ctx, { plan_id: firstEntry.plan_id, queue_continuation: false });
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.goalId, first.goalId);
+  assert.match(blocked.summary, /already launched/);
+  assert.equal(stateB.goalTodos.nodes.length, 3);
 });

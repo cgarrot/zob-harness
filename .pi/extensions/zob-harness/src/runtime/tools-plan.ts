@@ -7,13 +7,14 @@ import type { HarnessRuntimeState } from "./state.js";
 import { launchCapturedPlan } from "./plan-launch.js";
 
 const PlanLaunchParams = Type.Object({
-  plan_id: Type.Optional(Type.String({ description: "Captured plan_id from plans/index.json." })),
-  plan_path: Type.Optional(Type.String({ description: "Repo-relative captured plan Markdown path or sibling .todos.json path under plans/." })),
+  plan_id: Type.Optional(Type.String({ description: "Captured plan_id from .pi/plans/index.json or legacy plans/index.json." })),
+  plan_path: Type.Optional(Type.String({ description: "Repo-relative captured plan Markdown path or sibling .todos.json path under .pi/plans/ or legacy plans/." })),
   selector: Type.Optional(StringEnum(["latest_launchable", "latest"] as const, { description: "Plan selector when plan_id/plan_path are omitted. Default latest_launchable." })),
   dry_run: Type.Optional(Type.Boolean({ description: "Validate and preview the saved plan TODO tree without creating a runtime goal/TODOs.", default: false })),
-  attach_to_active_goal: Type.Optional(Type.Boolean({ description: "Attach TODOs to the active non-complete goal instead of creating a new runtime goal. Default false.", default: false })),
+  attach_to_active_goal: Type.Optional(Type.Boolean({ description: "Legacy explicit attach flag. When true, attach TODOs to the active non-complete goal. Default launch behavior now auto-attaches safely when an active goal exists.", default: false })),
+  active_goal_strategy: Type.Optional(StringEnum(["auto", "block", "attach"] as const, { description: "How to handle a non-complete active runtime goal. auto (default) attaches safely; block preserves strict old behavior; attach is explicit attach." })),
   queue_continuation: Type.Optional(Type.Boolean({ description: "Queue automatic goal continuation after materializing TODOs. Default true.", default: true })),
-  relaunch_as_new_goal: Type.Optional(Type.Boolean({ description: "Allow launching a plan whose sidecar/index is already marked launched. Default false.", default: false })),
+  relaunch_as_new_goal: Type.Optional(Type.Boolean({ description: "Allow launching a plan whose sidecar/index is already marked launched. Default false. With an active goal, combine with active_goal_strategy=attach only if duplicate materialization into that goal is intentional.", default: false })),
 });
 
 export function registerPlanTools(pi: ExtensionAPI, state: HarnessRuntimeState): void {
@@ -25,7 +26,7 @@ export function registerPlanTools(pi: ExtensionAPI, state: HarnessRuntimeState):
     promptGuidelines: [
       "Prefer selector=latest_launchable only when the user's reference is unambiguous; otherwise pass plan_id or plan_path.",
       "Use dry_run=true for inspection or ambiguity; launch mutates runtime goal/TODO state but not source files.",
-      "Do not launch if an active runtime goal exists unless attach_to_active_goal=true is explicitly appropriate.",
+      "When a non-complete active runtime goal exists, default active_goal_strategy=auto attaches safely instead of failing; use active_goal_strategy=block only when strict blocking is required.",
     ],
     parameters: PlanLaunchParams,
     renderCall(args, theme) {
@@ -42,9 +43,9 @@ export function registerPlanTools(pi: ExtensionAPI, state: HarnessRuntimeState):
       const todoCount = typeof details?.todoCount === "number" ? details.todoCount : undefined;
       const summary = typeof details?.summary === "string" ? details.summary : undefined;
       const errors = Array.isArray(details?.errors) ? details.errors.filter((item): item is string => typeof item === "string") : [];
-      const statusColor = status === "blocked" ? "warning" : status === "launched" ? "success" : "accent";
+      const statusColor = status === "blocked" ? "warning" : status === "launched" || status === "already_launched" ? "success" : "accent";
       let text = [
-        theme.fg(statusColor, status === "blocked" ? "⚠ plan launch blocked" : status === "launched" ? "🚀 plan launched" : "✅ plan preview"),
+        theme.fg(statusColor, status === "blocked" ? "⚠ plan launch blocked" : status === "already_launched" ? "↪ plan already launched" : status === "launched" ? "🚀 plan launched" : "✅ plan preview"),
         planId ? theme.fg("accent", planId) : undefined,
         todoCount !== undefined ? theme.fg("muted", `${todoCount} TODO${todoCount === 1 ? "" : "s"}`) : undefined,
       ].filter(Boolean).join(theme.fg("dim", " · "));
@@ -61,6 +62,7 @@ export function registerPlanTools(pi: ExtensionAPI, state: HarnessRuntimeState):
         selector: params.selector,
         dry_run: params.dry_run,
         attach_to_active_goal: params.attach_to_active_goal,
+        active_goal_strategy: params.active_goal_strategy,
         queue_continuation: params.queue_continuation,
         relaunch_as_new_goal: params.relaunch_as_new_goal,
       });

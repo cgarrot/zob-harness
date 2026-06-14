@@ -6,8 +6,8 @@ import { isRecord } from "../../core/utils/records.js";
 import { safeRunId } from "../../core/utils/paths.js";
 
 const STOPWORDS = new Set(["the", "and", "for", "with", "how", "does", "this", "that", "using", "use", "project", "style"]);
-const DEFAULT_SCAN_DIR = "reports/project-dna-scans/project-dna-factory-smoke";
-const SAFE_SCAN_PREFIXES = ["reports/project-dna-scans/"];
+const DEFAULT_SCAN_DIR = ".pi/reports/project-dna-scans/project-dna-factory-smoke";
+const SAFE_SCAN_PREFIXES = [".pi/reports/project-dna-scans/", "reports/project-dna-scans/"];
 const MAX_CONTEXT_TOKENS_CAP = 8000;
 
 const FORBIDDEN_PATH_MARKERS = [

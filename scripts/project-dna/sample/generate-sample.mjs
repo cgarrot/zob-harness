@@ -33,9 +33,9 @@ function resolveRepoPath(input, label) {
 
 function assertQuarantineOutDir(outDir) {
   const rel = relative(repoRoot, outDir).split(sep).join("/");
-  const allowed = rel.startsWith("reports/project-dna-scans/") || rel.startsWith("reports/factory-runs/");
+  const allowed = rel.startsWith(".pi/reports/project-dna-scans/") || rel.startsWith("reports/project-dna-scans/") || rel.startsWith(".pi/reports/factory-runs/") || rel.startsWith("reports/factory-runs/");
   if (!allowed || !rel.includes("/quarantine/")) {
-    throw new Error("--out-dir must be a repo-local reports/.../quarantine/... path");
+    throw new Error("--out-dir must be a repo-local .pi/reports/.../quarantine/... path, with legacy reports/... accepted for existing runs");
   }
 }
 

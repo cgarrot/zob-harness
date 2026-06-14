@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { resolveComputeProfile } from "../compute/compute-profile.js";
 import { writeFactoryTelemetrySummary } from "../telemetry/telemetry.js";
 import type { FactoryAdaptiveDispatchGate, FactoryDefinition, FactoryInputManifest, FactoryManifestItem, FactoryRunInput, FactoryRunResult } from "../../types.js";
+import { artifactPath } from "../../core/artifact-roots.js";
 import { sha256 } from "../../core/utils/hashing.js";
 import { resolveRepoPath, safeFileStem, safeRunId } from "../../core/utils/paths.js";
 import { buildFactoryAgenticPlan, detectCanonicalPatterns } from "./agentic-plan.js";
@@ -171,7 +172,7 @@ export function runFactoryRun(repoRoot: string, input: FactoryRunInput): Factory
   const startedAt = new Date(startedAtMs).toISOString();
   const errors = validateFactoryRunInputs(repoRoot, input);
   const runId = safeRunId(input.run_id, "factory");
-  const runDir = join(repoRoot, "reports", "factory-runs", runId);
+  const runDir = artifactPath(repoRoot, "reports", "factory-runs", runId);
   if (existsSync(runDir) && !input.resume) errors.push(`Run directory already exists. Use resume=true or choose another run_id: ${runDir}`);
   if (errors.length > 0) {
     const endedAtMs = Date.now();

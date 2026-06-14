@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { artifactRef, firstExistingArtifactPath } from "../../core/artifact-roots.js";
 import { buildZobLivePresenceSummary, redactZobLivePeerForMissionControl } from "./coms-v2/presence.js";
 import { readZobComsV2Policy } from "./coms-v2/policy.js";
 import { zpeerMembershipsForPeer } from "./coms-v2/zpeer.js";
@@ -121,11 +122,13 @@ function summarizeRunDir(repoRoot: string, baseRelative: string, runId: string):
 }
 
 function summarizeLatestRuns(repoRoot: string, baseRelative: string, limit: number): Array<Record<string, unknown>> {
-  return sortedEntriesByMtime(join(repoRoot, baseRelative)).slice(0, limit).map((runId) => summarizeRunDir(repoRoot, baseRelative, runId));
+  const primaryRelative = baseRelative.startsWith("reports/") ? baseRelative.replace(/^reports\//, ".pi/reports/") : baseRelative;
+  const roots = [primaryRelative, baseRelative].filter((value, index, values) => values.indexOf(value) === index);
+  return roots.flatMap((rootRelative) => sortedEntriesByMtime(join(repoRoot, rootRelative)).slice(0, limit).map((runId) => summarizeRunDir(repoRoot, rootRelative, runId))).slice(0, limit);
 }
 
 function summarizeAdaptiveWorkflowArtifacts(repoRoot: string, limit: number): Array<Record<string, unknown>> {
-  const root = join(repoRoot, "reports", "orchestrations");
+  const root = firstExistingArtifactPath(repoRoot, "reports", "orchestrations");
   if (!existsSync(root)) return [];
   return sortedEntriesByMtime(root).slice(0, Math.max(limit, 20)).flatMap((runId) => {
     const runDir = join(root, runId);
@@ -152,14 +155,14 @@ function summarizeAdaptiveWorkflowArtifacts(repoRoot: string, limit: number): Ar
       docWritebackPolicy: documentationPolicy?.writebackPolicy,
       valid: validation?.valid,
       errors: Array.isArray(validation?.errors) ? validation.errors : [],
-      artifact: `reports/orchestrations/${runId}/adaptive-workflow-validation.json`,
+      artifact: artifactRef("reports", "orchestrations", runId, "adaptive-workflow-validation.json"),
       bodyStored: false,
     }];
   }).slice(0, limit);
 }
 
 function summarizeComputeProfileArtifacts(repoRoot: string, limit: number): Array<Record<string, unknown>> {
-  const root = join(repoRoot, "reports", "project-dna-scans");
+  const root = firstExistingArtifactPath(repoRoot, "reports", "project-dna-scans");
   if (!existsSync(root)) return [];
   return readdirSync(root)
     .map((runId) => ({ runId, summaryPath: join(root, runId, "compute-mission-control-summary.json") }))
@@ -180,7 +183,7 @@ function summarizeComputeProfileArtifacts(repoRoot: string, limit: number): Arra
         parentOwnedDispatch: isRecord(summary.workflow) ? summary.workflow.parentOwnedDispatch : undefined,
         childDirectDispatch: isRecord(summary.workflow) ? summary.workflow.childDirectDispatch : undefined,
         fullHudWidgetWiringImplemented: summary.fullHudWidgetWiringImplemented,
-        artifact: `reports/project-dna-scans/${runId}/compute-mission-control-summary.json`,
+        artifact: artifactRef("reports", "project-dna-scans", runId, "compute-mission-control-summary.json"),
         bodyStored: summary.bodyStored,
       }];
     });
@@ -484,8 +487,8 @@ export function buildMissionControlSnapshot(repoRoot: string, definition: TeamDe
   const queueDashboard = sanitizeMissionControlMetadata(buildQueueDashboardSummary(repoRoot));
   const today = new Date().toISOString().slice(0, 10);
   const telemetryDaily = sanitizeMissionControlMetadata(readJsonObjectIfPresent(join(repoRoot, ".pi", "logs", "summaries", `${today}.json`))) as Record<string, unknown> | undefined;
-  const autonomyAudit = readJsonObjectIfPresent(join(repoRoot, "reports", "autonomy-readiness-audit-smoke.json"));
-  const factoryRegistryAudit = readJsonObjectIfPresent(join(repoRoot, "reports", "factory-registry-readiness-audit-smoke.json"));
+  const autonomyAudit = readJsonObjectIfPresent(firstExistingArtifactPath(repoRoot, "reports", "autonomy-readiness-audit-smoke.json"));
+  const factoryRegistryAudit = readJsonObjectIfPresent(firstExistingArtifactPath(repoRoot, "reports", "factory-registry-readiness-audit-smoke.json"));
   const computeProfiles = summarizeComputeProfileArtifacts(repoRoot, limit);
   const adaptiveWorkflows = summarizeAdaptiveWorkflowArtifacts(repoRoot, limit);
   const promotionCandidates = summarizePromotionCandidates(repoRoot, limit);

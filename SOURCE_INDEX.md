@@ -40,11 +40,11 @@ See `scripts/README.md` for the script surface map.
 These are intentionally local/generated and should not be committed by default:
 
 - `docs/` — curated architecture/refactor docs plus local/generated planning docs; classify generated reports separately before commit.
-- `plans/` — captured planning artifacts.
-- `reports/` — generated reports and evidence.
+- `.pi/plans/` — primary captured planning artifacts; legacy root `plans/` remains readable for old captures.
+- `.pi/reports/` — primary generated reports and evidence; legacy root `reports/` remains readable for old runs.
 - `.pi/tmp/`, `.pi/logs/`, `.pi/sessions/`, `.pi/agent-sessions/` — runtime local state.
 - `.pi/coms/`, `.pi/context/`, `.pi/goal-rooms/`, `.pi/workspace-claims/`, `.pi/worker-pools/`, `.pi/merge-queue/` — generated ledgers/coordination state.
 
 ## Cleanup rule
 
-Before moving, deleting, or committing a local/generated file, classify it first in a report under `reports/zob-cleanup-lanes/` and keep no-ship blockers visible.
+Before moving, deleting, or committing a local/generated file, classify it first in a report under `.pi/reports/zob-cleanup-lanes/` (legacy `reports/zob-cleanup-lanes/` may exist) and keep no-ship blockers visible.

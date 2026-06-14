@@ -371,7 +371,7 @@ function main() {
   const sourceRoot = resolve(sourcePath);
   assertSafeSourceRoot(sourceRoot, args);
   if (args.manifest) assertSourceAllowedByManifest(sourceRoot, manifestAllowedPaths);
-  const outDir = resolveRepoOutDir(args.outDir ?? `reports/project-dna-scans/${sourceId}`);
+  const outDir = resolveRepoOutDir(args.outDir ?? `.pi/reports/project-dna-scans/${sourceId}`);
   const outRel = relative(repoRoot, outDir);
   if (relative(sourceRoot, outDir) && !relative(sourceRoot, outDir).startsWith("..")) {
     throw new Error("--out-dir must not be inside the source project");

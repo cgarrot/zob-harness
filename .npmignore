@@ -1,6 +1,8 @@
 # npm/package safety: generated or local-only artifacts are never published.
 docs/
+.pi/plans/
 plans/
+.pi/reports/
 reports/
 node_modules/
 *.log

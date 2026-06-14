@@ -32,7 +32,7 @@ Most agent tools optimize the single assistant session. ZOB optimizes the **agen
 
 ## Try the six-agent Pac-Man factory
 
-The fastest way to understand ZOB is to run the demo factory. The repository does **not** contain a prebuilt game. The factory prepares a run, launches a six-agent team, and asks that team to generate a local browser-playable Pac-Man-inspired multiplayer game under `reports/`.
+The fastest way to understand ZOB is to run the demo factory. The repository does **not** contain a prebuilt game. The factory prepares a run, launches a six-agent team, and asks that team to generate a local browser-playable Pac-Man-inspired multiplayer game under `.pi/reports/` (legacy `reports/` remains readable).
 
 Prepare and validate run artifacts only. This does not launch tmux/Pi and does not generate the game:
 
@@ -510,7 +510,7 @@ advanced/experimental and opt-in. The full classification lives in the local
 - [`.pi/capabilities/`](.pi/capabilities/) — public runtime capability registry.
 - [`scripts/`](scripts/README.md) — local validation, smoke, audit, and proof helpers.
 
-Local/generated areas such as `reports/`, `plans/`, `.pi/sessions/`, `.pi/logs/`, `.pi/tmp/`, coms ledgers, workspace claims, worker pools, and merge queues are not part of the normal source surface. See [SOURCE_INDEX.md](SOURCE_INDEX.md) for the current classification.
+Local/generated areas such as `.pi/reports/`, legacy `reports/`, `.pi/plans/`, legacy `plans/`, `.pi/sessions/`, `.pi/logs/`, `.pi/tmp/`, coms ledgers, workspace claims, worker pools, and merge queues are not part of the normal source surface. See [SOURCE_INDEX.md](SOURCE_INDEX.md) for the current classification.
 
 ## Safety model
 

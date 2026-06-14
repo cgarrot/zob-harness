@@ -8,6 +8,7 @@ node_modules/
 
 # Internal documentation and captured planning artifacts are kept locally only.
 docs/
+.pi/plans/
 plans/
 
 # GitHub release workflow is tracked; other local workflow experiments stay ignored.
@@ -16,8 +17,9 @@ plans/
 !.github/workflows/ci.yml
 
 # Generated runtime/report artifacts, including Agent Factory generated projects
-# such as reports/agent-factory-pacman-runs/<run_id>/project/: keep locally,
+# such as .pi/reports/agent-factory-pacman-runs/<run_id>/project/: keep locally,
 # never publish/push by default.
+.pi/reports/
 reports/
 .pi/sessions/
 .pi/agent-sessions/

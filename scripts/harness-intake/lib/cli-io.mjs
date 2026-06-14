@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { RUNS_ROOT, repoRoot } from "./constants.mjs";
+import { LEGACY_RUNS_ROOT, RUNS_ROOT, repoRoot } from "./constants.mjs";
 
 export function parseArgs(argv) {
   const out = { _: [] };
@@ -77,7 +77,7 @@ export function runDirFor(runId) {
 export function resolveRunDir(runIdOrDir) {
   if (!runIdOrDir) throw new Error("missing run id or run dir");
   const candidate = String(runIdOrDir);
-  const maybeDir = candidate.includes("/") ? candidate : runDirFor(candidate);
+  const maybeDir = candidate.includes("/") ? candidate : (existsSync(runDirFor(candidate)) || !existsSync(join(LEGACY_RUNS_ROOT, safeRunId(candidate))) ? runDirFor(candidate) : join(LEGACY_RUNS_ROOT, safeRunId(candidate)));
   const resolved = resolve(repoRoot, maybeDir);
   const rel = relative(repoRoot, resolved);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error("run dir must stay inside repo");

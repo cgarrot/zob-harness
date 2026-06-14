@@ -3,7 +3,7 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
 import type { HarnessRuntimeState } from "../state.js";
 import { listCapturedPlanEntries } from "../plan-capture.js";
-import { launchCapturedPlan, previewCapturedPlanLaunch } from "../plan-launch.js";
+import { launchCapturedPlan, previewCapturedPlanLaunch, type PlanActiveGoalStrategy, type PlanLaunchInput } from "../plan-launch.js";
 import { renderHarnessWidget } from "../widget.js";
 
 function formatPlansList(repoRoot: string, limit = 10): string {
@@ -22,8 +22,9 @@ function planArgumentCompletions(prefix: string): AutocompleteItem[] | null {
     { value: "list", label: "list", description: "list captured plans" },
     { value: "inspect latest_launchable", label: "inspect latest_launchable", description: "preview latest launchable TODO sidecar" },
     { value: "inspect latest", label: "inspect latest", description: "preview latest captured plan" },
-    { value: "launch latest_launchable", label: "launch latest_launchable", description: "launch latest validated plan TODO sidecar" },
+    { value: "launch latest_launchable", label: "launch latest_launchable", description: "launch latest validated plan TODO sidecar; auto-attaches to active goal when present" },
     { value: "launch latest_launchable --dry-run", label: "launch latest_launchable --dry-run", description: "validate without creating goal/TODOs" },
+    { value: "launch latest_launchable --block-active-goal", label: "launch latest_launchable --block-active-goal", description: "strict old behavior: block instead of auto-attaching to active goal" },
   ];
   const filtered = query ? items.filter((item) => item.value.toLowerCase().startsWith(query) || item.label.toLowerCase().includes(query)) : items;
   return filtered.length > 0 ? filtered : null;
@@ -48,7 +49,7 @@ export function registerPlanCommands(pi: ExtensionAPI, state: HarnessRuntimeStat
   });
 
   pi.registerCommand("plan", {
-    description: "Inspect or launch saved mode-plan TODO manifests: /plan list | inspect [latest|plan_id|path] | launch [latest_launchable|plan_id|path] [--dry-run] [--attach] [--relaunch] [--no-continue]",
+    description: "Inspect or launch saved mode-plan TODO manifests: /plan list | inspect [latest|plan_id|path] | launch [latest_launchable|plan_id|path] [--dry-run] [--attach] [--block-active-goal] [--relaunch] [--no-continue]",
     getArgumentCompletions: planArgumentCompletions,
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
@@ -58,15 +59,21 @@ export function registerPlanCommands(pi: ExtensionAPI, state: HarnessRuntimeStat
         return;
       }
       if (action !== "inspect" && action !== "launch") {
-        ctx.ui.notify("Usage: /plan list | inspect [latest_launchable|latest|plan_id|path] | launch [latest_launchable|plan_id|path] [--dry-run] [--attach] [--relaunch] [--no-continue]", "warning");
+        ctx.ui.notify("Usage: /plan list | inspect [latest_launchable|latest|plan_id|path] | launch [latest_launchable|plan_id|path] [--dry-run] [--attach] [--block-active-goal] [--relaunch] [--no-continue]", "warning");
         return;
       }
       const ref = planRefFromArgs(parts);
       const dryRun = action === "inspect" || parts.includes("--dry-run");
-      const input = {
+      const activeGoalStrategy: PlanActiveGoalStrategy | undefined = parts.includes("--block-active-goal") || parts.includes("--no-attach")
+        ? "block"
+        : parts.includes("--attach")
+          ? "attach"
+          : undefined;
+      const input: PlanLaunchInput = {
         ...ref,
         dry_run: dryRun,
         attach_to_active_goal: parts.includes("--attach"),
+        active_goal_strategy: activeGoalStrategy,
         queue_continuation: !parts.includes("--no-continue"),
         relaunch_as_new_goal: parts.includes("--relaunch"),
       };

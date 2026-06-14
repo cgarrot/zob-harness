@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 const run = process.argv[2];
-const runDir = (run || "").startsWith("reports/") ? run : `reports/agentic-spec-runs/${run || ""}`;
+const runDir = (run || "").startsWith(".pi/reports/") || (run || "").startsWith("reports/") ? run : `.pi/reports/agentic-spec-runs/${run || ""}`;
 const file = join(runDir, "questions.jsonl");
 const errors = [];
 const rows = existsSync(file) ? readFileSync(file, "utf8").split(/\n/u).filter(Boolean).map((line) => JSON.parse(line)) : [];

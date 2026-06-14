@@ -4,9 +4,10 @@ import { addGoalTodo, formatGoalTodoSummary, formatGoalTodoTree, summarizeGoalTo
 import { formatPlanTodoManifestTree, planTodoSidecarRelativePath, readPlanTodoSidecar, safePlanArtifactPath, writeUpdatedPlanTodoSidecar, type PlanTodoSidecar } from "../domains/plan/plan-todos.js";
 import type { HarnessRuntimeState } from "./state.js";
 import { ensureCapturedPlanTodoSidecar, listCapturedPlanEntries, updateCapturedPlanEntry, type PlanIndexEntry } from "./plan-capture.js";
-import { appendRuntimeGoalEntry, createRuntimeGoal, formatRuntimeGoalSummary, queueRuntimeGoalContinuation, setEntry } from "./goal-runtime/state.js";
+import { appendRuntimeGoalEntry, createRuntimeGoal, formatRuntimeGoalSummary, queueRuntimeGoalContinuation, setEntry, type RuntimeGoal } from "./goal-runtime/state.js";
 
 export type PlanLaunchSelector = "latest_launchable" | "latest";
+export type PlanActiveGoalStrategy = "auto" | "block" | "attach";
 
 export interface PlanLaunchInput {
   plan_id?: string;
@@ -14,12 +15,13 @@ export interface PlanLaunchInput {
   selector?: PlanLaunchSelector;
   dry_run?: boolean;
   attach_to_active_goal?: boolean;
+  active_goal_strategy?: PlanActiveGoalStrategy;
   queue_continuation?: boolean;
   relaunch_as_new_goal?: boolean;
 }
 
 export interface PlanLaunchResult {
-  status: "dry_run" | "launched" | "blocked";
+  status: "dry_run" | "launched" | "already_launched" | "blocked";
   planId?: string;
   planPath?: string;
   sidecarPath?: string;
@@ -52,6 +54,39 @@ export function resolveCapturedPlanForLaunch(repoRoot: string, input: PlanLaunch
 
 function ensurePlanPathSafe(repoRoot: string, entry: PlanIndexEntry): string[] {
   return safePlanArtifactPath(repoRoot, entry.relative_path, ".md").errors;
+}
+
+function activeGoalStrategy(input: PlanLaunchInput): PlanActiveGoalStrategy {
+  if (input.attach_to_active_goal === true) return "attach";
+  if (input.active_goal_strategy) return input.active_goal_strategy;
+  return input.relaunch_as_new_goal === true ? "block" : "auto";
+}
+
+function nonCompleteGoal(goal: RuntimeGoal | undefined): RuntimeGoal | undefined {
+  return goal && goal.status !== "complete" ? goal : undefined;
+}
+
+function launchedGoalId(sidecar: PlanTodoSidecar, entry: PlanIndexEntry): string | undefined {
+  return sidecar.launched_goal_id ?? entry.launched_goal_id;
+}
+
+function alreadyLaunchedSummary(planId: string, goalId: string, todoSummary: string, todoTree: string): string {
+  return [
+    `plan already launched in active goal: ${planId}`,
+    `goal: ${goalId}`,
+    "no TODOs duplicated",
+    todoSummary,
+    todoTree,
+  ].filter(Boolean).join("\n");
+}
+
+function launchedElsewhereBlock(planId: string, launchedForGoalId: string | undefined, activeGoalId: string | undefined): string[] {
+  const target = launchedForGoalId ? `goal ${launchedForGoalId}` : "an unknown prior goal";
+  const active = activeGoalId ? ` Active goal is ${activeGoalId}.` : "";
+  return [
+    `Plan ${planId} is already launched for ${target}.${active}`,
+    "Use relaunch_as_new_goal=true only when you intentionally want another materialization of the same saved plan.",
+  ];
 }
 
 export function previewCapturedPlanLaunch(repoRoot: string, input: PlanLaunchInput = {}): PlanLaunchResult {
@@ -116,7 +151,7 @@ function materializeSidecarTodos(pi: ExtensionAPI, state: HarnessRuntimeState, g
 }
 
 export function launchCapturedPlan(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, input: PlanLaunchInput = {}): PlanLaunchResult {
-  const preview = previewCapturedPlanLaunch(ctx.cwd, input);
+  const preview = previewCapturedPlanLaunch(ctx.cwd, { ...input, relaunch_as_new_goal: true });
   if (preview.status === "blocked" || !preview.planId || !preview.sidecarPath) return preview;
   if (input.dry_run === true) return preview;
   const resolved = resolveCapturedPlanForLaunch(ctx.cwd, input);
@@ -124,15 +159,50 @@ export function launchCapturedPlan(pi: ExtensionAPI, state: HarnessRuntimeState,
   const loaded = readPlanTodoSidecar(ctx.cwd, resolved.sidecarPath);
   if (loaded.errors.length > 0 || !loaded.sidecar) return { status: "blocked", planId: resolved.entry.plan_id, planPath: resolved.entry.relative_path, sidecarPath: resolved.sidecarPath, errors: loaded.errors, summary: loaded.errors.join("\n") };
   const sidecar = loaded.sidecar;
-  const activeGoal = state.runtimeGoal;
-  if (activeGoal && activeGoal.status !== "complete" && input.attach_to_active_goal !== true) {
-    return { status: "blocked", planId: resolved.entry.plan_id, planPath: resolved.entry.relative_path, sidecarPath: resolved.sidecarPath, errors: [`A non-complete runtime goal already exists (${activeGoal.goalId}); pass attach_to_active_goal=true or complete/clear it before launching a saved plan.`], summary: `active goal blocks plan launch: ${activeGoal.goalId}` };
+  const activeGoal = nonCompleteGoal(state.runtimeGoal);
+  const strategy = activeGoalStrategy(input);
+  const launchedAlready = sidecar.launch_status === "launched" || resolved.entry.launch_status === "launched";
+  const priorGoalId = launchedGoalId(sidecar, resolved.entry);
+
+  if (launchedAlready && input.relaunch_as_new_goal !== true) {
+    if (activeGoal && priorGoalId === activeGoal.goalId) {
+      const summary = summarizeGoalTodos(state.goalTodos, activeGoal.goalId);
+      return {
+        status: "already_launched",
+        planId: resolved.entry.plan_id,
+        planPath: resolved.entry.relative_path,
+        sidecarPath: resolved.sidecarPath,
+        goalId: activeGoal.goalId,
+        todoCount: sidecar.todo_count,
+        createdTodos: [],
+        errors: [],
+        summary: alreadyLaunchedSummary(
+          resolved.entry.plan_id,
+          activeGoal.goalId,
+          formatRuntimeGoalSummary(activeGoal, state.goalActivationMode, formatGoalTodoSummary(summary)),
+          formatGoalTodoTree(state.goalTodos, activeGoal.goalId),
+        ),
+        launch_status: "launched",
+      };
+    }
+    const errors = launchedElsewhereBlock(resolved.entry.plan_id, priorGoalId, activeGoal?.goalId);
+    return { status: "blocked", planId: resolved.entry.plan_id, planPath: resolved.entry.relative_path, sidecarPath: resolved.sidecarPath, goalId: priorGoalId, errors, summary: errors.join("\n"), launch_status: "launched" };
   }
 
-  const goal = input.attach_to_active_goal && activeGoal && activeGoal.status !== "complete"
+  if (activeGoal && strategy === "block") {
+    const errors = [
+      `A non-complete runtime goal already exists (${activeGoal.goalId}) and active_goal_strategy=block was requested.`,
+      `Retry with active_goal_strategy=attach or remove the block strategy to auto-attach this plan to the active goal.`,
+      `/plan launch ${resolved.entry.plan_id} --attach`,
+    ];
+    return { status: "blocked", planId: resolved.entry.plan_id, planPath: resolved.entry.relative_path, sidecarPath: resolved.sidecarPath, goalId: activeGoal.goalId, errors, summary: errors.join("\n") };
+  }
+
+  const attachingToActiveGoal = Boolean(activeGoal && (strategy === "auto" || strategy === "attach"));
+  const goal = attachingToActiveGoal && activeGoal
     ? activeGoal
     : createRuntimeGoal(sidecar.objective, { maxTurns: sidecar.max_turns });
-  if (!input.attach_to_active_goal || !activeGoal || activeGoal.status === "complete") appendRuntimeGoalEntry(pi, state, setEntry(goal, "tool"));
+  if (!attachingToActiveGoal) appendRuntimeGoalEntry(pi, state, setEntry(goal, "tool"));
   const goalId = goal.goalId;
   const createdTodos = materializeSidecarTodos(pi, state, goalId, sidecar);
   const launchedAt = new Date().toISOString();
@@ -160,7 +230,7 @@ export function launchCapturedPlan(pi: ExtensionAPI, state: HarnessRuntimeState,
     todoCount: createdTodos.length,
     createdTodos,
     errors: [],
-    summary: [`plan launched: ${resolved.entry.plan_id}`, formatRuntimeGoalSummary(state.runtimeGoal ?? goal, state.goalActivationMode, formatGoalTodoSummary(summary)), formatGoalTodoTree(state.goalTodos, goalId)].join("\n"),
+    summary: [attachingToActiveGoal ? `plan attached to active goal: ${resolved.entry.plan_id}` : `plan launched: ${resolved.entry.plan_id}`, formatRuntimeGoalSummary(state.runtimeGoal ?? goal, state.goalActivationMode, formatGoalTodoSummary(summary)), formatGoalTodoTree(state.goalTodos, goalId)].join("\n"),
     launch_status: "launched",
   };
 }

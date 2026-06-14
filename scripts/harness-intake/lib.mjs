@@ -1,4 +1,4 @@
-export { DEFAULT_FORBIDDEN, FACTORY_NAME, RUNS_ROOT, SCHEMA_PREFIX, repoRoot } from "./lib/constants.mjs";
+export { DEFAULT_FORBIDDEN, FACTORY_NAME, LEGACY_RUNS_ROOT, RUNS_ROOT, SCHEMA_PREFIX, repoRoot } from "./lib/constants.mjs";
 export { ensureDir, parseArgs, printJson, readJson, repoRel, resolveRunDir, runDirFor, safeRunId, sha256, timestamp, writeJson, writeText } from "./lib/cli-io.mjs";
 export { inferRunSpecFromRequest } from "./lib/infer-spec.mjs";
 export { HARNESS_INTAKE_AGENTS, initializeRun, renderKickoffFiles } from "./lib/run-init.mjs";

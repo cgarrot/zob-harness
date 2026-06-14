@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { ZobComsTranscriptCapturePolicy } from "./types.js";
+import { PRIMARY_REPORTS_ROOT } from "../../../core/artifact-roots.js";
 import { sha256 } from "../../../core/utils/hashing.js";
 import { safeFileStem } from "../../../core/utils/paths.js";
 
@@ -32,7 +33,7 @@ export interface ZobComsRedactedCaptureRef {
   bodyStored: false;
 }
 
-const DEFAULT_ARTIFACT_ROOT = "reports/coms-captures";
+const DEFAULT_ARTIFACT_ROOT = `${PRIMARY_REPORTS_ROOT}/coms-captures`;
 const DEFAULT_REDACTION_PROFILE = "zob-default-v1";
 const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   { name: "private_key", pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g },
