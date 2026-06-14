@@ -12,6 +12,8 @@ if (!query) {
 const config = loadConfig();
 const maxResults = Math.max(1, Math.min(Number(args["max-results"] ?? config.limits.maxResults ?? 20), 100));
 const maxContextLines = Math.max(0, Math.min(Number(args["max-context-lines"] ?? config.limits.maxContextLines ?? 2), 5));
+const rawColgrepTimeoutMs = Number(process.env.ZOB_CONTEXT_COLGREP_TIMEOUT_MS ?? config.limits.colgrepTimeoutMs ?? 8_000);
+const colgrepTimeoutMs = Number.isFinite(rawColgrepTimeoutMs) ? Math.max(500, Math.min(rawColgrepTimeoutMs, 30_000)) : 8_000;
 const colgrep = detectColgrep();
 
 function runFallback(reason) {
@@ -29,6 +31,8 @@ if (colgrep.ready) {
     cwd: process.cwd(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: colgrepTimeoutMs,
+    killSignal: "SIGTERM",
   });
 
   if (colgrepResult.status === 0) {
@@ -36,9 +40,12 @@ if (colgrep.ready) {
     result.stderr = colgrepResult.stderr.trim().slice(0, 240);
     result.colgrepArgs = colgrepArgs;
   } else {
-    result = runFallback("colgrep-query-failed");
+    const timedOut = colgrepResult.error?.code === "ETIMEDOUT" || colgrepResult.signal === "SIGTERM";
+    result = runFallback(timedOut ? "colgrep-timeout-fallback" : "colgrep-query-failed");
     result.colgrepQueryStatus = colgrepResult.status;
-    result.colgrepQueryStderr = colgrepResult.stderr.trim();
+    result.colgrepQuerySignal = colgrepResult.signal;
+    result.colgrepQueryStderr = colgrepResult.stderr.trim().slice(0, 240);
+    result.colgrepTimeoutMs = colgrepTimeoutMs;
     result.colgrepArgs = colgrepArgs;
   }
 } else {

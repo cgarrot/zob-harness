@@ -59,7 +59,7 @@ When the user asks for a plan:
 - The harness may auto-capture complete plans into `plans/`; do not manually duplicate that artifact unless the user asks.
 - Complete implementation plans should end with exactly one `ZOB_PLAN_TODOS` fenced JSON block (`schema: "zob.plan-todos.v1"`, `objective`, `todos`, `key`, `title`, optional `done_when`/`checks`/`children`). This makes the saved plan launchable by sidecar instead of forcing a future LLM to recreate TODOs from prose.
 - If a legacy or malformed captured plan lacks that block, the harness uses deterministic Markdown list fallback when possible and records `todo_manifest_source=markdown_fallback`; fallback is recovery, not the preferred contract.
-- When the user says to go/run/do a saved plan, inspect/launch with `zob_plan_launch` or `/plan launch` and use the `.todos.json` sidecar as canonical. Do not restate or recreate the TODO tree from the human Markdown unless launch reports `needs_manifest`/`invalid_manifest` and the user asks for repair.
+- When the user says to go/run/do a saved plan, inspect/launch with `zob_plan_launch` or `/plan launch` and use the `.todos.json` sidecar as canonical. Do not restate or recreate the TODO tree from the human Markdown unless launch reports `needs_manifest`/`invalid_manifest` and the user asks for repair. If a non-complete runtime goal already exists, the plan launcher defaults to safe auto-attach; use `active_goal_strategy=block` or `/plan launch ... --block-active-goal` only when strict blocking is intentionally required.
 
 ## Project files
 
