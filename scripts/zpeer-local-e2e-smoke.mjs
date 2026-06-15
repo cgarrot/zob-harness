@@ -237,7 +237,7 @@ async function main() {
         });
       }, 10);
     }
-    return envelope.buildZobLiveAckEnvelope(incoming);
+    return envelope.buildZobLiveAckEnvelope(incoming, incoming.priority === 'force' ? 'force_accepted' : incoming.priority === 'urgent' ? 'urgent_delivered' : undefined);
   }));
 
   servers.push(await localTransport.bindZobLocalEndpoint(gammaEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
@@ -378,6 +378,23 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 250));
   assert(receivedResponses.length > responseCountBeforeAsync, 'async late reply must still arrive on replyEndpoint after command returns waiting');
 
+  const urgentPromptCountBefore = receivedPrompts.length;
+  const urgentResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { mode: 'async', priority: 'urgent', interruptMode: 'steer' });
+  assert(urgentResult.status === 'waiting' && urgentResult.priority === 'urgent' && urgentResult.interruptMode === 'steer' && urgentResult.interruptStatus === 'urgent_delivered', `urgent send expected waiting/urgent_delivered, got ${urgentResult.status}/${urgentResult.interruptStatus}`);
+  assert(receivedPrompts.length === urgentPromptCountBefore + 1, 'urgent send must deliver one prompt over local_socket');
+  assert(receivedPrompts.at(-1).priority === 'urgent' && receivedPrompts.at(-1).interruptMode === 'steer' && receivedPrompts.at(-1).interruptRequested === true, 'urgent envelope must carry priority steer metadata');
+
+  const forceWithoutReason = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort' });
+  assert(forceWithoutReason.status === 'blocked' && forceWithoutReason.interruptStatus === 'force_blocked' && String(forceWithoutReason.reason).includes('reason hash'), 'force without reason hash must be blocked before delivery');
+  const forceReasonHash = hashing.sha256('no-ship smoke reason');
+  const forcePromptCountBefore = receivedPrompts.length;
+  const forceResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort', interruptReasonHash: forceReasonHash });
+  assert(forceResult.status === 'waiting' && forceResult.priority === 'force' && forceResult.interruptMode === 'abort' && forceResult.interruptStatus === 'force_accepted' && forceResult.interruptReasonHash === forceReasonHash, `force send expected waiting/force_accepted, got ${forceResult.status}/${forceResult.interruptStatus}`);
+  assert(receivedPrompts.length === forcePromptCountBefore + 1, 'force send with reason hash must deliver one prompt over local_socket');
+  assert(receivedPrompts.at(-1).priority === 'force' && receivedPrompts.at(-1).interruptMode === 'abort' && receivedPrompts.at(-1).interruptReasonHash === forceReasonHash && receivedPrompts.at(-1).interruptRequested === true, 'force envelope must carry abort and reason hash metadata');
+  const workerForce = await zpeer.sendZpeerPrompt(repoRoot, workerOne, 'workertwo', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort', interruptReasonHash: forceReasonHash });
+  assert(workerForce.status === 'blocked' && workerForce.interruptStatus === 'force_blocked' && String(workerForce.reason).includes('force interrupt not allowed from role type worker'), 'worker force interrupt must be role-policy blocked');
+
   const registeredTools = new Map();
   const appendEntries = [];
   const feedMessages = [];
@@ -407,7 +424,14 @@ async function main() {
     assert(!containsRawBody(value), `${name} must not persist raw zpeer_ask prompt/response`);
     assert(!hasForbiddenKey(value), `${name} must not contain forbidden raw body-like keys`);
   }
-  const duplicateGuard = await zpeerAsk.execute('tool-call-zpeer-ask-dup', { targetAlias: 'beta', message: rawPrompt }, undefined, undefined, { cwd: repoRoot });
+  const urgentToolResult = await zpeerAsk.execute('tool-call-zpeer-ask-urgent', { targetAlias: 'beta', message: 'urgent tool smoke prompt', urgency: 'urgent', reason: 'urgent smoke reason' }, undefined, undefined, { cwd: repoRoot });
+  assert(urgentToolResult?.details?.status === 'waiting' && urgentToolResult?.details?.priority === 'urgent' && urgentToolResult?.details?.interruptMode === 'steer' && urgentToolResult?.details?.interruptStatus === 'urgent_delivered', 'zpeer_ask urgent must deliver with steer metadata and urgent_delivered status');
+  const forceToolBlocked = await zpeerAsk.execute('tool-call-zpeer-ask-force-missing-reason', { targetAlias: 'beta', message: 'force missing reason prompt', urgency: 'force' }, undefined, undefined, { cwd: repoRoot });
+  assert(forceToolBlocked?.details?.status === 'blocked' && forceToolBlocked?.details?.interruptStatus === 'force_blocked' && String(forceToolBlocked?.details?.reason).includes('reason'), 'zpeer_ask force without reason must be blocked');
+  const forceToolResult = await zpeerAsk.execute('tool-call-zpeer-ask-force', { targetAlias: 'beta', message: 'force tool smoke prompt', force: true, reason: 'force smoke reason' }, undefined, undefined, { cwd: repoRoot });
+  assert(forceToolResult?.details?.status === 'waiting' && forceToolResult?.details?.priority === 'force' && forceToolResult?.details?.interruptMode === 'abort' && forceToolResult?.details?.interruptStatus === 'force_accepted' && forceToolResult?.details?.interruptReasonHash === hashing.sha256('force smoke reason'), 'zpeer_ask force must require reason and deliver abort metadata');
+
+  const duplicateGuard = await zpeerAsk.execute('tool-call-zpeer-ask-dup', { targetAlias: 'beta', message: 'force tool smoke prompt' }, undefined, undefined, { cwd: repoRoot });
   assert(duplicateGuard?.details?.status === 'blocked' && String(duplicateGuard?.details?.reason).includes('duplicate'), 'zpeer_ask must block duplicate target/message loop attempts');
   const selfGuard = await zpeerAsk.execute('tool-call-zpeer-ask-self', { targetAlias: 'alpha', message: 'different smoke prompt' }, undefined, undefined, { cwd: repoRoot });
   assert(selfGuard?.details?.status === 'blocked' && String(selfGuard?.details?.reason).includes('self'), 'zpeer_ask must block self-target attempts');
@@ -456,6 +480,9 @@ async function main() {
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'reply' && record.outputHash === hashing.sha256(rawResponse)), 'peer ledger must include reply outputHash record');
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'waiting' && record.taskHash === hashing.sha256(rawPrompt)), 'peer ledger must include async waiting hash record');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.reasonHash), 'peer ledger must include hash-only blocked room-isolation record');
+  assert(messages.some((record) => record.event === 'ack' && record.priority === 'urgent' && record.interruptMode === 'steer' && record.interruptStatus === 'urgent_delivered'), 'peer ledger must include urgent delivered interrupt metadata');
+  assert(messages.some((record) => record.event === 'ack' && record.priority === 'force' && record.interruptMode === 'abort' && record.interruptStatus === 'force_accepted' && record.interruptReasonHash === forceReasonHash), 'peer ledger must include force accepted interrupt metadata with reason hash only');
+  assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.priority === 'force' && record.interruptStatus === 'force_blocked' && record.interruptReasonHash === forceReasonHash && record.targetAliasHash === hashing.sha256('workertwo')), 'peer ledger must include force role-policy blocked metadata');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.targetAliasHash === hashing.sha256('workertwo') && record.reasonHash), 'peer ledger must include hash-only blocked record for same-room worker-to-worker send');
 
   const realRepoComs = join(process.cwd(), '.pi', 'coms');

@@ -9,6 +9,7 @@ import { formatZagentList, formatZteamList, listZagentManifests, listZteamManife
 import { sha256 } from "../../core/utils/hashing.js";
 import { writeZpeerLocalProfileFromPeer } from "../../domains/coms/coms-v2/zpeer-profile.js";
 import { buildZpeerRoomSummary, changeZpeerAlias, changeZpeerRoom, clearZpeerRoom, joinZpeerRoom, leaveZpeerRoom, peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, useZpeerRoom, zpeerMembershipsForPeer, type ZpeerSendMode } from "../../domains/coms/coms-v2/zpeer.js";
+import type { ZpeerInterruptMode, ZpeerInterruptPriority, ZpeerInterruptStatus } from "../../domains/coms/coms-v2/envelope.js";
 import { readZobLiveRegistryAllProjectsSnapshot } from "../../domains/coms/coms-v2/registry.js";
 import { loadActiveZagentScopedMode } from "../events.js";
 import { resolveRuleProfile } from "../../domains/governance/rules.js";
@@ -1137,7 +1138,7 @@ async function executeZteamTmuxActionPlan(_repoRoot: string, plan: ZteamTmuxActi
 }
 
 export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
-  const rememberZpeerEvent = (event: { kind: NonNullable<typeof state.zobLive.lastEvent>["kind"]; roomId?: string; fromAlias?: string; toAlias?: string; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string }): void => {
+  const rememberZpeerEvent = (event: { kind: NonNullable<typeof state.zobLive.lastEvent>["kind"]; roomId?: string; fromAlias?: string; toAlias?: string; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string; priority?: ZpeerInterruptPriority; interruptMode?: ZpeerInterruptMode; interruptStatus?: ZpeerInterruptStatus }): void => {
     state.zobLive.lastEvent = { ...event, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
   };
 
@@ -1411,7 +1412,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
   });
 
   pi.registerCommand("zpeer", {
-    description: "Room-scoped local peer sessions: /zpeer, /zpeer name <alias>, /zpeer room <roomId>, /zpeer @alias <prompt>",
+    description: "Room-scoped local peer sessions: /zpeer, /zpeer name <alias>, /zpeer room <roomId>, /zpeer @alias <prompt>, /zpeer urgent @alias <prompt>, /zpeer force @alias --reason <reason> <prompt>",
     handler: async (args, ctx) => {
       if (!state.zobLive.peerCard) {
         ctx.ui.notify("/zpeer unavailable: current session has not registered a local peer endpoint yet", "warning");
@@ -1420,6 +1421,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
       const self = refreshZpeerSelf(ctx.cwd, state.zobLive.peerCard);
       state.zobLive.peerCard = self;
       const trimmed = args.trim();
+      const tokenizeZpeerArgs = (input: string): string[] => [...input.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((match) => match[1] ?? match[2] ?? match[3] ?? "");
       if (!trimmed) {
         const summary = buildZpeerRoomSummary(ctx.cwd, self);
         pi.appendEntry("zob-zpeer", {
@@ -1447,7 +1449,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
         ctx.ui.notify(`zpeer room=${summary.roomId} memberships=${summary.membershipCount ?? zpeerMembershipsForPeer(self).length} self=@${summary.selfAlias ?? "?"} onlinePeers=${Math.max(0, summary.online - 1)} unavailable=${unavailable} livePeers=${availableAliases} · usage: /zpeer @alias <prompt> | /zpeer in <room> @alias <prompt> · safety: local-only/hash-only/bodyStored=false`, "info");
         return;
       }
-      const parts = trimmed.split(/\s+/);
+      const parts = tokenizeZpeerArgs(trimmed);
       const verb = parts[0]?.toLowerCase();
       const zpeerProfileId = zpeerCommandProfileId(ctx);
       if (verb === "name") {
@@ -1537,35 +1539,94 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
         ctx.ui.notify(`zpeer left ${parts[1]}; active=${result.peer.zpeerRoomId}`, "info");
         return;
       }
-      const sendModeFromParts = (inputParts: string[]): { mode: ZpeerSendMode; aliasToken?: string; bodyStartIndex: number } => {
-        const first = inputParts[0]?.toLowerCase();
-        if (first === "async" || first === "await" || first === "long") return { mode: first, aliasToken: inputParts[1], bodyStartIndex: 2 };
-        return { mode: inputParts.includes("--async") ? "async" : inputParts.includes("--long") ? "long" : "await", aliasToken: inputParts[0], bodyStartIndex: 1 };
+      const sendModeFromParts = (inputParts: string[]): { mode: ZpeerSendMode; priority: ZpeerInterruptPriority; interruptMode: ZpeerInterruptMode; interruptReasonHash?: string; reasonHash?: string; aliasToken?: string; bodyParts: string[]; error?: string } => {
+        let mode: ZpeerSendMode = inputParts.includes("--async") ? "async" : inputParts.includes("--long") ? "long" : "await";
+        let priority: ZpeerInterruptPriority = "normal";
+        let aliasToken: string | undefined;
+        let reason: string | undefined;
+        const bodyParts: string[] = [];
+        const modeToken = (value: string | undefined): value is ZpeerSendMode => value === "async" || value === "await" || value === "long";
+        const priorityToken = (value: string | undefined): value is Exclude<ZpeerInterruptPriority, "normal"> => value === "urgent" || value === "force";
+        for (let index = 0; index < inputParts.length; index += 1) {
+          const part = inputParts[index];
+          const lower = part.toLowerCase();
+          if (!aliasToken && modeToken(lower)) {
+            mode = lower;
+            continue;
+          }
+          if (!aliasToken && priorityToken(lower)) {
+            priority = lower;
+            continue;
+          }
+          if (lower === "--async") {
+            mode = "async";
+            continue;
+          }
+          if (lower === "--long") {
+            mode = "long";
+            continue;
+          }
+          if (lower === "--urgent") {
+            priority = priority === "force" ? "force" : "urgent";
+            continue;
+          }
+          if (lower === "--force") {
+            priority = "force";
+            continue;
+          }
+          if (lower === "--reason") {
+            reason = inputParts[index + 1];
+            index += 1;
+            continue;
+          }
+          if (lower.startsWith("--reason=")) {
+            reason = part.slice("--reason=".length);
+            continue;
+          }
+          if (!aliasToken) {
+            aliasToken = part;
+            continue;
+          }
+          bodyParts.push(part);
+        }
+        const interruptMode: ZpeerInterruptMode = priority === "force" ? "abort" : priority === "urgent" ? "steer" : "none";
+        if (priority === "force" && !reason?.trim()) return { mode, priority, interruptMode, aliasToken, bodyParts, error: "--reason is required for force" };
+        return { mode, priority, interruptMode, interruptReasonHash: reason?.trim() ? sha256(reason) : undefined, reasonHash: reason?.trim() ? sha256(reason) : undefined, aliasToken, bodyParts };
       };
       const explicitRoomId = verb === "in" ? parts[1] : undefined;
       const sendParts = explicitRoomId ? parts.slice(2) : parts;
       const sendMode = sendModeFromParts(sendParts);
       if (sendMode.aliasToken?.startsWith("@")) {
         const targetAlias = sendMode.aliasToken.slice(1);
-        const transientPrompt = sendParts.slice(sendMode.bodyStartIndex).filter((part) => part !== "--async" && part !== "--long").join(" ").trim();
+        const transientPrompt = sendMode.bodyParts.join(" ").trim();
         const replyTimeoutMs = sendMode.mode === "long" ? 30 * 60 * 1000 : 10 * 60 * 1000;
         const eventRoomId = explicitRoomId ?? state.zobLive.peerCard.zpeerRoomId ?? "default";
         const eventFromAlias = peerAliasInRoom(state.zobLive.peerCard, eventRoomId) ?? state.zobLive.peerCard.zpeerAlias;
-        if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt", roomId: eventRoomId, fromAlias: eventFromAlias, toAlias: targetAlias, status: "attempt", taskHash: transientPrompt.trim() ? sha256(transientPrompt) : undefined });
+        if (sendMode.error) {
+          const taskHash = transientPrompt.trim() ? sha256(transientPrompt) : undefined;
+          emitZpeerEvent({ kind: "blocked", roomId: eventRoomId, fromAlias: eventFromAlias, toAlias: targetAlias, status: "blocked", reason: sendMode.error, taskHash, priority: sendMode.priority, interruptMode: sendMode.interruptMode, interruptStatus: "force_blocked" });
+          pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "send_blocked", status: "blocked", reasonHash: sha256(sendMode.error), targetAliasHash: sha256(targetAlias), roomIdHash: sha256(eventRoomId), taskHash, priority: sendMode.priority, interruptMode: sendMode.interruptMode, interruptStatus: "force_blocked", localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+          ctx.ui.notify(`/zpeer force blocked: ${sendMode.error}`, "warning");
+          return;
+        }
+        if (sendMode.mode !== "async") emitZpeerEvent({ kind: "attempt", roomId: eventRoomId, fromAlias: eventFromAlias, toAlias: targetAlias, status: "attempt", taskHash: transientPrompt.trim() ? sha256(transientPrompt) : undefined, priority: sendMode.priority, interruptMode: sendMode.interruptMode });
         let feedbackEmittedTerminal = false;
         const result = await sendZpeerPrompt(ctx.cwd, state.zobLive.peerCard, targetAlias, transientPrompt, (msgId) => state.zobLive.pendingReplies.wait(msgId, replyTimeoutMs), {
           mode: sendMode.mode,
           roomId: explicitRoomId,
+          priority: sendMode.priority,
+          interruptMode: sendMode.interruptMode,
+          interruptReasonHash: sendMode.interruptReasonHash,
           onFeedback: (feedback) => {
             feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired";
             const feedbackRoomId = feedback.result.roomId ?? eventRoomId;
-            emitZpeerEvent({ kind: feedback.kind, roomId: feedbackRoomId, fromAlias: state.zobLive.peerCard ? peerAliasInRoom(state.zobLive.peerCard, feedbackRoomId) ?? eventFromAlias : eventFromAlias, toAlias: feedback.result.targetAlias ?? targetAlias, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash });
+            emitZpeerEvent({ kind: feedback.kind, roomId: feedbackRoomId, fromAlias: state.zobLive.peerCard ? peerAliasInRoom(state.zobLive.peerCard, feedbackRoomId) ?? eventFromAlias : eventFromAlias, toAlias: feedback.result.targetAlias ?? targetAlias, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash, priority: feedback.result.priority ?? sendMode.priority, interruptMode: feedback.result.interruptMode ?? sendMode.interruptMode, interruptStatus: feedback.result.interruptStatus });
           },
         });
         const terminalKind = result.status === "reply" || result.status === "completed" ? "reply" : result.status === "blocked" ? "blocked" : result.status === "timeout" ? "timeout" : result.status === "expired" ? "expired" : result.status === "error" ? "error" : result.status === "waiting" ? "waiting" : "delivered";
         if (!feedbackEmittedTerminal) {
           const resultRoomId = result.roomId ?? eventRoomId;
-          emitZpeerEvent({ kind: terminalKind, roomId: resultRoomId, fromAlias: peerAliasInRoom(state.zobLive.peerCard, resultRoomId) ?? eventFromAlias, toAlias: result.targetAlias ?? targetAlias, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash });
+          emitZpeerEvent({ kind: terminalKind, roomId: resultRoomId, fromAlias: peerAliasInRoom(state.zobLive.peerCard, resultRoomId) ?? eventFromAlias, toAlias: result.targetAlias ?? targetAlias, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash, priority: result.priority ?? sendMode.priority, interruptMode: result.interruptMode ?? sendMode.interruptMode, interruptStatus: result.interruptStatus });
         }
         pi.appendEntry("zob-zpeer", {
           schema: "zob.zpeer-command.v1",
@@ -1577,6 +1638,11 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
           roomIdHash: sha256(result.roomId ?? eventRoomId),
           taskHash: result.taskHash,
           outputHash: result.outputHash,
+          priority: result.priority ?? sendMode.priority,
+          interruptMode: result.interruptMode ?? sendMode.interruptMode,
+          interruptStatus: result.interruptStatus,
+          interruptReasonHash: result.interruptReasonHash ?? sendMode.interruptReasonHash,
+          reasonInputHash: sendMode.reasonHash,
           localOnly: true,
           networkEnabled: false,
           bodyStored: false,
@@ -1596,11 +1662,12 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
         } else {
           const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
           const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait; no follow-up turn queued" : "";
-          ctx.ui.notify(ok ? `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}` : `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}: ${result.reason ?? "see metadata"}`, ok ? "info" : "warning");
+          const interruptSuffix = result.interruptStatus ? ` interrupt=${result.interruptStatus}` : sendMode.priority !== "normal" ? ` priority=${sendMode.priority}` : "";
+          ctx.ui.notify(ok ? `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}${interruptSuffix}${result.outputHash ? ` outputHash=${result.outputHash}` : ""}${passiveWaitSuffix}` : `zpeer ${result.roomId ?? eventRoomId} @${targetAlias} ${result.status}: ${result.reason ?? "see metadata"}${interruptSuffix}`, ok ? "info" : "warning");
         }
         return;
       }
-      ctx.ui.notify("Usage: /zpeer | /zpeer rooms | /zpeer clear <roomId> | /zpeer join <roomId> [as <alias>] | /zpeer use <roomId> | /zpeer leave <roomId> | /zpeer @alias <prompt> | /zpeer in <roomId> @alias <prompt>", "warning");
+      ctx.ui.notify("Usage: /zpeer | /zpeer rooms | /zpeer clear <roomId> | /zpeer join <roomId> [as <alias>] | /zpeer use <roomId> | /zpeer leave <roomId> | /zpeer @alias <prompt> | /zpeer urgent @alias <prompt> | /zpeer force @alias --reason <reason> <prompt> | /zpeer in <roomId> urgent|force @alias <prompt>", "warning");
     },
   });
 }

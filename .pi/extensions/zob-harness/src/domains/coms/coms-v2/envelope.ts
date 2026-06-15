@@ -3,8 +3,14 @@ import { isRecord } from "../../../core/utils/records.js";
 
 const FORBIDDEN_PERSISTED_KEYS = new Set(["body", "task", "prompt", "output", "content", "message", "rationale", "text", "diff", "patch"]);
 const ENVELOPE_TYPES = new Set(["ping", "pong", "prompt", "ack", "response", "error"]);
+const ZPEER_PRIORITIES = new Set(["normal", "urgent", "force"]);
+const ZPEER_INTERRUPT_MODES = new Set(["none", "steer", "abort"]);
+const ZPEER_INTERRUPT_STATUSES = new Set(["none", "urgent_delivered", "force_accepted", "force_downgraded", "force_blocked", "force_timeout"]);
 
 export type ZobLiveEnvelopeType = "ping" | "pong" | "prompt" | "ack" | "response" | "error";
+export type ZpeerInterruptPriority = "normal" | "urgent" | "force";
+export type ZpeerInterruptMode = "none" | "steer" | "abort";
+export type ZpeerInterruptStatus = "none" | "urgent_delivered" | "force_accepted" | "force_downgraded" | "force_blocked" | "force_timeout";
 
 export interface ZobLiveEnvelope {
   schema: "zob.live-envelope.v1";
@@ -24,6 +30,11 @@ export interface ZobLiveEnvelope {
   replyEndpointHash?: string;
   transientPrompt?: string;
   transientResponse?: string;
+  priority?: ZpeerInterruptPriority;
+  interruptRequested?: boolean;
+  interruptMode?: ZpeerInterruptMode;
+  interruptReasonHash?: string;
+  interruptStatus?: ZpeerInterruptStatus;
   errorCode?: string;
   errorHash?: string;
   timestamp: string;
@@ -50,7 +61,7 @@ export function buildZobLiveEnvelope(input: Omit<ZobLiveEnvelope, "schema" | "ti
   };
 }
 
-export function buildZobLiveAckEnvelope(request: ZobLiveEnvelope): ZobLiveEnvelope {
+export function buildZobLiveAckEnvelope(request: ZobLiveEnvelope, interruptStatus?: ZpeerInterruptStatus): ZobLiveEnvelope {
   return buildZobLiveEnvelope({
     type: "ack",
     msgId: request.msgId,
@@ -60,6 +71,11 @@ export function buildZobLiveAckEnvelope(request: ZobLiveEnvelope): ZobLiveEnvelo
     team: request.team,
     hops: request.hops,
     taskHash: request.taskHash,
+    priority: request.priority,
+    interruptRequested: request.interruptRequested,
+    interruptMode: request.interruptMode,
+    interruptReasonHash: request.interruptReasonHash,
+    interruptStatus: interruptStatus ?? request.interruptStatus,
   });
 }
 
@@ -101,6 +117,11 @@ export function validateZobLiveEnvelope(value: unknown): string[] {
   if (hasForbiddenExactKey(value)) errors.push("ZOB live envelope must not use persisted raw-body key names");
   if (value.artifactRefs !== undefined && !isStringArray(value.artifactRefs)) errors.push("ZOB live envelope artifactRefs must be string[] when provided");
   if (value.artifactHashes !== undefined && !isStringArray(value.artifactHashes)) errors.push("ZOB live envelope artifactHashes must be string[] when provided");
+  if (value.priority !== undefined && (typeof value.priority !== "string" || !ZPEER_PRIORITIES.has(value.priority))) errors.push("ZOB live envelope priority is invalid");
+  if (value.interruptRequested !== undefined && typeof value.interruptRequested !== "boolean") errors.push("ZOB live envelope interruptRequested must be boolean when provided");
+  if (value.interruptMode !== undefined && (typeof value.interruptMode !== "string" || !ZPEER_INTERRUPT_MODES.has(value.interruptMode))) errors.push("ZOB live envelope interruptMode is invalid");
+  if (value.interruptReasonHash !== undefined && (typeof value.interruptReasonHash !== "string" || !/^[a-f0-9]{64}$/i.test(value.interruptReasonHash))) errors.push("ZOB live envelope interruptReasonHash must be sha256 hex when provided");
+  if (value.interruptStatus !== undefined && (typeof value.interruptStatus !== "string" || !ZPEER_INTERRUPT_STATUSES.has(value.interruptStatus))) errors.push("ZOB live envelope interruptStatus is invalid");
   if (value.type === "prompt") {
     if (typeof value.sender !== "string" || typeof value.receiver !== "string") errors.push("ZOB live prompt envelope requires sender and receiver");
     if (typeof value.taskHash !== "string") errors.push("ZOB live prompt envelope requires taskHash");

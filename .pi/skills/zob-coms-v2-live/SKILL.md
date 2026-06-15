@@ -18,6 +18,9 @@ Use this skill when:
 - Treat `zob_coms_send` as live-first when policy mode is `required_local` or `required_network`.
 - Include `transientBody` only for live transport delivery; it must never be stored in `.pi/coms`.
 - Use `taskHash`, `outputHash`, and `artifactRefs` for durable evidence.
+- For ZPeer direct asks, use governed `zpeer_ask` or `/zpeer`; supported priorities are `normal`, `urgent`, and `force`.
+- Use `urgent` only for priority steer delivery without aborting the receiver.
+- Use `force` only for explicit controlled interrupts: provide a transient reason, persist only its hash, require topology/room/role/rate/local-socket guards, and expect `force_accepted`, `force_downgraded`, or `force_blocked` metadata.
 - Treat missing ACK, stale peer, offline peer, timeout, or transport error as blocker evidence.
 - For parallel owner pools and Goal TODO handoff, treat Goal Room as canonical for owner requests/decisions, TODO refs, receiver refs, message/result hashes, blockers, and evidence refs; ZPeer is optional transient live delivery/assist only.
 - For `handoff_goal_todo` and `/goal todo handoff`, require an explicit team/ZTeam context, an existing live peer receiver, and a maintainer-provided custom contextual message; do not auto-launch teams or count handoff delivery as TODO completion.
@@ -46,6 +49,7 @@ For tmux-backed Agent Factory teams:
 - Use tmux only to start, attach, inspect status, or close the local session; do not use pane paste as the primary communication transport.
 - Prefer startup files (`pi @chief-kickoff.md`, `pi @worker-kickoff.md`) for initial instructions so Pi receives one bounded message block.
 - Use async ZPeer/Goal Room-style asks for normal coordination; do not block in polling loops after sending a non-blocking ask.
+- Reserve `/zpeer urgent ...` for time-sensitive steering and `/zpeer force ... --reason <reason>` for controlled user/parent-approved interruption; never treat transport ACK as proof that the model digested the message.
 - Keep any local file/timeline rooms as optional logs only; they are not delivery, live presence, ZPeer membership, or completion evidence.
 - Keep messages short and actionable with `CONTEXT`, `ASK`, `EVIDENCE`, `URGENCY`, and `BLOCKER` fields.
 - When a reply affects scope, ownership, merge readiness, oracle status, or completion, mirror only body-free metadata/artifact refs into durable records.

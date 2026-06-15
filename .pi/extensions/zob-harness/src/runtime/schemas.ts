@@ -355,7 +355,10 @@ const ZpeerAskParams = Type.Object({
   message: Type.String({ description: "Transient peer request body. Used only for local live delivery; never persisted in durable ledgers or reports." }),
   roomId: Type.Optional(Type.String({ description: "Optional ZPeer room id. Defaults to the current active local room." })),
   mode: Type.Optional(StringEnum(["async", "await", "long"] as const, { description: "Send mode. Default async for agent-initiated coordination.", default: "async" })),
-  reason: Type.Optional(Type.String({ description: "Optional transient coordination reason. Hashed only in visible metadata; raw value is not persisted." })),
+  reason: Type.Optional(Type.String({ description: "Optional transient coordination/interrupt reason. Required for force; hashed only in visible metadata; raw value is not persisted." })),
+  urgency: Type.Optional(StringEnum(["normal", "urgent", "force"] as const, { description: "ZPeer delivery priority. normal=follow-up, urgent=steer, force=controlled abort+steer when policy allows." })),
+  force: Type.Optional(Type.Boolean({ description: "Alias for urgency=force. Requires reason and remains local/hash-only." })),
+  interruptMode: Type.Optional(StringEnum(["none", "steer", "abort"] as const, { description: "Requested interrupt mode. Derived from urgency when omitted; invalid broadening is blocked by runtime." })),
   timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes. Ignored by async mode; capped by runtime." })),
 });
 

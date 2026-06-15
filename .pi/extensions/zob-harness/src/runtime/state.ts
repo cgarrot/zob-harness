@@ -8,7 +8,7 @@ import { validateGoalState, validateStrictGoalSpecAnchor, type StrictGoalSpecAnc
 import { DEFAULT_GOAL_ACTIVATION_MODE, restoreGoalActivationModeFromBranch, restoreRuntimeGoalFromBranch, type GoalActivationMode, type RuntimeGoal } from "./goal-runtime.js";
 import { createGoalTodoState, restoreGoalTodosFromBranch, type GoalTodoState } from "../domains/goal/goal-todos.js";
 import { isRecord } from "../core/utils/records.js";
-import type { ZobLiveEnvelope } from "../domains/coms/coms-v2/envelope.js";
+import type { ZobLiveEnvelope, ZpeerInterruptMode, ZpeerInterruptPriority, ZpeerInterruptStatus } from "../domains/coms/coms-v2/envelope.js";
 import type { ZobLocalTransportServer } from "../domains/coms/coms-v2/local-transport.js";
 import { ZobPendingReplies } from "../domains/coms/coms-v2/pending-replies.js";
 import type { ZobLivePeerCard } from "../domains/coms/coms-v2/types.js";
@@ -37,7 +37,7 @@ export interface DelegationMouseRuntimeState {
 }
 
 export interface ZobLiveLastEvent {
-  kind: "status" | "attempt" | "delivered" | "waiting" | "reply" | "sent" | "completed" | "blocked" | "error" | "timeout" | "expired" | "inbound" | "response_sent" | "heartbeat";
+  kind: "status" | "attempt" | "delivered" | "waiting" | "reply" | "sent" | "completed" | "blocked" | "error" | "timeout" | "expired" | "inbound" | "response_sent" | "heartbeat" | "urgent_delivered" | "force_accepted" | "force_downgraded" | "force_blocked";
   roomId?: string;
   fromAlias?: string;
   toAlias?: string;
@@ -46,6 +46,9 @@ export interface ZobLiveLastEvent {
   msgId?: string;
   taskHash?: string;
   outputHash?: string;
+  priority?: ZpeerInterruptPriority;
+  interruptMode?: ZpeerInterruptMode;
+  interruptStatus?: ZpeerInterruptStatus;
   at: string;
   localOnly: true;
   networkEnabled: false;
@@ -68,17 +71,31 @@ export interface ZobPassivePeerWaitState {
   networkEnabled: false;
 }
 
+export interface ZobInboundZpeerMessage {
+  envelope: ZobLiveEnvelope;
+  receivedAt: string;
+  injectedAt?: string;
+  turnStartedAt?: string;
+  responseSent: boolean;
+  priority: ZpeerInterruptPriority;
+  interruptMode: ZpeerInterruptMode;
+  repoRoot: string;
+}
+
 export interface ZobLiveRuntimeState {
   pendingReplies: ZobPendingReplies;
   server?: ZobLocalTransportServer;
   peerCard?: ZobLivePeerCard;
   inbound?: { envelope: ZobLiveEnvelope; receivedAt: string; responseSent: boolean; repoRoot: string };
+  inboundByMsgId?: Record<string, ZobInboundZpeerMessage>;
+  inboundQueue?: string[];
+  activeInboundMsgId?: string;
   lastEvent?: ZobLiveLastEvent;
   passivePeerWait?: ZobPassivePeerWaitState;
   leaseOwned?: boolean;
   leaseStatus?: "owned" | "blocked" | "unavailable";
   leaseBlockReason?: "not_found" | "owner_mismatch" | "expired" | "blocked_live_owner";
-  zpeerAskGuard?: { windowStartedMs: number; count: number; lastRoomId?: string; lastTargetAlias?: string; lastMessageHash?: string };
+  zpeerAskGuard?: { windowStartedMs: number; count: number; urgentCount?: number; forceCount?: number; lastRoomId?: string; lastTargetAlias?: string; lastMessageHash?: string };
   heartbeatTimer?: ReturnType<typeof setTimeout>;
   lastHeartbeatMs?: number;
 }

@@ -51,22 +51,10 @@ export async function bindZobLocalEndpoint(endpoint: string, handler: ZobLocalEn
   const server = createServer((socket) => {
     let buffer = "";
     socket.setEncoding("utf8");
-    // EPIPE-safe write helper: if the peer has already closed its end, the write
-    // throws EPIPE — catch it so the server-side socket handler does not crash
-    // the process (node:net emits EPIPE as an uncaughtException when the socket
-    // 'error' listener is absent and the write callback rejects).
-    const safeWriteEnvelope = async (sock: Socket, env: ZobLiveEnvelope): Promise<void> => {
-      try {
-        await writeEnvelope(sock, env);
-      } catch {
-        // peer disconnected before we could reply — not fatal; just end the socket.
-      }
-    };
-
     socket.on("data", async (chunk) => {
       buffer += chunk;
       if (Buffer.byteLength(buffer, "utf8") > maxLineBytes) {
-        await safeWriteEnvelope(socket, buildZobLiveErrorEnvelope({}, "max line bytes exceeded", "max_line_bytes"));
+        await writeEnvelope(socket, buildZobLiveErrorEnvelope({}, "max line bytes exceeded", "max_line_bytes"));
         socket.end();
         return;
       }
@@ -76,26 +64,19 @@ export async function bindZobLocalEndpoint(endpoint: string, handler: ZobLocalEn
       buffer = buffer.slice(newlineIndex + 1);
       const parsed = parseZobLiveEnvelopeLine(line);
       if (!parsed.envelope) {
-        await safeWriteEnvelope(socket, buildZobLiveErrorEnvelope({}, parsed.errors.join("; "), "invalid_envelope"));
+        await writeEnvelope(socket, buildZobLiveErrorEnvelope({}, parsed.errors.join("; "), "invalid_envelope"));
         socket.end();
         return;
       }
       try {
         const response = await handler(parsed.envelope);
         const responseErrors = validateZobLiveEnvelope(response);
-        await safeWriteEnvelope(socket, responseErrors.length === 0 ? response : buildZobLiveErrorEnvelope(parsed.envelope, responseErrors.join("; "), "invalid_response"));
+        await writeEnvelope(socket, responseErrors.length === 0 ? response : buildZobLiveErrorEnvelope(parsed.envelope, responseErrors.join("; "), "invalid_response"));
       } catch (error) {
-        await safeWriteEnvelope(socket, buildZobLiveErrorEnvelope(parsed.envelope, error instanceof Error ? error.message : String(error), "handler_error"));
+        await writeEnvelope(socket, buildZobLiveErrorEnvelope(parsed.envelope, error instanceof Error ? error.message : String(error), "handler_error"));
       } finally {
         socket.end();
       }
-    });
-
-    // Catch EPIPE/connection-reset on the server-side socket so it does not
-    // surface as an uncaughtException (the peer may close mid-response).
-    socket.on("error", () => {
-      // Intentionally swallowed: a peer disconnecting before the response
-      // arrives is a normal race in local-socket transport, not a fatal error.
     });
   });
   await new Promise<void>((resolve, reject) => {

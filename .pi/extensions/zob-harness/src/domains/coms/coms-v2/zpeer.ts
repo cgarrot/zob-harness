@@ -1,10 +1,10 @@
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { buildZobComsProjectId } from "./identity.js";
-import { buildZobLiveEnvelope } from "./envelope.js";
+import { buildZobLiveEnvelope, type ZpeerInterruptMode, type ZpeerInterruptPriority, type ZpeerInterruptStatus } from "./envelope.js";
 import { sendZobLocalEnvelope } from "./local-transport.js";
-import { ownsZobLiveTeamAgentLease, readZobLiveRegistryAllProjectsSnapshot, writeZobLivePeerCard, writeZobLivePeerCardToProjectId, writeZobLiveTeamAgentLease } from "./registry.js";
+import { hasLocalSocketEndpointEvidence, ownsZobLiveTeamAgentLease, readZobLiveRegistryAllProjectsSnapshot, writeZobLivePeerCard, writeZobLivePeerCardToProjectId, writeZobLiveTeamAgentLease } from "./registry.js";
 import type { ZobLivePeerCard, ZobLivePeerStatus, ZpeerRoomMembership, ZpeerRoomMembershipRole } from "./types.js";
 import { validateZobComsEdge } from "../../topology/coms.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../../topology/teams.js";
@@ -15,6 +15,8 @@ const DEFAULT_ROOM_ID = "default";
 const ALIAS_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{1,31}$/;
 const ROOM_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
 const MEMBERSHIP_ROLES = new Set<ZpeerRoomMembershipRole>(["member", "bridge", "observer"]);
+const ZPEER_FORCE_ALLOWED_SENDER_ROLE_TYPES = new Set(["orchestrator", "lead"]);
+const ZPEER_FORCE_ALLOWED_RECEIVER_ROLE_TYPES = new Set(["orchestrator", "lead", "worker"]);
 
 export interface ZpeerRoomSummary {
   schema: "zob.zpeer-room-summary.v1";
@@ -52,6 +54,13 @@ export interface ZpeerSendResult {
   taskHash?: string;
   outputHash?: string;
   transientResponse?: string;
+  priority?: ZpeerInterruptPriority;
+  interruptMode?: ZpeerInterruptMode;
+  interruptStatus?: ZpeerInterruptStatus;
+  interruptReasonHash?: string;
+  deliveryMethod?: "local_socket" | "tmux_sendkeys";
+  fallback_delivery?: boolean;
+  best_effort?: boolean;
   bodyStored: false;
 }
 
@@ -63,7 +72,17 @@ export interface ZpeerSendFeedback {
 export interface ZpeerSendOptions {
   mode?: ZpeerSendMode;
   roomId?: string;
+  priority?: ZpeerInterruptPriority;
+  interruptMode?: ZpeerInterruptMode;
+  interruptReasonHash?: string;
   onFeedback?: (feedback: ZpeerSendFeedback) => void;
+  // WS-ZH4: optional best-effort fallback delivery seam. When local-socket delivery is
+  // blocked (0 live candidates), the app may inject a fallback (e.g. tmux send-keys to
+  // the target agent's pane). This keeps coms-v2 IO-free; the app supplies the tmux
+  // delivery. A fallback delivery is NOT verified delivery: outputHash stays absent,
+  // confirmation_ref stays null, and bodyStored stays false (coms-safety: append-only /
+  // best-effort is not delivery success).
+  fallbackDelivery?: (input: { targetAlias: string; roomId: string; taskHash?: string; prompt: string }) => Promise<{ delivered: boolean; target?: string; reason?: string }>;
 }
 
 interface ZpeerRoomPeer {
@@ -170,14 +189,6 @@ function withZpeerMembershipState(repoRoot: string, peer: ZobLivePeerCard, membe
   });
 }
 
-function hasLocalSocketEndpointEvidence(peer: ZobLivePeerCard): boolean {
-  return peer.transport === "local_socket"
-    && Boolean(peer.endpoint)
-    && !peer.endpoint.startsWith("pending-")
-    && peer.endpoint !== "observe-only"
-    && existsSync(peer.endpoint);
-}
-
 function zpeerReachableStatus(peer: ZobLivePeerCard): ZobLivePeerStatus {
   if (peer.status === "online" && hasLocalSocketEndpointEvidence(peer)) return "online";
   if (peer.status === "stale") return "stale";
@@ -230,10 +241,19 @@ export function ensureZpeerFields(repoRoot: string, peer: ZobLivePeerCard, roomI
   return withZpeerMembershipState(repoRoot, peer, upsertMembership(baseMemberships, requested), requestedRoomId);
 }
 
-export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId?: string, alias?: string, restoredMemberships?: ZpeerRoomMembership[]): ZobLivePeerCard {
+export function refreshZpeerSelf(repoRoot: string, peer: ZobLivePeerCard, roomId?: string, alias?: string, restoredMemberships?: ZpeerRoomMembership[], options: { socketVerifiedAtMs?: number } = {}): ZobLivePeerCard {
   const ensured = ensureZpeerFields(repoRoot, peer, roomId, alias, restoredMemberships);
   if (!hasLocalSocketEndpointEvidence(ensured)) return ensured;
-  const refreshed = writeZobLivePeerCard(repoRoot, { ...ensured, heartbeatAt: new Date().toISOString(), status: "online" });
+  // WS-ZH1: stamp socketVerifiedAt only when the caller supplies a freshly verified
+  // self-ping timestamp (startup path / ping-aware heartbeat). The timestamp is
+  // metadata-only (hash/body-free) and is consumed by
+  // hasLocalSocketEndpointEvidence({ requireVerified: true }) callers. Without it the
+  // prior socketVerifiedAt (if any) is preserved so periodic refresh does not erase
+  // verified evidence.
+  const baseCard = options.socketVerifiedAtMs !== undefined
+    ? ({ ...ensured, socketVerifiedAt: new Date(options.socketVerifiedAtMs).toISOString() } as ZobLivePeerCard)
+    : ensured;
+  const refreshed = writeZobLivePeerCard(repoRoot, { ...baseCard, heartbeatAt: new Date().toISOString(), status: "online" });
   if (refreshed.zpeerAdhoc !== true) writeZobLiveTeamAgentLease(repoRoot, refreshed, { reason: "zpeer_refresh" });
   return refreshed;
 }
@@ -401,6 +421,12 @@ function appendZpeerPeerRecords(repoRoot: string, record: {
   outputHash?: string;
   reason?: string;
   peerCount?: number;
+  priority?: ZpeerInterruptPriority;
+  interruptMode?: ZpeerInterruptMode;
+  interruptStatus?: ZpeerInterruptStatus;
+  interruptReasonHash?: string;
+  deliveryMethod?: "local_socket" | "tmux_sendkeys";
+  fallbackDelivery?: boolean;
 }): void {
   const base = {
     schema: "zob.zpeer-peer-hash-ref.v1",
@@ -414,6 +440,12 @@ function appendZpeerPeerRecords(repoRoot: string, record: {
     outputHash: record.outputHash,
     reasonHash: record.reason ? sha256(record.reason) : undefined,
     peerCount: record.peerCount,
+    priority: record.priority,
+    interruptMode: record.interruptMode,
+    interruptStatus: record.interruptStatus,
+    interruptReasonHash: record.interruptReasonHash,
+    deliveryMethod: record.deliveryMethod,
+    fallbackDelivery: record.fallbackDelivery,
     localOnly: true,
     networkEnabled: false,
     bodyStored: false,
@@ -459,6 +491,10 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   const targetAlias = safeZpeerAlias(targetAliasInput);
   const taskHash = transientPrompt.trim() ? sha256(transientPrompt) : undefined;
   const mode = options.mode ?? "await";
+  const priority = options.priority ?? (options.interruptMode === "abort" ? "force" : options.interruptMode === "steer" ? "urgent" : "normal");
+  const interruptMode = options.interruptMode ?? (priority === "force" ? "abort" : priority === "urgent" ? "steer" : "none");
+  const interruptReasonHash = options.interruptReasonHash;
+  const interruptRequested = priority !== "normal" || interruptMode !== "none";
   const emitFeedback = (kind: ZpeerSendFeedback["kind"], result: ZpeerSendResult): void => {
     options.onFeedback?.({ kind, result });
   };
@@ -474,16 +510,24 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
       outputHash: result.outputHash,
       reason: result.reason,
       peerCount,
+      priority: result.priority ?? priority,
+      interruptMode: result.interruptMode ?? interruptMode,
+      interruptStatus: result.interruptStatus,
+      interruptReasonHash: result.interruptReasonHash ?? interruptReasonHash,
+      deliveryMethod: result.deliveryMethod,
+      fallbackDelivery: result.fallback_delivery,
     });
-    return { roomId, ...result };
+    return { roomId, priority, interruptMode, interruptReasonHash, ...result };
   };
 
+  if (priority === "force" && !interruptReasonHash) return finish("attempt", { status: "blocked", reason: "force interrupt requires reason hash", targetAlias: targetAlias ?? undefined, taskHash, interruptStatus: "force_blocked", bodyStored: false });
   if (!selfMembership) return finish("attempt", { status: "blocked", reason: `current peer is not a member of room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
   if (self.zpeerAdhoc !== true) {
     const leaseOwnership = ownsZobLiveTeamAgentLease(repoRoot, self);
     if (!leaseOwnership.owned) return finish("attempt", { status: "blocked", reason: `current peer does not own stable team-agent lease (${leaseOwnership.reason})`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
   }
   if (selfMembership.role === "observer") return finish("attempt", { status: "blocked", reason: `current peer is observer-only in room '${roomId}'`, targetAlias: targetAlias ?? undefined, taskHash, bodyStored: false });
+  if (priority === "force" && !ZPEER_FORCE_ALLOWED_SENDER_ROLE_TYPES.has(self.roleType)) return finish("attempt", { status: "blocked", reason: `force interrupt not allowed from role type ${self.roleType}`, targetAlias: targetAlias ?? undefined, taskHash, interruptStatus: "force_blocked", bodyStored: false });
   if (!targetAlias) return finish("attempt", { status: "blocked", reason: "invalid target alias", bodyStored: false });
   if (!transientPrompt.trim()) return finish("attempt", { status: "blocked", reason: "empty peer prompt", targetAlias, bodyStored: false });
   const candidates = peersInRoom(repoRoot, roomId).filter((entry) => entry.membership.alias === targetAlias && entry.peer.sessionHash !== self.sessionHash);
@@ -503,12 +547,31 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   }
   if (liveCandidates.length === 0) {
     const statuses = [...new Set(candidates.map((entry) => zpeerReachableStatus(entry.peer)))].sort().join("/") || "offline";
+    // WS-ZH4: last-resort fallback delivery. When local-socket transport is blocked
+    // but the caller injected a fallback (e.g. tmux send-keys to the target agent's
+    // pane), deliver the prompt best-effort. This is NOT verified delivery:
+    // outputHash/confirmation_ref stay absent and bodyStored stays false; the receiver,
+    // if it answers at all, answers via its own local_socket later (that ledgered reply
+    // is what WS-Q5 counts). If no fallback is supplied or it fails/declines, fall
+    // through to the standard blocked result unchanged.
+    if (options.fallbackDelivery && targetAlias && priority === "normal") {
+      try {
+        const fallback = await options.fallbackDelivery({ targetAlias, roomId, taskHash, prompt: transientPrompt });
+        if (fallback.delivered) {
+          const fallbackMsgId = `zpeer-fallback:${self.sessionHash.slice(0, 8)}:${Date.now()}`;
+          return finish("attempt", { status: "delivered", reason: `tmux_sendkeys_fallback: peer @${targetAlias} socket ${statuses}; best-effort delivery to ${fallback.target ?? targetAlias} (not verified)`, msgId: fallbackMsgId, targetAlias, taskHash, deliveryMethod: "tmux_sendkeys", fallback_delivery: true, best_effort: true, bodyStored: false }, candidates.length);
+        }
+      } catch {
+        // best-effort fallback failed; fall through to the standard blocked result.
+      }
+    }
     return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is ${statuses}`, targetAlias, taskHash, bodyStored: false }, candidates.length);
   }
   if (liveCandidates.length > 1) return finish("attempt", { status: "blocked", reason: `duplicate live alias @${targetAlias} in room '${roomId}'`, targetAlias, taskHash, bodyStored: false }, liveCandidates.length);
   const target = liveCandidates[0];
   const targetReachableStatus = zpeerReachableStatus(target.peer);
   if (targetReachableStatus !== "online") return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is ${targetReachableStatus}`, targetAlias, taskHash, bodyStored: false }, 1);
+  if (priority === "force" && !ZPEER_FORCE_ALLOWED_RECEIVER_ROLE_TYPES.has(target.peer.roleType)) return finish("attempt", { status: "blocked", reason: `force interrupt not allowed to role type ${target.peer.roleType}`, targetAlias, taskHash, interruptStatus: "force_blocked", bodyStored: false }, 1);
   const topologyBlocker = validateZpeerTopology(repoRoot, self, target.peer, roomId, senderAlias, target.membership.alias);
   if (topologyBlocker) return finish("attempt", { status: "blocked", reason: topologyBlocker, targetAlias, taskHash, bodyStored: false }, 1);
   if (target.peer.transport !== "local_socket" || target.peer.endpoint.startsWith("pending-") || target.peer.endpoint === "observe-only") return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} is not reachable by local_socket`, targetAlias, taskHash, bodyStored: false }, 1);
@@ -527,32 +590,38 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
     replyEndpoint: self.endpoint,
     replyEndpointHash: self.endpointHash,
     transientPrompt,
+    priority,
+    interruptRequested,
+    interruptMode,
+    interruptReasonHash,
   });
   try {
     const ack = await sendZobLocalEnvelope(target.peer.endpoint, liveEnvelope, { timeoutMs: 5_000 });
     if (ack.type !== "ack") return finish("terminal", { status: "error", reason: `expected ack, got ${ack.type}`, msgId, targetAlias, taskHash, bodyStored: false }, 1);
-    appendZpeerPeerRecords(repoRoot, { event: "ack", status: "delivered", roomId, msgId, senderAlias, targetAlias, taskHash, peerCount: 1 });
+    const ackInterruptStatus = ack.interruptStatus;
+    appendZpeerPeerRecords(repoRoot, { event: "ack", status: "delivered", roomId, msgId, senderAlias, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, peerCount: 1 });
+    if (ackInterruptStatus === "force_blocked") return finish("terminal", { status: "blocked", reason: "force interrupt blocked by receiver policy", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
     if (mode === "async") {
-      const waiting = finish("terminal", { status: "waiting", reason: "delivered locally; awaiting async reply", msgId, targetAlias, taskHash, bodyStored: false }, 1);
+      const waiting = finish("terminal", { status: "waiting", reason: "delivered locally; awaiting async reply", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
       emitFeedback("waiting", waiting);
       return waiting;
     }
-    emitFeedback("delivered", { status: "delivered", roomId, msgId, targetAlias, taskHash, bodyStored: false });
-    emitFeedback("waiting", { status: "waiting", roomId, reason: mode === "long" ? "waiting for long peer reply" : "waiting for peer reply", msgId, targetAlias, taskHash, bodyStored: false });
+    emitFeedback("delivered", { status: "delivered", roomId, msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, bodyStored: false });
+    emitFeedback("waiting", { status: "waiting", roomId, reason: mode === "long" ? "waiting for long peer reply" : "waiting for peer reply", msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, bodyStored: false });
     const reply = await awaitReply(msgId);
     const replyEnvelope = reply["envelope"];
     if (reply.status === "completed") {
       const transientResponse = replyEnvelope?.transientResponse;
-      const result = finish("terminal", { status: "reply", msgId, targetAlias, taskHash, outputHash: replyEnvelope?.outputHash ?? (transientResponse ? sha256(transientResponse) : undefined), transientResponse, bodyStored: false }, 1);
+      const result = finish("terminal", { status: "reply", msgId, targetAlias, taskHash, outputHash: replyEnvelope?.outputHash ?? (transientResponse ? sha256(transientResponse) : undefined), transientResponse, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
       emitFeedback("reply", result);
       return result;
     }
     if (reply.status === "timeout") {
-      const result = finish("terminal", { status: "timeout", reason: "await response timed out", msgId, targetAlias, taskHash, bodyStored: false }, 1);
+      const result = finish("terminal", { status: "timeout", reason: "await response timed out", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
       emitFeedback(mode === "long" ? "expired" : "timeout", result);
       return result;
     }
-    const result = finish("terminal", { status: "error", reason: replyEnvelope?.errorHash ?? "peer response error", msgId, targetAlias, taskHash, bodyStored: false }, 1);
+    const result = finish("terminal", { status: "error", reason: replyEnvelope?.errorHash ?? "peer response error", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
     emitFeedback("error", result);
     return result;
   } catch (error) {

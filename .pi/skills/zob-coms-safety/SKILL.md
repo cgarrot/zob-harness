@@ -17,6 +17,8 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - Keep Orchestrator -> Lead, Lead -> Worker, Worker -> Lead as the normal topology for direct role-to-role messages.
 - Allow Shared Goal Room messages only when they are parent-visible, typed, metadata/hash-only, and not hidden worker-to-worker free chat.
 - For Goal TODO handoff, treat ZPeer as transient live delivery/clarification only and Goal Room hash-only metadata as canonical for TODO refs, receiver refs, custom-message hashes, result hashes, blockers, and evidence refs.
+- For ZPeer priorities, preserve `normal`/`urgent`/`force` semantics: `urgent` is steer-only and must not abort; `force` requires an explicit transient reason, stores only `reasonHash`/`interruptReasonHash`, and remains blocked unless topology, room, role, rate, lease, and local-socket guards pass.
+- Treat ZPeer ACK/interrupt status as delivery/control metadata only, not as read/digestion proof or TODO completion evidence.
 - Treat governed requests (`DELEGATION_REQUEST.v1`, `ORACLE_REQUEST.v1`, `CONTEXT_REQUEST.v1`, `OWNER_CHANGE_REQUEST.v1`) as proposals only: parent/governor decides; extraction must not dispatch, mutate TODO state, apply owner changes, or store raw bodies.
 - Treat stale/offline as blockers, not completion evidence.
 - Keep Mission Control commands proposal-only and parent-owned.
@@ -30,6 +32,7 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - No network transport without bearer token/locality/TLS policy.
 - No silent fallback from required live delivery to append-only success.
 - No handoff delivery, ACK, chat reply, stale peer, or append-only Goal Room record may count as parent TODO completion; receiver claims still require parent/oracle acceptance.
+- No `force` ZPeer send without an explicit reason hash, no forged/broad force escalation, and no force fallback to append-only or tmux delivery success.
 - No token/secret logging.
 
 ## Tmux Agent Factory safety
@@ -61,6 +64,8 @@ No-ship if:
 - live send succeeds while receiver is absent/stale/offline;
 - await treats timeout/stale/offline as success;
 - hidden worker-to-worker free chat works outside a typed parent-visible Goal Room;
+- ZPeer `force` works without reason hash, bypasses topology/room/role/local-socket guards, or persists raw reason/message bodies;
+- ZPeer replies are correlated without a message id / active inbound guard, risking phantom or wrong-msgId responses;
 - tmux pane paste/capture is treated as reliable durable communication or completion evidence;
 - a supervisor/watchdog nudges indefinitely, starts broad work, or stores raw pane bodies;
 - a non-owner writes owned paths instead of sending an owner request;

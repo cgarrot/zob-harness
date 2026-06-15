@@ -7,7 +7,7 @@ import { isRecord } from "../../../core/utils/records.js";
 import { safeFileStem } from "../../../core/utils/paths.js";
 import { sha256 } from "../../../core/utils/hashing.js";
 import { buildCurrentZobLivePeerCard, buildZobComsProjectId } from "./identity.js";
-import { pingZobLocalEndpoint } from "./local-transport.js";
+import { pingZobLocalEndpoint, sendZobLocalEnvelope } from "./local-transport.js";
 import { readZobComsV2Policy, zobComsRegistryEnabled } from "./policy.js";
 import type { ZobLivePeerCard, ZobLivePeerStatus, ZobLiveRegistrySnapshot, ZobLiveTeamAgentLease } from "./types.js";
 
@@ -498,6 +498,102 @@ export async function retireInactiveZobLiveTeamAgentLeases(repoRoot: string, inp
   return { schema: "zob.live-team-agent-lease-retire.v1", teamName: input.teamName, checked, retired, retainedLive, missing, errorHashes: errors.map((error) => sha256(error)), bodyStored: false };
 }
 
+function applySweepPeerUpdate(repoRoot: string, peer: ZobLivePeerCard, nowMs: number): void {
+  // WS-ZH2: write revived/demoted metadata only. Ad-hoc peers update their agent
+  // card; lease-backed peers renew their team-agent lease. Never persists bodies.
+  if (peer.zpeerAdhoc === true) {
+    writeZobLivePeerCardToProjectId(peer);
+  } else {
+    writeZobLiveTeamAgentLease(repoRoot, peer, { reason: "health_sweep", nowMs });
+  }
+}
+
+export async function sweepZobLivePeerHealth(repoRoot: string, input: { teamName?: string; nowMs?: number; sample?: number } = {}): Promise<{
+  schema: "zob.live-peer-health-sweep.v1";
+  teamName?: string;
+  checked: number;
+  revived: number;
+  demoted: number;
+  retainedLive: number;
+  retainedOffline: number;
+  skipped: number;
+  errorHashes: string[];
+  bodyStored: false;
+}> {
+  // WS-ZH2: periodic local-socket health sweep. Pings each team peer's socket and
+  // revives peers that flipped offline during cold-start contention (the 0/60 case)
+  // once their handler answers, and demotes peers whose socket died. Metadata-only:
+  // updates status/heartbeatAt/socketVerifiedAt and renews leases; it never persists
+  // bodies and never delivers prompts. The hash-only/body-free invariant is
+  // preserved (every written card/lease keeps bodyStored:false).
+  //
+  // Invocation hook (WS-ZH3 sibling concern, implemented in a separate slice): wire
+  // this into the transposer's reactive `scripts/supervisor-check.mjs --observer
+  // --once` tick so recovery runs ~every 60s with NO new daemon. The caller bounds
+  // wall-clock (the existing 10s `timeout`) and may pass `sample` (default 16) to
+  // cap per-tick pings; when the team reports zero online peers this sweeps the whole
+  // team so the cold-start 0/N case recovers in a single tick.
+  const nowMs = input.nowMs ?? Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const sampleCap = typeof input.sample === "number" && Number.isFinite(input.sample) && input.sample > 0 ? Math.floor(input.sample) : 16;
+  const snapshot = readZobLiveRegistrySnapshot(repoRoot, input.teamName);
+  const peers = snapshot.peers;
+  const nonOnline = peers.filter((peer) => peer.status !== "online");
+  const onlinePeers = peers.filter((peer) => peer.status === "online");
+  let queued: ZobLivePeerCard[];
+  if (onlinePeers.length === 0) {
+    queued = nonOnline;
+  } else {
+    const nonOnlineCapped = nonOnline.slice(0, sampleCap);
+    const onlineCapped = onlinePeers.slice(0, Math.max(0, sampleCap - nonOnlineCapped.length));
+    queued = [...nonOnlineCapped, ...onlineCapped];
+  }
+  let checked = 0;
+  let revived = 0;
+  let demoted = 0;
+  let retainedLive = 0;
+  let retainedOffline = 0;
+  let skipped = 0;
+  const errorHashes: string[] = [];
+  for (const peer of queued) {
+    if (peer.transport !== "local_socket" || !peer.endpoint || peer.endpoint.startsWith("pending-") || peer.endpoint === "observe-only") {
+      skipped += 1;
+      continue;
+    }
+    checked += 1;
+    let responds = false;
+    if (existsSync(peer.endpoint)) {
+      try {
+        const response = await sendZobLocalEnvelope(peer.endpoint, {
+          schema: "zob.live-envelope.v1",
+          type: "ping",
+          msgId: `zpeer-health-sweep:${peer.roleId}:${Date.now()}`,
+          hops: 0,
+          timestamp: nowIso,
+          bodyStored: false,
+        }, { timeoutMs: 1_000 });
+        responds = response.type === "pong" || response.type === "ack";
+      } catch (error) {
+        errorHashes.push(sha256(error instanceof Error ? error.message : String(error)));
+      }
+    }
+    if (responds) {
+      if (peer.status !== "online") {
+        applySweepPeerUpdate(repoRoot, { ...peer, heartbeatAt: nowIso, status: "online", socketVerifiedAt: nowIso } as ZobLivePeerCard, nowMs);
+        revived += 1;
+      } else {
+        retainedLive += 1;
+      }
+    } else if (peer.status !== "offline") {
+      applySweepPeerUpdate(repoRoot, { ...peer, heartbeatAt: nowIso, status: "offline" } as ZobLivePeerCard, nowMs);
+      demoted += 1;
+    } else {
+      retainedOffline += 1;
+    }
+  }
+  return { schema: "zob.live-peer-health-sweep.v1", teamName: input.teamName, checked, revived, demoted, retainedLive, retainedOffline, skipped, errorHashes, bodyStored: false };
+}
+
 export function registerCurrentZobLivePeer(repoRoot: string, teamName = "zob-core"): ZobLivePeerCard | undefined {
   const policy = readZobComsV2Policy(repoRoot);
   if (!zobComsRegistryEnabled(policy)) return undefined;
@@ -509,10 +605,39 @@ export function registerCurrentZobLivePeer(repoRoot: string, teamName = "zob-cor
   return peer;
 }
 
+export function readPeerSocketVerifiedAt(peer: ZobLivePeerCard): number {
+  const raw = (peer as unknown as { socketVerifiedAt?: string }).socketVerifiedAt;
+  if (typeof raw !== "string" || raw.length === 0) return Number.NaN;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+export function hasLocalSocketEndpointEvidence(peer: ZobLivePeerCard, options: { requireVerified?: boolean; nowMs?: number } = {}): boolean {
+  if (peer.transport !== "local_socket") return false;
+  if (!peer.endpoint || peer.endpoint.startsWith("pending-") || peer.endpoint === "observe-only") return false;
+  if (!existsSync(peer.endpoint)) return false;
+  if (!options.requireVerified) return true;
+  const verifiedAt = readPeerSocketVerifiedAt(peer);
+  if (!Number.isFinite(verifiedAt)) return false;
+  const nowMs = options.nowMs ?? Date.now();
+  return nowMs - verifiedAt < Math.max(0, peer.staleAfterMs);
+}
+
 export function touchCurrentZobLivePeer(repoRoot: string, teamName = "zob-core"): ZobLivePeerCard | undefined {
   const peer = registerCurrentZobLivePeer(repoRoot, teamName);
   if (!peer) return undefined;
-  const touched = writeZobLivePeerCard(repoRoot, { ...peer, heartbeatAt: new Date().toISOString(), status: "online" });
+  // WS-ZH1 (G2 fix): a blind touch must not resurrect a peer whose local socket is
+  // gone. Only affirm "online" when the local-socket endpoint is present and the
+  // socket file still exists; demote to "offline" when a real endpoint's socket
+  // disappeared; otherwise preserve the policy-derived status (observe-only /
+  // pending / off endpoints carry no live socket to verify, so they are unchanged).
+  const hasSocket = hasLocalSocketEndpointEvidence(peer);
+  const hadRealEndpoint = peer.transport === "local_socket"
+    && Boolean(peer.endpoint)
+    && !peer.endpoint.startsWith("pending-")
+    && peer.endpoint !== "observe-only";
+  const status: ZobLivePeerStatus = hasSocket ? "online" : hadRealEndpoint ? "offline" : peer.status;
+  const touched = writeZobLivePeerCard(repoRoot, { ...peer, heartbeatAt: new Date().toISOString(), status });
   writeZobLiveTeamAgentLease(repoRoot, touched, { reason: "touch_current" });
   return touched;
 }
