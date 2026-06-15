@@ -352,6 +352,79 @@ export type {
   AutoResolveVerdict,
   ResolutionStrategyFn,
 } from "./src/domains/environment/auto-resolve.js";
+// WS-CH1 (capability-validation PART II keystone): the typed CapabilityContract
+// pillar (the 5th pillar alongside computeWorklist/EvidenceContract/EnvironmentContract).
+// The contract shape + registry + PURE primitives (no node:fs/node:child_process); the
+// body + readManifest IO + the role->required-tools map are project-registered (WS-CH3).
+// Metadata-only / body-free / network-disabled: AgentManifest/RoleRequirement/
+// CapabilityVerdict carry agent ids, tool names, mode names, manifest paths, fixCommand
+// strings only; FORBIDDEN_PLAINTEXT_KEYS applies (reused from the worklist domain).
+// CRITICAL SAFETY: NO auto-resolve on the contract (manifest edit = security-sensitive =
+// operator-gated, unlike Round 4 env auto-resolve).
+export {
+  buildFixPacket,
+  compareCapability,
+  manifestHasTool,
+  modePermitsWrite,
+  requiredToolsForRole,
+} from "./src/domains/capability/primitives.js";
+export type { CapabilityFixPacketEntry } from "./src/domains/capability/primitives.js";
+export {
+  capabilityBodyFreeViolations,
+  listCapabilityContractIds,
+  registerCapabilityContract,
+  resolveCapabilityContract,
+} from "./src/domains/capability/capability-contract.js";
+export type { CapabilityContract } from "./src/domains/capability/capability-contract.js";
+export type {
+  AgentManifest,
+  CapabilityVerdict,
+  RoleName,
+  RoleRequirement,
+} from "./src/domains/capability/types.js";
+// WS-CH2 (capability-validation PART II): the launch-time gate primitive + the
+// runtime nudge-backoff/gap primitives. runCapabilityGate reads each manifest once
+// (via the contract's readManifest), evaluates every agent against its role's
+// requirement, returns { ok, verdicts, fix_packet, shouldStart } with
+// shouldStart === ok BY CONSTRUCTION (fail-closed, no opt-out). Pure over
+// (contract, agentIds); never starts anything itself (mechanism in harness, action
+// in app). Idempotent + re-runnable (re-reads manifests on re-call). The nudge-
+// policy primitives compose the supervisor anti-spam policy: planBackoffNudge
+// (60s→2m→5m→15m cap + the structural capability_gap_stop), detectCapabilityGap
+// (gates escalation — slow-but-capable stays gap===false), capabilityGapFixPacket
+// (the metadata-only alert_no_ship fix packet), transitionOnCapabilityGap (forces
+// the terminal capability_gap:true stop once gap===true). Metadata-only /
+// body-free / network-disabled. No node:fs/node:child_process (the purity grep
+// returns nothing). CRITICAL SAFETY: NO auto-resolve (manifest edit = security-
+// sensitive = operator-gated, intentional divergence from Round 4 env auto-resolve).
+export { runCapabilityGate } from "./src/domains/capability/launch-gate.js";
+// NOTE: aliased as CapabilityLaunchGateOptions / CapabilityLaunchGateResult to
+// avoid a name collision with the WS-PH2 environment pillar's identically-named
+// LaunchGateOptions / LaunchGateResult exports above (index.ts ~L330). Both
+// shapes exist; consumers pick the capability gate via the `Capability*` prefix.
+export type {
+  LaunchGateOptions as CapabilityLaunchGateOptions,
+  LaunchGateResult as CapabilityLaunchGateResult,
+} from "./src/domains/capability/launch-gate.js";
+export {
+  DEFAULT_NUDGE_SCHEDULE,
+  NUDGE_BACKOFF_CAP_MS,
+  capabilityGapFixPacket,
+  detectCapabilityGap,
+  planBackoffNudge,
+  transitionOnCapabilityGap,
+} from "./src/domains/capability/nudge-policy.js";
+export type {
+  CapabilityGapAction,
+  CapabilityGapFixPacket,
+  CapabilityGapTransition,
+  DetectCapabilityGapInput,
+  DriverRecord,
+  GapResult,
+  NudgePlan,
+  NudgeSchedule,
+  PlanBackoffNudgeInput,
+} from "./src/domains/capability/nudge-policy.js";
 export { DEFAULT_PROMOTION_GATES, advancePromotionCandidate, appendPromotionLedger, createPromotionCandidate, promotionCandidateDir, promotionCandidateRef, promotionReportsDir, summarizePromotionCandidates, transitionAllowed, validatePromotionCandidate, writePromotionCandidate } from "./src/domains/promotion/candidate.js";
 export { addPromotionComsMessageRef, buildPromotionComsMessageRef, buildPromotionComsThread, validatePromotionComsMessageRef, validatePromotionComsReadiness, validatePromotionComsThread, writePromotionComsThread } from "./src/domains/promotion/coms.js";
 export { applyDocumentationPromotionInQuarantine, prepareDocumentationPromotion, validateDocumentationPromotion, validateDocumentationPromotionCandidate } from "./src/domains/promotion/documentation.js";
