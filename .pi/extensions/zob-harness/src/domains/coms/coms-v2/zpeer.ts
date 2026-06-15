@@ -43,7 +43,7 @@ export interface ZpeerPeerRoomSummary extends ZpeerRoomSummary {
 }
 
 export type ZpeerSendMode = "await" | "async" | "long";
-export type ZpeerSendStatus = "delivered" | "waiting" | "reply" | "completed" | "blocked" | "error" | "timeout" | "expired";
+export type ZpeerSendStatus = "delivered" | "waiting" | "reply" | "completed" | "blocked" | "error" | "timeout" | "expired" | "required_response_expired";
 
 export interface ZpeerSendResult {
   status: ZpeerSendStatus;
@@ -58,6 +58,12 @@ export interface ZpeerSendResult {
   interruptMode?: ZpeerInterruptMode;
   interruptStatus?: ZpeerInterruptStatus;
   interruptReasonHash?: string;
+  requireResponse?: boolean;
+  responseRequiredBy?: string;
+  responseTimeoutMs?: number;
+  maxReinjects?: number;
+  responseReceived?: boolean;
+  deliveryStatus?: "delivered" | "blocked" | "stale" | "offline" | "transport_error";
   deliveryMethod?: "local_socket" | "tmux_sendkeys";
   fallback_delivery?: boolean;
   best_effort?: boolean;
@@ -75,6 +81,9 @@ export interface ZpeerSendOptions {
   priority?: ZpeerInterruptPriority;
   interruptMode?: ZpeerInterruptMode;
   interruptReasonHash?: string;
+  requireResponse?: boolean;
+  responseTimeoutMs?: number;
+  maxReinjects?: number;
   onFeedback?: (feedback: ZpeerSendFeedback) => void;
   // WS-ZH4: optional best-effort fallback delivery seam. When local-socket delivery is
   // blocked (0 live candidates), the app may inject a fallback (e.g. tmux send-keys to
@@ -425,6 +434,12 @@ function appendZpeerPeerRecords(repoRoot: string, record: {
   interruptMode?: ZpeerInterruptMode;
   interruptStatus?: ZpeerInterruptStatus;
   interruptReasonHash?: string;
+  requireResponse?: boolean;
+  responseRequiredBy?: string;
+  responseTimeoutMs?: number;
+  maxReinjects?: number;
+  responseReceived?: boolean;
+  deliveryStatus?: "delivered" | "blocked" | "stale" | "offline" | "transport_error";
   deliveryMethod?: "local_socket" | "tmux_sendkeys";
   fallbackDelivery?: boolean;
 }): void {
@@ -444,6 +459,12 @@ function appendZpeerPeerRecords(repoRoot: string, record: {
     interruptMode: record.interruptMode,
     interruptStatus: record.interruptStatus,
     interruptReasonHash: record.interruptReasonHash,
+    requireResponse: record.requireResponse,
+    responseRequiredBy: record.responseRequiredBy,
+    responseTimeoutMs: record.responseTimeoutMs,
+    maxReinjects: record.maxReinjects,
+    responseReceived: record.responseReceived,
+    deliveryStatus: record.deliveryStatus,
     deliveryMethod: record.deliveryMethod,
     fallbackDelivery: record.fallbackDelivery,
     localOnly: true,
@@ -495,6 +516,9 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   const interruptMode = options.interruptMode ?? (priority === "force" ? "abort" : priority === "urgent" ? "steer" : "none");
   const interruptReasonHash = options.interruptReasonHash;
   const interruptRequested = priority !== "normal" || interruptMode !== "none";
+  const requireResponse = options.requireResponse === true;
+  const responseTimeoutMs = Math.max(1_000, Math.min(30 * 60 * 1000, Math.floor(options.responseTimeoutMs ?? (mode === "long" ? 30 * 60 * 1000 : 10 * 60 * 1000))));
+  const maxReinjects = Math.max(0, Math.min(3, Math.floor(options.maxReinjects ?? 1)));
   const emitFeedback = (kind: ZpeerSendFeedback["kind"], result: ZpeerSendResult): void => {
     options.onFeedback?.({ kind, result });
   };
@@ -514,10 +538,16 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
       interruptMode: result.interruptMode ?? interruptMode,
       interruptStatus: result.interruptStatus,
       interruptReasonHash: result.interruptReasonHash ?? interruptReasonHash,
+      requireResponse: result.requireResponse,
+      responseRequiredBy: result.responseRequiredBy,
+      responseTimeoutMs: result.responseTimeoutMs,
+      maxReinjects: result.maxReinjects,
+      responseReceived: result.responseReceived,
+      deliveryStatus: result.deliveryStatus,
       deliveryMethod: result.deliveryMethod,
       fallbackDelivery: result.fallback_delivery,
     });
-    return { roomId, priority, interruptMode, interruptReasonHash, ...result };
+    return { roomId, priority, interruptMode, interruptReasonHash, requireResponse: requireResponse || undefined, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, ...result };
   };
 
   if (priority === "force" && !interruptReasonHash) return finish("attempt", { status: "blocked", reason: "force interrupt requires reason hash", targetAlias: targetAlias ?? undefined, taskHash, interruptStatus: "force_blocked", bodyStored: false });
@@ -578,7 +608,8 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   if (self.transport !== "local_socket" || !self.endpoint || self.endpoint.startsWith("pending-") || self.endpoint === "observe-only") return finish("attempt", { status: "blocked", reason: "current session has no local_socket reply endpoint", targetAlias, taskHash, bodyStored: false }, 1);
 
   const msgId = `zpeer:${self.sessionHash.slice(0, 8)}:${target.peer.sessionHash.slice(0, 8)}:${Date.now()}`;
-  finish("attempt", { status: "delivered", msgId, targetAlias, taskHash, bodyStored: false }, 1);
+  const responseRequiredBy = requireResponse ? new Date(Date.now() + responseTimeoutMs).toISOString() : undefined;
+  finish("attempt", { status: "delivered", msgId, targetAlias, taskHash, requireResponse: requireResponse || undefined, responseRequiredBy, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, deliveryStatus: "delivered", responseReceived: requireResponse ? false : undefined, bodyStored: false }, 1);
   const liveEnvelope = buildZobLiveEnvelope({
     type: "prompt",
     msgId,
@@ -594,6 +625,10 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
     interruptRequested,
     interruptMode,
     interruptReasonHash,
+    requireResponse: requireResponse || undefined,
+    responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined,
+    responseRequiredBy,
+    maxReinjects: requireResponse ? maxReinjects : undefined,
   });
   try {
     const ack = await sendZobLocalEnvelope(target.peer.endpoint, liveEnvelope, { timeoutMs: 5_000 });
@@ -601,27 +636,32 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
     const ackInterruptStatus = ack.interruptStatus;
     appendZpeerPeerRecords(repoRoot, { event: "ack", status: "delivered", roomId, msgId, senderAlias, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, peerCount: 1 });
     if (ackInterruptStatus === "force_blocked") return finish("terminal", { status: "blocked", reason: "force interrupt blocked by receiver policy", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
-    if (mode === "async") {
-      const waiting = finish("terminal", { status: "waiting", reason: "delivered locally; awaiting async reply", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
+    if (mode === "async" && !requireResponse) {
+      const waiting = finish("terminal", { status: "waiting", reason: "delivered locally; awaiting async reply", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, deliveryStatus: "delivered", bodyStored: false }, 1);
       emitFeedback("waiting", waiting);
       return waiting;
     }
-    emitFeedback("delivered", { status: "delivered", roomId, msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, bodyStored: false });
-    emitFeedback("waiting", { status: "waiting", roomId, reason: mode === "long" ? "waiting for long peer reply" : "waiting for peer reply", msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, bodyStored: false });
+    emitFeedback("delivered", { status: "delivered", roomId, msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, requireResponse: requireResponse || undefined, responseRequiredBy, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, deliveryStatus: "delivered", responseReceived: requireResponse ? false : undefined, bodyStored: false });
+    emitFeedback("waiting", { status: "waiting", roomId, reason: requireResponse ? "waiting for required peer response" : mode === "long" ? "waiting for long peer reply" : "waiting for peer reply", msgId, targetAlias, taskHash, priority, interruptMode, interruptStatus: ackInterruptStatus, interruptReasonHash, requireResponse: requireResponse || undefined, responseRequiredBy, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, deliveryStatus: "delivered", responseReceived: requireResponse ? false : undefined, bodyStored: false });
     const reply = await awaitReply(msgId);
     const replyEnvelope = reply["envelope"];
     if (reply.status === "completed") {
       const transientResponse = replyEnvelope?.transientResponse;
-      const result = finish("terminal", { status: "reply", msgId, targetAlias, taskHash, outputHash: replyEnvelope?.outputHash ?? (transientResponse ? sha256(transientResponse) : undefined), transientResponse, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
+      const result = finish("terminal", { status: "reply", msgId, targetAlias, taskHash, outputHash: replyEnvelope?.outputHash ?? (transientResponse ? sha256(transientResponse) : undefined), transientResponse, interruptStatus: ackInterruptStatus, requireResponse: requireResponse || undefined, responseRequiredBy, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, deliveryStatus: "delivered", responseReceived: requireResponse ? true : undefined, bodyStored: false }, 1);
       emitFeedback("reply", result);
       return result;
     }
+    if (reply.status === "required_response_expired") {
+      const result = finish("terminal", { status: "required_response_expired", reason: "required peer response expired", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, requireResponse: true, responseRequiredBy, responseTimeoutMs, maxReinjects, deliveryStatus: "delivered", responseReceived: false, bodyStored: false }, 1);
+      emitFeedback("expired", result);
+      return result;
+    }
     if (reply.status === "timeout") {
-      const result = finish("terminal", { status: "timeout", reason: "await response timed out", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
+      const result = finish("terminal", { status: "timeout", reason: "await response timed out", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, deliveryStatus: "delivered", bodyStored: false }, 1);
       emitFeedback(mode === "long" ? "expired" : "timeout", result);
       return result;
     }
-    const result = finish("terminal", { status: "error", reason: replyEnvelope?.errorHash ?? "peer response error", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, bodyStored: false }, 1);
+    const result = finish("terminal", { status: "error", reason: replyEnvelope?.errorHash ?? "peer response error", msgId, targetAlias, taskHash, interruptStatus: ackInterruptStatus, requireResponse: requireResponse || undefined, responseRequiredBy, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, deliveryStatus: "delivered", responseReceived: requireResponse ? false : undefined, bodyStored: false }, 1);
     emitFeedback("error", result);
     return result;
   } catch (error) {

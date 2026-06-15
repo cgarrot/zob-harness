@@ -92,7 +92,8 @@ function recordZpeerInbound(state: HarnessRuntimeState, envelope: ZobLiveEnvelop
   ensureZpeerInboundState(state);
   const priority = zpeerEnvelopePriority(envelope);
   const interruptMode = zpeerEnvelopeInterruptMode(envelope, priority);
-  const inbound: ZobInboundZpeerMessage = { envelope, receivedAt: new Date().toISOString(), responseSent: false, priority, interruptMode, repoRoot };
+  const requireResponse = envelope.requireResponse === true;
+  const inbound: ZobInboundZpeerMessage = { envelope, receivedAt: new Date().toISOString(), responseSent: false, priority, interruptMode, repoRoot, requireResponse, responseRequiredBy: envelope.responseRequiredBy, responseTimeoutMs: envelope.responseTimeoutMs, reinjectCount: 0, maxReinjects: envelope.maxReinjects ?? 1, requiredResponseStatus: requireResponse ? "owed" : undefined };
   state.zobLive.inboundByMsgId![envelope.msgId] = inbound;
   if (!state.zobLive.inboundQueue!.includes(envelope.msgId)) state.zobLive.inboundQueue!.push(envelope.msgId);
   state.zobLive.inbound = { envelope, receivedAt: inbound.receivedAt, responseSent: false, repoRoot };
@@ -122,12 +123,78 @@ function activeZpeerInboundForResponse(state: HarnessRuntimeState): ZobInboundZp
   return undefined;
 }
 
+function clearZpeerInboundWatchdog(inbound: ZobInboundZpeerMessage | undefined): void {
+  if (inbound?.watchdogTimer) clearTimeout(inbound.watchdogTimer);
+  if (inbound) inbound.watchdogTimer = undefined;
+}
+
 function finishZpeerInboundResponse(state: HarnessRuntimeState, msgId: string, responseSent: boolean): void {
   const inbound = state.zobLive.inboundByMsgId?.[msgId];
-  if (inbound) inbound.responseSent = responseSent;
+  clearZpeerInboundWatchdog(inbound);
+  if (inbound) {
+    inbound.responseSent = responseSent;
+    if (inbound.requireResponse && responseSent) inbound.requiredResponseStatus = "replied";
+  }
   if (state.zobLive.inbound?.envelope.msgId === msgId) state.zobLive.inbound = { ...state.zobLive.inbound, responseSent };
   state.zobLive.activeInboundMsgId = undefined;
   state.zobLive.inboundQueue = (state.zobLive.inboundQueue ?? []).filter((candidate) => candidate !== msgId);
+}
+
+function boundedRequiredResponseTimeoutMs(envelope: ZobLiveEnvelope): number {
+  return Math.max(1_000, Math.min(30 * 60 * 1000, Math.floor(envelope.responseTimeoutMs ?? 10 * 60 * 1000)));
+}
+
+function scheduleZpeerRequiredResponseWatchdog(pi: ExtensionAPI, state: HarnessRuntimeState, inbound: ZobInboundZpeerMessage): void {
+  if (inbound.requireResponse !== true || inbound.responseSent) return;
+  clearZpeerInboundWatchdog(inbound);
+  const timeoutMs = boundedRequiredResponseTimeoutMs(inbound.envelope);
+  const maxReinjects = Math.max(0, Math.min(3, Math.floor(inbound.maxReinjects ?? 1)));
+  const deadlineMs = inbound.responseRequiredBy ? Date.parse(inbound.responseRequiredBy) : Date.now() + timeoutMs;
+  const remainingMs = Number.isFinite(deadlineMs) ? Math.max(25, deadlineMs - Date.now()) : timeoutMs;
+  const reminderSliceMs = Math.max(25, Math.floor(timeoutMs / Math.max(1, maxReinjects + 1)));
+  const dueMs = Math.min(remainingMs, reminderSliceMs);
+  const timer = setTimeout(() => {
+    const current = state.zobLive.inboundByMsgId?.[inbound.envelope.msgId];
+    if (!current || current.responseSent || current.requiredResponseStatus === "replied" || current.requiredResponseStatus === "cancelled") return;
+    const reinjectCount = current.reinjectCount ?? 0;
+    const roomId = current.envelope.runId?.startsWith("zpeer:") ? current.envelope.runId.slice("zpeer:".length) : undefined;
+    if (reinjectCount < maxReinjects) {
+      current.reinjectCount = reinjectCount + 1;
+      current.requiredResponseStatus = "reinjecting";
+      setZpeerLastEvent(state, { kind: "required_response_reinject", roomId, fromAlias: current.envelope.sender, toAlias: current.envelope.receiver, status: "required_response_reinject", msgId: current.envelope.msgId, taskHash: current.envelope.taskHash, priority: current.priority, interruptMode: current.priority === "normal" ? "none" : "steer", interruptStatus: current.envelope.interruptStatus });
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-required-response-watchdog.v1", action: "reinject", status: "required_response_reinject", msgId: current.envelope.msgId, roomIdHash: roomId ? sha256(roomId) : undefined, senderAliasHash: current.envelope.sender ? sha256(current.envelope.sender) : undefined, receiverAliasHash: current.envelope.receiver ? sha256(current.envelope.receiver) : undefined, taskHash: current.envelope.taskHash, reinjectCount: current.reinjectCount, maxReinjects, priority: current.priority, interruptMode: current.priority === "normal" ? "none" : "steer", forceAbortRepeated: false, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      void pi.sendMessage({
+        customType: "zob-coms-inbound",
+        content: [
+          "ZPEER_RESPONSE_REQUIRED.v1",
+          "",
+          "You have an unanswered ZPeer message waiting. Process it now or state the blocker.",
+          `msgId: ${current.envelope.msgId}`,
+          `from: @${current.envelope.sender ?? "?"}`,
+          roomId ? `room: ${roomId}` : undefined,
+          `reinject: ${current.reinjectCount}/${maxReinjects}`,
+          `priority: ${current.priority}`,
+          "reply binding: active; your assistant response to this turn will be sent back for this msgId.",
+          "",
+          "Original transient message:",
+          current.envelope.transientPrompt ?? "",
+        ].filter((line): line is string => line !== undefined).join("\n"),
+        display: false,
+        details: { kind: "zpeer-required-response-reminder", msgId: current.envelope.msgId, runId: current.envelope.runId, sender: current.envelope.sender, receiver: current.envelope.receiver, taskHash: current.envelope.taskHash, requireResponse: true, reinjectCount: current.reinjectCount, maxReinjects, priority: current.priority, interruptMode: current.priority === "normal" ? "none" : "steer", forceAbortRepeated: false, bodyStored: false, localOnly: true, networkEnabled: false },
+      }, { triggerTurn: true, deliverAs: current.priority === "normal" ? "followUp" : "steer" });
+      scheduleZpeerRequiredResponseWatchdog(pi, state, current);
+      return;
+    }
+    current.requiredResponseStatus = "expired";
+    setZpeerLastEvent(state, { kind: "required_response_expired", roomId, fromAlias: current.envelope.sender, toAlias: current.envelope.receiver, status: "required_response_expired", msgId: current.envelope.msgId, taskHash: current.envelope.taskHash, priority: current.priority, interruptMode: current.interruptMode });
+    pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-required-response-watchdog.v1", action: "expire", status: "required_response_expired", msgId: current.envelope.msgId, roomIdHash: roomId ? sha256(roomId) : undefined, senderAliasHash: current.envelope.sender ? sha256(current.envelope.sender) : undefined, receiverAliasHash: current.envelope.receiver ? sha256(current.envelope.receiver) : undefined, taskHash: current.envelope.taskHash, reinjectCount: current.reinjectCount ?? 0, maxReinjects, responseRequiredBy: current.responseRequiredBy, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+    if (current.envelope.replyEndpoint) {
+      void sendZobLocalEnvelope(current.envelope.replyEndpoint, buildZobLiveErrorEnvelope(current.envelope, "required ZPeer response expired", "zpeer_required_response_expired"), { timeoutMs: 5_000 }).catch(() => undefined);
+    }
+    finishZpeerInboundResponse(state, current.envelope.msgId, false);
+  }, dueMs);
+  timer.unref?.();
+  inbound.watchdogTimer = timer;
 }
 
 function forceAbortAllowedForCurrentState(ctx: ExtensionContext): boolean {
@@ -170,6 +237,7 @@ function handleInboundZpeerPrompt(pi: ExtensionAPI, state: HarnessRuntimeState, 
   pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-inbound-interrupt.v1", status: interruptStatus ?? "prompt_received", priority, interruptMode, interruptStatus, msgId: envelope.msgId, roomIdHash: roomId ? sha256(roomId) : undefined, senderAliasHash: envelope.sender ? sha256(envelope.sender) : undefined, receiverAliasHash: envelope.receiver ? sha256(envelope.receiver) : undefined, taskHash: envelope.taskHash, interruptReasonHash: envelope.interruptReasonHash, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
   if (interruptStatus === "force_blocked") return interruptStatus;
   const inbound = recordZpeerInbound(state, envelope, repoRoot);
+  scheduleZpeerRequiredResponseWatchdog(pi, state, inbound);
   const deliverAs = priority === "normal" ? "followUp" : "steer";
   void pi.sendMessage({
     customType: "zob-zpeer-event",
@@ -181,7 +249,7 @@ function handleInboundZpeerPrompt(pi: ExtensionAPI, state: HarnessRuntimeState, 
     customType: "zob-coms-inbound",
     content: envelope.transientPrompt ?? "",
     display: false,
-    details: { kind: "zob-coms-inbound", msgId: envelope.msgId, runId: envelope.runId, sender: envelope.sender, receiver: envelope.receiver, taskHash: envelope.taskHash, priority: inbound.priority, interruptMode: inbound.interruptMode, interruptStatus, bodyStored: false, localOnly: true, networkEnabled: false },
+    details: { kind: "zob-coms-inbound", msgId: envelope.msgId, runId: envelope.runId, sender: envelope.sender, receiver: envelope.receiver, taskHash: envelope.taskHash, priority: inbound.priority, interruptMode: inbound.interruptMode, interruptStatus, requireResponse: inbound.requireResponse || undefined, responseRequiredBy: inbound.responseRequiredBy, maxReinjects: inbound.maxReinjects, bodyStored: false, localOnly: true, networkEnabled: false },
   }, { triggerTurn: true, deliverAs });
   return interruptStatus;
 }
@@ -699,7 +767,29 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
     const endpoint = makeZobLocalEndpoint(basePeer.sessionId);
     const server = await bindZobLocalEndpoint(endpoint, async (envelope) => {
       if (envelope.type === "ping") return buildZobLivePongEnvelope(envelope);
+      if (envelope.type === "error") {
+        if (envelope.errorCode === "zpeer_required_response_expired") state.zobLive.pendingReplies.expire(envelope.msgId, envelope.errorHash);
+        else state.zobLive.pendingReplies.fail(envelope.msgId, envelope.errorHash ?? sha256(envelope.errorCode ?? "zpeer_error"));
+        clearPassivePeerWaitForResponse(state, { ...envelope, type: "response" });
+        setZpeerLastEvent(state, {
+          kind: envelope.errorCode === "zpeer_required_response_expired" ? "required_response_expired" : "error",
+          roomId: envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined,
+          fromAlias: envelope.sender,
+          toAlias: envelope.receiver,
+          status: envelope.errorCode === "zpeer_required_response_expired" ? "required_response_expired" : "error",
+          msgId: envelope.msgId,
+          taskHash: envelope.taskHash,
+        });
+        void pi.sendMessage({
+          customType: "zob-zpeer-event",
+          content: envelope.errorCode === "zpeer_required_response_expired" ? "ZPeer required response expired" : "ZPeer error received",
+          display: true,
+          details: { kind: state.zobLive.lastEvent?.kind, roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: state.zobLive.lastEvent?.status, msgId: envelope.msgId, taskHash: envelope.taskHash, errorHash: envelope.errorHash, bodyStored: false, localOnly: true, networkEnabled: false },
+        }, { triggerTurn: false });
+        return buildZobLiveAckEnvelope(envelope);
+      }
       if (envelope.type === "response") {
+        if (envelope.replyToMsgId !== envelope.msgId) return buildZobLiveErrorEnvelope(envelope, "wrong or missing replyToMsgId for ZPeer response", "wrong_msgId");
         const completedActiveWait = state.zobLive.pendingReplies.complete(envelope.msgId, envelope);
         clearPassivePeerWaitForResponse(state, envelope);
         setZpeerLastEvent(state, {
@@ -970,6 +1060,7 @@ async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntim
   const activeInbound = activeZpeerInboundForResponse(state);
   const inbound = activeInbound ?? state.zobLive.inbound;
   if (!inbound || inbound.responseSent || !inbound.envelope.replyEndpoint) return;
+  if (activeInbound?.requiredResponseStatus === "expired") return;
   if (state.zobLive.inboundByMsgId && !activeInbound) return;
   const responseText = latestAssistantText(event);
   if (!responseText.trim()) return;
@@ -994,7 +1085,7 @@ async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntim
   }
   const artifactRefs = responseCapture ? [...(inbound.envelope.artifactRefs ?? []), responseCapture.artifactRef] : inbound.envelope.artifactRefs;
   const artifactHashes = responseCapture ? [...(inbound.envelope.artifactHashes ?? []), responseCapture.artifactHash] : inbound.envelope.artifactHashes;
-  const responseEnvelope = buildZobLiveResponseEnvelope(inbound.envelope, responseText, artifactRefs, artifactHashes);
+  const responseEnvelope = { ...buildZobLiveResponseEnvelope(inbound.envelope, responseText, artifactRefs, artifactHashes), replyToMsgId: inbound.envelope.msgId, responseHash: sha256(responseText) };
   await sendZobLocalEnvelope(inbound.envelope.replyEndpoint, responseEnvelope, { timeoutMs: 5_000 });
   finishZpeerInboundResponse(state, inbound.envelope.msgId, true);
   setZpeerLastEvent(state, {
@@ -1027,7 +1118,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     const taskHash = typeof details.taskHash === "string" ? details.taskHash : undefined;
     const outputHash = typeof details.outputHash === "string" ? details.outputHash : undefined;
     const route = fromAlias || toAlias ? `${fromAlias ? `@${fromAlias}` : "?"} → ${toAlias ? `@${toAlias}` : "?"}` : "room status";
-    const statusColor = status === "completed" || status === "sent" || status === "prompt_received" || status === "response_sent" ? "success" : status === "blocked" || status === "timeout" || status === "error" ? "warning" : "muted";
+    const statusColor = status === "completed" || status === "sent" || status === "prompt_received" || status === "response_sent" ? "success" : status === "blocked" || status === "timeout" || status === "error" || status === "required_response_expired" ? "warning" : "muted";
     const line = [
       theme.fg("accent", "◆ ZPeer"),
       theme.fg("muted", kind),

@@ -45,6 +45,8 @@ export function buildZobLiveResponseEnvelope(request: ZobLiveEnvelope, transient
     outputHash: capture.outputHash,
     artifactRefs: capture.artifactRefs,
     artifactHashes: capture.artifactHashes,
+    replyToMsgId: request.msgId,
+    responseHash: capture.outputHash,
     transientResponse,
   });
 }

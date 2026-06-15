@@ -719,7 +719,27 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, room-scoped with optional explicit roomId, mode defaults async, normal/urgent/force are rate/loop guarded, force requires a hashed reason and role/topology guards, raw bodies transient and durable records hash-only."
+      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, room-scoped with optional explicit roomId, mode defaults async, opt-in requireResponse tracks msgId-correlated replies with bounded timeout/reinjection metadata, normal/urgent/force are rate/loop guarded, force requires a hashed reason and role/topology guards, raw bodies transient and durable records hash-only."
+    },
+    {
+      "name": "zpeer_reply",
+      "family": "coms-v2-live",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-coms-v2-live/SKILL.md",
+        ".pi/skills/zob-coms-safety/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Explicit msgId-bound ZPeer reply path for active inbound messages; local_socket only, requires exact active msgId, wrong/expired/already-answered msgIds are blocked, raw reply body is transient and durable metadata stores outputHash/status only."
     },
     {
       "name": "zob_goal_room_send",
@@ -1671,7 +1691,7 @@
         "AGENTS.md",
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Local-only multi-room-scoped peer UX with active-room compatibility; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
+      "noShipNotes": "Local-only multi-room-scoped peer UX with active-room compatibility; supports /zpeer reply <msgId> <response> and --require-response; transient prompt/response over local_socket, persisted command/mission metadata is hash/body-free."
     },
     {
       "name": "zagent",

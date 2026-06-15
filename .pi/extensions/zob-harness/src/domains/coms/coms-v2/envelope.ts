@@ -28,6 +28,13 @@ export interface ZobLiveEnvelope {
   artifactHashes?: string[];
   replyEndpoint?: string;
   replyEndpointHash?: string;
+  requireResponse?: boolean;
+  responseTimeoutMs?: number;
+  responseRequiredBy?: string;
+  maxReinjects?: number;
+  reinjectCount?: number;
+  replyToMsgId?: string;
+  responseHash?: string;
   transientPrompt?: string;
   transientResponse?: string;
   priority?: ZpeerInterruptPriority;
@@ -76,6 +83,10 @@ export function buildZobLiveAckEnvelope(request: ZobLiveEnvelope, interruptStatu
     interruptMode: request.interruptMode,
     interruptReasonHash: request.interruptReasonHash,
     interruptStatus: interruptStatus ?? request.interruptStatus,
+    requireResponse: request.requireResponse,
+    responseTimeoutMs: request.responseTimeoutMs,
+    responseRequiredBy: request.responseRequiredBy,
+    maxReinjects: request.maxReinjects,
   });
 }
 
@@ -122,6 +133,18 @@ export function validateZobLiveEnvelope(value: unknown): string[] {
   if (value.interruptMode !== undefined && (typeof value.interruptMode !== "string" || !ZPEER_INTERRUPT_MODES.has(value.interruptMode))) errors.push("ZOB live envelope interruptMode is invalid");
   if (value.interruptReasonHash !== undefined && (typeof value.interruptReasonHash !== "string" || !/^[a-f0-9]{64}$/i.test(value.interruptReasonHash))) errors.push("ZOB live envelope interruptReasonHash must be sha256 hex when provided");
   if (value.interruptStatus !== undefined && (typeof value.interruptStatus !== "string" || !ZPEER_INTERRUPT_STATUSES.has(value.interruptStatus))) errors.push("ZOB live envelope interruptStatus is invalid");
+  if (value.requireResponse !== undefined && typeof value.requireResponse !== "boolean") errors.push("ZOB live envelope requireResponse must be boolean when provided");
+  if (value.responseTimeoutMs !== undefined && (typeof value.responseTimeoutMs !== "number" || !Number.isFinite(value.responseTimeoutMs) || value.responseTimeoutMs < 25 || value.responseTimeoutMs > 30 * 60 * 1000)) errors.push("ZOB live envelope responseTimeoutMs must be 25..1800000 when provided");
+  if (value.responseRequiredBy !== undefined && (typeof value.responseRequiredBy !== "string" || !Number.isFinite(Date.parse(value.responseRequiredBy)))) errors.push("ZOB live envelope responseRequiredBy must be an ISO timestamp when provided");
+  if (value.maxReinjects !== undefined && (typeof value.maxReinjects !== "number" || !Number.isInteger(value.maxReinjects) || value.maxReinjects < 0 || value.maxReinjects > 3)) errors.push("ZOB live envelope maxReinjects must be 0..3 when provided");
+  if (value.reinjectCount !== undefined && (typeof value.reinjectCount !== "number" || !Number.isInteger(value.reinjectCount) || value.reinjectCount < 0 || value.reinjectCount > 3)) errors.push("ZOB live envelope reinjectCount must be 0..3 when provided");
+  if (value.replyToMsgId !== undefined && (typeof value.replyToMsgId !== "string" || value.replyToMsgId.trim().length === 0)) errors.push("ZOB live envelope replyToMsgId must be non-empty when provided");
+  if (value.responseHash !== undefined && (typeof value.responseHash !== "string" || !/^[a-f0-9]{64}$/i.test(value.responseHash))) errors.push("ZOB live envelope responseHash must be sha256 hex when provided");
+  if (value.type === "prompt" && value.requireResponse === true) {
+    if (typeof value.replyEndpoint !== "string" || value.replyEndpoint.length === 0) errors.push("ZOB live required-response prompt requires replyEndpoint");
+    if (typeof value.responseRequiredBy !== "string") errors.push("ZOB live required-response prompt requires responseRequiredBy");
+  }
+  if (value.type === "response" && value.replyToMsgId !== value.msgId) errors.push("ZOB live response replyToMsgId must match msgId");
   if (value.type === "prompt") {
     if (typeof value.sender !== "string" || typeof value.receiver !== "string") errors.push("ZOB live prompt envelope requires sender and receiver");
     if (typeof value.taskHash !== "string") errors.push("ZOB live prompt envelope requires taskHash");

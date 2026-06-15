@@ -18,7 +18,7 @@ ZOB coms live transport may be transient, but ZOB audit must stay metadata-only.
 - Allow Shared Goal Room messages only when they are parent-visible, typed, metadata/hash-only, and not hidden worker-to-worker free chat.
 - For Goal TODO handoff, treat ZPeer as transient live delivery/clarification only and Goal Room hash-only metadata as canonical for TODO refs, receiver refs, custom-message hashes, result hashes, blockers, and evidence refs.
 - For ZPeer priorities, preserve `normal`/`urgent`/`force` semantics: `urgent` is steer-only and must not abort; `force` requires an explicit transient reason, stores only `reasonHash`/`interruptReasonHash`, and remains blocked unless topology, room, role, rate, lease, and local-socket guards pass.
-- Treat ZPeer ACK/interrupt status as delivery/control metadata only, not as read/digestion proof or TODO completion evidence.
+- Treat ZPeer ACK/interrupt/reinjection status as delivery/control metadata only, not as read/digestion proof or TODO completion evidence; opt-in required responses must expire terminally unless an exact msgId-correlated reply arrives. Use `zpeer_reply` or `/zpeer reply <msgId> <response>` only when the `msgId` is active inbound; wrong, expired, or already-answered msgIds must block.
 - Treat governed requests (`DELEGATION_REQUEST.v1`, `ORACLE_REQUEST.v1`, `CONTEXT_REQUEST.v1`, `OWNER_CHANGE_REQUEST.v1`) as proposals only: parent/governor decides; extraction must not dispatch, mutate TODO state, apply owner changes, or store raw bodies.
 - Treat stale/offline as blockers, not completion evidence.
 - Keep Mission Control commands proposal-only and parent-owned.

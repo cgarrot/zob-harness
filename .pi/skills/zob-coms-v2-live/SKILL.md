@@ -18,7 +18,7 @@ Use this skill when:
 - Treat `zob_coms_send` as live-first when policy mode is `required_local` or `required_network`.
 - Include `transientBody` only for live transport delivery; it must never be stored in `.pi/coms`.
 - Use `taskHash`, `outputHash`, and `artifactRefs` for durable evidence.
-- For ZPeer direct asks, use governed `zpeer_ask` or `/zpeer`; supported priorities are `normal`, `urgent`, and `force`.
+- For ZPeer direct asks, use governed `zpeer_ask` or `/zpeer`; supported priorities are `normal`, `urgent`, and `force`; use opt-in `requireResponse`/`--require-response` only when a real msgId-correlated answer is needed, and use `zpeer_reply` or `/zpeer reply <msgId> <response>` only for the exact active inbound `msgId`.
 - Use `urgent` only for priority steer delivery without aborting the receiver.
 - Use `force` only for explicit controlled interrupts: provide a transient reason, persist only its hash, require topology/room/role/rate/local-socket guards, and expect `force_accepted`, `force_downgraded`, or `force_blocked` metadata.
 - Treat missing ACK, stale peer, offline peer, timeout, or transport error as blocker evidence.
@@ -27,7 +27,7 @@ Use this skill when:
 - For children launched without harness extensions, owner-change coordination is via final-output `OWNER_CHANGE_REQUEST.v1` blocks extracted by the parent, not direct child Goal Room/ZPeer writes.
 - When a live answer changes ownership, scope, conflict, or merge readiness, mirror only typed hash/body-free metadata to Goal Room.
 - Let the runtime capture normal inbound responses when handling live prompts.
-- Prefer `zob_coms_get` / `zob_coms_await` with the `msgId` returned by your own send.
+- Prefer `zob_coms_get` / `zob_coms_await` with the `msgId` returned by your own send; required-response success must come from exact msgId/replyToMsgId correlation, not ACK/reinjection/delivery metadata.
 
 ## MUST NOT
 

@@ -102,6 +102,7 @@ async function main() {
   const toolsComs = await import(`${compiledSrc}/runtime/tools-coms.js`);
   const localTransport = await import(`${compiledComsV2}/local-transport.js`);
   const envelope = await import(`${compiledComsV2}/envelope.js`);
+  const pendingModule = await import(`${compiledComsV2}/pending-replies.js`);
   const hashing = await import(`${compiledSrc}/core/utils/hashing.js`);
 
   process.env.ZOB_ZPEER_PROFILE_ID = 'profile-alpha';
@@ -217,6 +218,10 @@ async function main() {
   }));
 
   servers.push(await localTransport.bindZobLocalEndpoint(betaEndpoint, async (incoming) => {
+    if (incoming.type === 'response') {
+      receivedResponses.push(incoming);
+      return envelope.buildZobLiveAckEnvelope(incoming);
+    }
     receivedPrompts.push(incoming);
     if (incoming.type === 'prompt' && incoming.replyEndpoint) {
       setTimeout(() => {
@@ -229,6 +234,8 @@ async function main() {
           team: incoming.team,
           taskHash: incoming.taskHash,
           outputHash: hashing.sha256(rawResponse),
+          replyToMsgId: incoming.msgId,
+          responseHash: hashing.sha256(rawResponse),
           transientResponse: rawResponse,
         });
         localTransport.sendZobLocalEnvelope(incoming.replyEndpoint, response, { timeoutMs: 5_000 }).catch((error) => {
@@ -357,6 +364,30 @@ async function main() {
   assert(ghostDuplicateSummary.onlineAliases.filter((alias) => alias === 'beta').length === 1, 'only the live beta lease alias should be listed as online');
   assert(!ghostDuplicateSummary.duplicateAliases.includes('beta'), 'card-only alias ghosts must not be reported as live duplicate aliases');
 
+  const requiredPromptCountBefore = receivedPrompts.length;
+  const requiredReplyResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { requireResponse: true, responseTimeoutMs: 1_000, maxReinjects: 1 });
+  assert(requiredReplyResult.status === 'reply' && requiredReplyResult.requireResponse === true && requiredReplyResult.responseReceived === true && requiredReplyResult.deliveryStatus === 'delivered', `requireResponse send expected correlated reply, got ${requiredReplyResult.status}`);
+  const requiredPromptEnvelope = receivedPrompts.at(-1);
+  assert(receivedPrompts.length === requiredPromptCountBefore + 1 && requiredPromptEnvelope.requireResponse === true && requiredPromptEnvelope.responseRequiredBy && requiredPromptEnvelope.maxReinjects === 1, 'requireResponse prompt envelope must carry bounded required-response metadata');
+  const requiredExpired = await zpeer.sendZpeerPrompt(repoRoot, adhocOne, 'adhoctwo', rawPrompt, (msgId) => new pendingModule.ZobPendingReplies().wait(msgId, 75, { requireResponse: true }), { mode: 'async', requireResponse: true, responseTimeoutMs: 75, maxReinjects: 1 });
+  assert(requiredExpired.status === 'required_response_expired' && requiredExpired.responseReceived === false && requiredExpired.deliveryStatus === 'delivered', `requireResponse no-reply send expected required_response_expired, got ${requiredExpired.status}`);
+  const wrongMsgPending = new pendingModule.ZobPendingReplies();
+  const wrongWait = wrongMsgPending.wait('right-msg', 75, { requireResponse: true });
+  const wrongAccepted = wrongMsgPending.complete('right-msg', envelope.buildZobLiveEnvelope({ type: 'response', msgId: 'right-msg', replyToMsgId: 'wrong-msg', transientResponse: rawResponse }));
+  const wrongResult = await wrongWait;
+  assert(wrongAccepted === false && wrongResult.status === 'required_response_expired', 'wrong replyToMsgId must not satisfy a required-response wait');
+  const missingMsgPending = new pendingModule.ZobPendingReplies();
+  const missingWait = missingMsgPending.wait('missing-reply-to-msg', 75, { requireResponse: true });
+  const missingAccepted = missingMsgPending.complete('missing-reply-to-msg', envelope.buildZobLiveEnvelope({ type: 'response', msgId: 'missing-reply-to-msg', transientResponse: rawResponse }));
+  const missingResult = await missingWait;
+  assert(missingAccepted === false && missingResult.status === 'required_response_expired', 'missing replyToMsgId must not satisfy a required-response wait');
+  const missingValidation = envelope.validateZobLiveEnvelope(envelope.buildZobLiveEnvelope({ type: 'response', msgId: 'missing-validation-msg', transientResponse: rawResponse }));
+  assert(missingValidation.some((error) => error.includes('replyToMsgId')), 'response envelope validation must reject missing replyToMsgId');
+  const latePending = new pendingModule.ZobPendingReplies();
+  const lateResult = await latePending.wait('late-msg', 75, { requireResponse: true });
+  const lateAccepted = latePending.complete('late-msg', envelope.buildZobLiveEnvelope({ type: 'response', msgId: 'late-msg', replyToMsgId: 'late-msg', transientResponse: rawResponse }));
+  assert(lateResult.status === 'required_response_expired' && lateAccepted === false, 'late response after required-response expiration must not retroactively satisfy the wait');
+
   const directPromptCountBefore = receivedPrompts.length;
   const directResponseCountBefore = receivedResponses.length;
   assert(alpha.team !== beta.team, 'same-room non-worker allowance fixture must cover cross-team peers');
@@ -387,6 +418,8 @@ async function main() {
   const forceWithoutReason = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort' });
   assert(forceWithoutReason.status === 'blocked' && forceWithoutReason.interruptStatus === 'force_blocked' && String(forceWithoutReason.reason).includes('reason hash'), 'force without reason hash must be blocked before delivery');
   const forceReasonHash = hashing.sha256('no-ship smoke reason');
+  const forceRequiredExpired = await zpeer.sendZpeerPrompt(repoRoot, adhocOne, 'adhoctwo', rawPrompt, (msgId) => new pendingModule.ZobPendingReplies().wait(msgId, 75, { requireResponse: true }), { mode: 'async', priority: 'force', interruptMode: 'abort', interruptReasonHash: forceReasonHash, requireResponse: true, responseTimeoutMs: 75, maxReinjects: 1 });
+  assert(forceRequiredExpired.status === 'blocked' || forceRequiredExpired.status === 'required_response_expired', 'force + requireResponse must either respect force guards or expire; reinjection must not be counted as success');
   const forcePromptCountBefore = receivedPrompts.length;
   const forceResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'beta', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort', interruptReasonHash: forceReasonHash });
   assert(forceResult.status === 'waiting' && forceResult.priority === 'force' && forceResult.interruptMode === 'abort' && forceResult.interruptStatus === 'force_accepted' && forceResult.interruptReasonHash === forceReasonHash, `force send expected waiting/force_accepted, got ${forceResult.status}/${forceResult.interruptStatus}`);
@@ -430,8 +463,49 @@ async function main() {
   assert(forceToolBlocked?.details?.status === 'blocked' && forceToolBlocked?.details?.interruptStatus === 'force_blocked' && String(forceToolBlocked?.details?.reason).includes('reason'), 'zpeer_ask force without reason must be blocked');
   const forceToolResult = await zpeerAsk.execute('tool-call-zpeer-ask-force', { targetAlias: 'beta', message: 'force tool smoke prompt', force: true, reason: 'force smoke reason' }, undefined, undefined, { cwd: repoRoot });
   assert(forceToolResult?.details?.status === 'waiting' && forceToolResult?.details?.priority === 'force' && forceToolResult?.details?.interruptMode === 'abort' && forceToolResult?.details?.interruptStatus === 'force_accepted' && forceToolResult?.details?.interruptReasonHash === hashing.sha256('force smoke reason'), 'zpeer_ask force must require reason and deliver abort metadata');
+  const requireToolResult = await zpeerAsk.execute('tool-call-zpeer-ask-require-response', { targetAlias: 'beta', message: 'required response tool smoke prompt', requireResponse: true, timeoutMs: 1000 }, undefined, undefined, { cwd: repoRoot });
+  assert(requireToolResult?.details?.status === 'reply' && requireToolResult?.details?.requireResponse === true && requireToolResult?.details?.responseReceived === true, 'zpeer_ask requireResponse must wait for a msgId-correlated reply instead of returning delivery-only waiting');
 
-  const duplicateGuard = await zpeerAsk.execute('tool-call-zpeer-ask-dup', { targetAlias: 'beta', message: 'force tool smoke prompt' }, undefined, undefined, { cwd: repoRoot });
+  const zpeerReply = registeredTools.get('zpeer_reply');
+  assert(zpeerReply, 'zpeer_reply tool must be registered by registerComsTools');
+  assert(zpeerReply.parameters, 'zpeer_reply tool must expose a schema');
+  const explicitReplyMsgId = 'explicit-reply-msg';
+  toolState.zobLive.inboundByMsgId = {
+    [explicitReplyMsgId]: {
+      envelope: envelope.buildZobLiveEnvelope({
+        type: 'prompt',
+        msgId: explicitReplyMsgId,
+        runId: 'zpeer:default',
+        sender: 'beta',
+        receiver: 'alpha',
+        taskHash: hashing.sha256(rawPrompt),
+        transientPrompt: rawPrompt,
+        replyEndpoint: betaEndpoint,
+        replyEndpointHash: hashing.sha256(betaEndpoint),
+        requireResponse: true,
+      }),
+      receivedAt: new Date().toISOString(),
+      responseSent: false,
+      priority: 'normal',
+      interruptMode: 'none',
+      repoRoot,
+      requireResponse: true,
+      requiredResponseStatus: 'owed',
+    },
+  };
+  toolState.zobLive.inboundQueue = [explicitReplyMsgId];
+  toolState.zobLive.activeInboundMsgId = explicitReplyMsgId;
+  const explicitReplyCountBefore = receivedResponses.length;
+  const explicitReplyResult = await zpeerReply.execute('tool-call-zpeer-reply', { msgId: explicitReplyMsgId, message: rawResponse }, undefined, undefined, { cwd: repoRoot });
+  assert(explicitReplyResult?.details?.status === 'response_sent' && explicitReplyResult?.details?.msgId === explicitReplyMsgId && explicitReplyResult?.details?.outputHash === hashing.sha256(rawResponse), 'zpeer_reply must send a msgId-bound response with outputHash metadata');
+  assert(!toolState.zobLive.inboundByMsgId?.[explicitReplyMsgId] && toolState.zobLive.activeInboundMsgId === undefined && toolState.zobLive.inboundQueue.length === 0, 'zpeer_reply must clear the answered inbound msgId from receiver state');
+  assert(receivedResponses.length > explicitReplyCountBefore && receivedResponses.at(-1)?.replyToMsgId === explicitReplyMsgId && receivedResponses.at(-1)?.responseHash === hashing.sha256(rawResponse), 'zpeer_reply must deliver a local response envelope bound to replyToMsgId');
+  const wrongExplicitReply = await zpeerReply.execute('tool-call-zpeer-reply-wrong', { msgId: 'missing-msgid', message: rawResponse }, undefined, undefined, { cwd: repoRoot });
+  assert(wrongExplicitReply?.details?.status === 'blocked' && String(wrongExplicitReply?.details?.reason).includes('no active inbound'), 'zpeer_reply must block wrong or non-active msgId replies');
+  assert(!containsRawBody(explicitReplyResult) && !containsRawBody(wrongExplicitReply), 'zpeer_reply tool results must not echo raw response body');
+  assert(appendEntries.some((item) => item.customType === 'zob-zpeer' && item.data?.schema === 'zob.zpeer-reply.v1' && item.data?.action === 'reply' && item.data?.bodyStored === false), 'zpeer_reply must append hash-only reply metadata');
+
+  const duplicateGuard = await zpeerAsk.execute('tool-call-zpeer-ask-dup', { targetAlias: 'beta', message: 'required response tool smoke prompt' }, undefined, undefined, { cwd: repoRoot });
   assert(duplicateGuard?.details?.status === 'blocked' && String(duplicateGuard?.details?.reason).includes('duplicate'), 'zpeer_ask must block duplicate target/message loop attempts');
   const selfGuard = await zpeerAsk.execute('tool-call-zpeer-ask-self', { targetAlias: 'alpha', message: 'different smoke prompt' }, undefined, undefined, { cwd: repoRoot });
   assert(selfGuard?.details?.status === 'blocked' && String(selfGuard?.details?.reason).includes('self'), 'zpeer_ask must block self-target attempts');
@@ -478,6 +552,7 @@ async function main() {
   }
   assert(messages.some((record) => record.event === 'ack' && record.status === 'delivered' && record.taskHash === hashing.sha256(rawPrompt)), 'peer ledger must include delivered ack hash record');
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'reply' && record.outputHash === hashing.sha256(rawResponse)), 'peer ledger must include reply outputHash record');
+  assert(messages.some((record) => record.event === 'terminal' && record.status === 'required_response_expired' && record.requireResponse === true && record.responseReceived === false), 'peer ledger must include required-response expiration metadata');
   assert(messages.some((record) => record.event === 'terminal' && record.status === 'waiting' && record.taskHash === hashing.sha256(rawPrompt)), 'peer ledger must include async waiting hash record');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.reasonHash), 'peer ledger must include hash-only blocked room-isolation record');
   assert(messages.some((record) => record.event === 'ack' && record.priority === 'urgent' && record.interruptMode === 'steer' && record.interruptStatus === 'urgent_delivered'), 'peer ledger must include urgent delivered interrupt metadata');

@@ -359,7 +359,14 @@ const ZpeerAskParams = Type.Object({
   urgency: Type.Optional(StringEnum(["normal", "urgent", "force"] as const, { description: "ZPeer delivery priority. normal=follow-up, urgent=steer, force=controlled abort+steer when policy allows." })),
   force: Type.Optional(Type.Boolean({ description: "Alias for urgency=force. Requires reason and remains local/hash-only." })),
   interruptMode: Type.Optional(StringEnum(["none", "steer", "abort"] as const, { description: "Requested interrupt mode. Derived from urgency when omitted; invalid broadening is blocked by runtime." })),
-  timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes. Ignored by async mode; capped by runtime." })),
+  timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes, and required-response expiration when requireResponse=true; capped by runtime." })),
+  requireResponse: Type.Optional(Type.Boolean({ description: "Opt in to a real msgId-correlated required response. Default false; when true the sender waits only for the exact msgId reply and expires explicitly." })),
+  maxReinjects: Type.Optional(Type.Number({ description: "Bounded receiver reminder budget for requireResponse. Default 1, capped 0..3." })),
+});
+
+const ZpeerReplyParams = Type.Object({
+  msgId: Type.String({ description: "ZPeer inbound msgId being answered. Must match an active unanswered inbound message." }),
+  message: Type.String({ description: "Transient reply body. Sent over local socket only; durable records store outputHash/metadata, not the raw message." }),
 });
 
 const ZobComsReadinessParams = Type.Object({
@@ -754,6 +761,7 @@ export {
   ZobComsSendParams,
   ZobComsStatusParams,
   ZpeerAskParams,
+  ZpeerReplyParams,
   ZcommitRunParams,
   ZteamHotAddParams,
   ZteamRemoveParams,

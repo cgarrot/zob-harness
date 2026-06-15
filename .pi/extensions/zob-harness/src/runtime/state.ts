@@ -37,7 +37,7 @@ export interface DelegationMouseRuntimeState {
 }
 
 export interface ZobLiveLastEvent {
-  kind: "status" | "attempt" | "delivered" | "waiting" | "reply" | "sent" | "completed" | "blocked" | "error" | "timeout" | "expired" | "inbound" | "response_sent" | "heartbeat" | "urgent_delivered" | "force_accepted" | "force_downgraded" | "force_blocked";
+  kind: "status" | "attempt" | "delivered" | "waiting" | "reply" | "sent" | "completed" | "blocked" | "error" | "timeout" | "expired" | "required_response_expired" | "required_response_reinject" | "inbound" | "response_sent" | "heartbeat" | "urgent_delivered" | "force_accepted" | "force_downgraded" | "force_blocked";
   roomId?: string;
   fromAlias?: string;
   toAlias?: string;
@@ -80,6 +80,13 @@ export interface ZobInboundZpeerMessage {
   priority: ZpeerInterruptPriority;
   interruptMode: ZpeerInterruptMode;
   repoRoot: string;
+  requireResponse?: boolean;
+  responseRequiredBy?: string;
+  responseTimeoutMs?: number;
+  reinjectCount?: number;
+  maxReinjects?: number;
+  requiredResponseStatus?: "owed" | "reinjecting" | "replied" | "expired" | "cancelled";
+  watchdogTimer?: ReturnType<typeof setTimeout>;
 }
 
 export interface ZobLiveRuntimeState {
