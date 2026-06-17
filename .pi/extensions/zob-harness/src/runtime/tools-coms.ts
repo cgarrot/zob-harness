@@ -1,7 +1,10 @@
+import { isAbsolute, join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readZobComsV2Policy } from "../domains/coms/coms-v2/policy.js";
 import { readZobLiveRegistrySnapshot } from "../domains/coms/coms-v2/registry.js";
-import { peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, type ZpeerSendMode, type ZpeerSendResult } from "../domains/coms/coms-v2/zpeer.js";
+import { peerAliasInRoom, refreshZpeerSelf, safeZpeerAlias, safeZpeerRoomId, sendZpeerPrompt, zpeerAliasesEquivalent, zpeerAliasLookupKey, type ZpeerFallbackDelivery, type ZpeerSendMode, type ZpeerSendResult } from "../domains/coms/coms-v2/zpeer.js";
 import { buildZobLiveEnvelope, type ZpeerInterruptMode, type ZpeerInterruptPriority, type ZpeerInterruptStatus } from "../domains/coms/coms-v2/envelope.js";
 import { sendZobLocalEnvelope } from "../domains/coms/coms-v2/local-transport.js";
 import { buildZobLiveResponseEnvelope } from "../domains/coms/coms-v2/response-capture.js";
@@ -36,6 +39,44 @@ const SHA256_HEX = /^[a-f0-9]{64}$/i;
 const ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE = 50;
 const ZPEER_AGENT_URGENT_RATE_LIMIT_PER_MINUTE = 10;
 const ZPEER_AGENT_FORCE_RATE_LIMIT_PER_MINUTE = 3;
+
+type ZpeerFallbackHookFn = ZpeerFallbackDelivery;
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asZpeerFallbackHookFn(moduleValue: unknown): ZpeerFallbackHookFn | undefined {
+  if (typeof moduleValue === "function") return moduleValue as ZpeerFallbackHookFn;
+  if (!isObjectRecord(moduleValue)) return undefined;
+  const direct = moduleValue.zpeerFallbackDelivery ?? moduleValue.fallbackDelivery;
+  if (typeof direct === "function") return direct as ZpeerFallbackHookFn;
+  const defaultExport = moduleValue.default;
+  if (typeof defaultExport === "function") return defaultExport as ZpeerFallbackHookFn;
+  if (isObjectRecord(defaultExport)) {
+    const nested = defaultExport.zpeerFallbackDelivery ?? defaultExport.fallbackDelivery;
+    if (typeof nested === "function") return nested as ZpeerFallbackHookFn;
+  }
+  return undefined;
+}
+
+function buildProjectTransposerFallbackDelivery(repoRoot: string): ZpeerFallbackDelivery | undefined {
+  const hookPath = process.env.PROJECT_TRANSPOSER_ZPEER_FALLBACK_HOOK?.trim();
+  if (!hookPath) return undefined;
+  const resolvedHookPath = isAbsolute(hookPath) ? hookPath : join(repoRoot, hookPath);
+  return async (input) => {
+    const imported = await import(pathToFileURL(resolvedHookPath).href);
+    const fn = asZpeerFallbackHookFn(imported);
+    if (!fn) return { delivered: false, reason: "fallback_hook_missing_function" };
+    const result = await fn(input);
+    if (!isObjectRecord(result)) return { delivered: false, reason: "fallback_hook_invalid_result" };
+    return {
+      delivered: result.delivered === true,
+      target: typeof result.target === "string" ? result.target : undefined,
+      reason: typeof result.reason === "string" ? result.reason : undefined,
+    };
+  };
+}
 
 function breakGlassApprovalPresent(): boolean {
   return SHA256_HEX.test(process.env.ZOB_COMS_BREAK_GLASS_APPROVAL_HASH ?? "");
@@ -97,7 +138,7 @@ function normalizeZpeerInterrupt(params: ZpeerAskToolParams): { priority: ZpeerI
 function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolParams, selfAlias?: string, currentRoomId = "default", priority: ZpeerInterruptPriority = "normal"): string | undefined {
   const targetAlias = safeZpeerAlias(params.targetAlias);
   if (!targetAlias) return "invalid target alias";
-  if (selfAlias && targetAlias === selfAlias) return "cannot send to self";
+  if (selfAlias && zpeerAliasesEquivalent(targetAlias, selfAlias)) return "cannot send to self";
   const roomId = safeZpeerRoomId(params.roomId) ?? currentRoomId;
   if (params.roomId && !safeZpeerRoomId(params.roomId)) return "invalid room id";
   if (/\b(zpeer_ask|\/zpeer)\b/i.test(params.message)) return "loop guard blocked recursive ZPeer instruction";
@@ -111,8 +152,9 @@ function zpeerAskGuardBlock(state: HarnessRuntimeState, params: ZpeerAskToolPara
   if (guard.count >= ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE) return `rate guard blocked: max ${ZPEER_AGENT_ASK_RATE_LIMIT_PER_MINUTE} agent-initiated ZPeer asks per 60s window`;
   if (priority === "urgent" && urgentCount >= ZPEER_AGENT_URGENT_RATE_LIMIT_PER_MINUTE) return `rate guard blocked: max ${ZPEER_AGENT_URGENT_RATE_LIMIT_PER_MINUTE} urgent ZPeer asks per 60s window`;
   if (priority === "force" && forceCount >= ZPEER_AGENT_FORCE_RATE_LIMIT_PER_MINUTE) return `rate guard blocked: max ${ZPEER_AGENT_FORCE_RATE_LIMIT_PER_MINUTE} force ZPeer asks per 60s window`;
-  if (guard.lastRoomId === roomId && guard.lastTargetAlias === targetAlias && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate room/target/message in ask window";
-  state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, urgentCount: priority === "urgent" ? urgentCount + 1 : urgentCount, forceCount: priority === "force" ? forceCount + 1 : forceCount, lastRoomId: roomId, lastTargetAlias: targetAlias, lastMessageHash: messageHash };
+  const targetAliasLookupKey = zpeerAliasLookupKey(targetAlias) ?? targetAlias;
+  if (guard.lastRoomId === roomId && zpeerAliasLookupKey(guard.lastTargetAlias) === targetAliasLookupKey && guard.lastMessageHash === messageHash) return "loop guard blocked duplicate room/target/message in ask window";
+  state.zobLive.zpeerAskGuard = { windowStartedMs: guard.windowStartedMs, count: guard.count + 1, urgentCount: priority === "urgent" ? urgentCount + 1 : urgentCount, forceCount: priority === "force" ? forceCount + 1 : forceCount, lastRoomId: roomId, lastTargetAlias: targetAliasLookupKey, lastMessageHash: messageHash };
   return undefined;
 }
 
@@ -266,6 +308,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
         requireResponse,
         responseTimeoutMs: timeoutMs,
         maxReinjects,
+        fallbackDelivery: buildProjectTransposerFallbackDelivery(ctx.cwd),
         onFeedback: (feedback) => {
           feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired" || feedback.result.status === "required_response_expired";
           emitZpeerAskEvent({ kind: feedback.kind, roomId: feedback.result.roomId, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash, interruptStatus: feedback.result.interruptStatus });
@@ -273,7 +316,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       });
       if (!feedbackEmittedTerminal) emitZpeerAskEvent({ kind: zpeerTerminalKind(result.status), roomId: result.roomId, status: result.status, reason: result.reason, msgId: result.msgId, taskHash: result.taskHash, outputHash: result.outputHash, interruptStatus: result.interruptStatus });
       updatePassivePeerWaitState(state, result, { roomId: requestedRoomId, targetAlias });
-      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, priority: interrupt.priority, interruptMode: interrupt.interruptMode, interruptStatus: result.interruptStatus, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, interruptReasonHash: interrupt.interruptReasonHash, requireResponse: requireResponse || undefined, responseRequiredBy: result.responseRequiredBy, responseTimeoutMs: result.responseTimeoutMs, maxReinjects: result.maxReinjects, responseReceived: result.responseReceived, deliveryStatus: result.deliveryStatus, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, priority: interrupt.priority, interruptMode: interrupt.interruptMode, interruptStatus: result.interruptStatus, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, interruptReasonHash: interrupt.interruptReasonHash, requireResponse: requireResponse || undefined, responseRequiredBy: result.responseRequiredBy, responseTimeoutMs: result.responseTimeoutMs, maxReinjects: result.maxReinjects, responseReceived: result.responseReceived, deliveryStatus: result.deliveryStatus, deliveryMethod: result.deliveryMethod, fallbackDelivery: result.fallback_delivery, bestEffort: result.best_effort, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
       const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";
       const transientReplyText = (result.status === "reply" || result.status === "completed") && result.transientResponse

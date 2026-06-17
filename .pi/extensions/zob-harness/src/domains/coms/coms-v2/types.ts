@@ -104,6 +104,7 @@ export interface ZobLivePeerCard {
   contextUsedPct: number;
   queueDepth: number;
   status: ZobLivePeerStatus;
+  socketVerifiedAt?: string;
   zpeerRoomId?: string;
   zpeerAlias?: string;
   zpeerActiveRoomId?: string;
@@ -141,6 +142,7 @@ export interface ZobLiveTeamAgentLease {
   contextUsedPct: number;
   queueDepth: number;
   status: ZobLivePeerStatus;
+  socketVerifiedAt?: string;
   zpeerRoomId?: string;
   zpeerAlias?: string;
   zpeerActiveRoomId?: string;

@@ -3,7 +3,7 @@ import { basename, join, relative, resolve } from "node:path";
 
 import type { ModeName } from "../../core/types/core.js";
 import { MODE_TOOLS } from "../../core/constants.js";
-import { safeZpeerAlias, safeZpeerRoomId } from "./coms-v2/zpeer.js";
+import { safeZpeerAlias, safeZpeerRoomId, zpeerAliasIncluded, zpeerAliasesEquivalent } from "./coms-v2/zpeer.js";
 import { parseJsonFile } from "../../core/utils/json.js";
 import { isSafeArtifactName } from "../../core/utils/paths.js";
 import { isRecord } from "../../core/utils/records.js";
@@ -438,7 +438,7 @@ function communicationPolicyNarrowingErrors(base: ZAgentCommunicationPolicy | un
     for (const room of overlay.allowedRooms ?? []) if (!base.allowedRooms.includes(room)) errors.push(`${label}.allowedRooms must be a subset of the base policy: ${room}`);
   }
   if (base?.allowedAliases) {
-    for (const alias of overlay.allowedAliases ?? []) if (!base.allowedAliases.includes(alias)) errors.push(`${label}.allowedAliases must be a subset of the base policy: ${alias}`);
+    for (const alias of overlay.allowedAliases ?? []) if (!zpeerAliasIncluded(base.allowedAliases, alias)) errors.push(`${label}.allowedAliases must be a subset of the base policy: ${alias}`);
   }
   return errors;
 }
@@ -865,7 +865,7 @@ function policyAllowsZpeerContact(policy: ZAgentCommunicationPolicy | undefined,
   if (!policy) return true;
   if (policy.zpeerContact === false || policy.allowZpeerContact === false) return false;
   if (roomId && policy.allowedRooms && !policy.allowedRooms.includes(roomId)) return false;
-  if (alias && policy.allowedAliases && !policy.allowedAliases.includes(alias)) return false;
+  if (alias && policy.allowedAliases && !zpeerAliasIncluded(policy.allowedAliases, alias)) return false;
   if (policy.requireActiveRoom && !roomId) return false;
   return true;
 }
@@ -876,7 +876,7 @@ export function zteamAllowsZpeerContact(team: ZTeamManifest, zagentId: string, r
     ...(team.members ?? []),
     ...(team.agents ?? []),
   ];
-  const member = members.find((candidate) => zteamMemberAgentId(candidate) === zagentId || candidate.alias === alias);
+  const member = members.find((candidate) => zteamMemberAgentId(candidate) === zagentId || zpeerAliasesEquivalent(candidate.alias, alias));
   if (!member) return false;
   if (!policyAllowsZpeerContact(member.communicationPolicy, roomId, alias ?? member.alias)) return false;
   const rooms = zteamMemberRooms(member, team.defaultRoom);

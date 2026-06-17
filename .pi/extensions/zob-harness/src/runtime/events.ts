@@ -11,7 +11,7 @@ import { bindZobLocalEndpoint, makeZobLocalEndpoint, sendZobLocalEnvelope } from
 import { readZobComsV2Policy } from "../domains/coms/coms-v2/policy.js";
 import { claimZobLiveTeamAgentLease, pruneExpiredZobLivePeers, registerCurrentZobLivePeer, releaseZobLiveTeamAgentLease, touchCurrentZobLivePeer, unregisterCurrentZobLivePeer, writeZobLivePeerCard } from "../domains/coms/coms-v2/registry.js";
 import { clearZpeerNewCarryoverProfile, readZpeerLocalProfile, readZpeerNewCarryoverProfile, writeZpeerLocalProfileFromPeer, writeZpeerNewCarryoverProfile, zpeerProfileIdIsSharedFallback } from "../domains/coms/coms-v2/zpeer-profile.js";
-import { buildZpeerPeerRoomSummaries, ensureZpeerFields, refreshZpeerSelf } from "../domains/coms/coms-v2/zpeer.js";
+import { buildZpeerPeerRoomSummaries, ensureZpeerFields, refreshZpeerSelf, zpeerAliasesEquivalent } from "../domains/coms/coms-v2/zpeer.js";
 import type { ZpeerRoomMembership } from "../domains/coms/coms-v2/types.js";
 import { buildZobLiveResponseEnvelope } from "../domains/coms/coms-v2/response-capture.js";
 import { writeZobComsRedactedCapture } from "../domains/coms/coms-v2/transcript-capture.js";
@@ -69,7 +69,7 @@ function clearPassivePeerWaitForResponse(state: HarnessRuntimeState, envelope: {
     return;
   }
   const responseRoomId = envelope.runId?.startsWith("zpeer:") ? envelope.runId.slice("zpeer:".length) : undefined;
-  if (!wait.msgId && wait.targetAlias && envelope.sender === wait.targetAlias && (!wait.roomId || !responseRoomId || wait.roomId === responseRoomId)) {
+  if (!wait.msgId && wait.targetAlias && zpeerAliasesEquivalent(envelope.sender, wait.targetAlias) && (!wait.roomId || !responseRoomId || wait.roomId === responseRoomId)) {
     state.zobLive.passivePeerWait = undefined;
   }
 }

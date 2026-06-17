@@ -75,6 +75,19 @@ export interface ZpeerSendFeedback {
   result: ZpeerSendResult;
 }
 
+export type ZpeerFallbackDelivery = (input: {
+  targetAlias: string;
+  senderAlias: string;
+  roomId: string;
+  taskHash?: string;
+  prompt: string;
+  priority: ZpeerInterruptPriority;
+  interruptMode: ZpeerInterruptMode;
+  requireResponse: boolean;
+  responseTimeoutMs?: number;
+  maxReinjects?: number;
+}) => Promise<{ delivered: boolean; target?: string; reason?: string }>;
+
 export interface ZpeerSendOptions {
   mode?: ZpeerSendMode;
   roomId?: string;
@@ -90,8 +103,8 @@ export interface ZpeerSendOptions {
   // the target agent's pane). This keeps coms-v2 IO-free; the app supplies the tmux
   // delivery. A fallback delivery is NOT verified delivery: outputHash stays absent,
   // confirmation_ref stays null, and bodyStored stays false (coms-safety: append-only /
-  // best-effort is not delivery success).
-  fallbackDelivery?: (input: { targetAlias: string; roomId: string; taskHash?: string; prompt: string }) => Promise<{ delivered: boolean; target?: string; reason?: string }>;
+  // best-effort is not delivery success). Force/abort is never eligible for fallback.
+  fallbackDelivery?: ZpeerFallbackDelivery;
 }
 
 interface ZpeerRoomPeer {
@@ -107,6 +120,37 @@ export function safeZpeerAlias(value: string | undefined): string | undefined {
   const trimmed = value?.trim().replace(/^@+/, "");
   if (!trimmed || !ALIAS_PATTERN.test(trimmed)) return undefined;
   return trimmed;
+}
+
+export function zpeerAliasLookupKey(value: string | undefined): string | undefined {
+  const alias = safeZpeerAlias(value);
+  return alias ? alias.replaceAll("-", "_") : undefined;
+}
+
+export function zpeerAliasesEquivalent(left: string | undefined, right: string | undefined): boolean {
+  const leftKey = zpeerAliasLookupKey(left);
+  const rightKey = zpeerAliasLookupKey(right);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
+}
+
+export function zpeerAliasIncluded(aliases: readonly string[] | undefined, alias: string | undefined): boolean {
+  const key = zpeerAliasLookupKey(alias);
+  return Boolean(key && aliases?.some((candidate) => zpeerAliasLookupKey(candidate) === key));
+}
+
+export function duplicateZpeerAliasLookupKeys(aliases: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const alias of aliases) {
+    const key = zpeerAliasLookupKey(alias);
+    if (!key) continue;
+    if (seen.has(key)) duplicates.add(alias);
+    else seen.add(key);
+  }
+  return aliases.filter((alias) => {
+    const key = zpeerAliasLookupKey(alias);
+    return Boolean(key && duplicates.has(alias)) || Boolean(key && aliases.filter((candidate) => zpeerAliasLookupKey(candidate) === key).length > 1);
+  }).filter((alias, index, all) => all.indexOf(alias) === index).sort();
 }
 
 export function safeZpeerRoomId(value: string | undefined): string | undefined {
@@ -198,8 +242,12 @@ function withZpeerMembershipState(repoRoot: string, peer: ZobLivePeerCard, membe
   });
 }
 
+function zpeerStrictSocketEvidenceRequired(): boolean {
+  return /^(1|true|yes|on|strict)$/i.test(process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET ?? "");
+}
+
 function zpeerReachableStatus(peer: ZobLivePeerCard): ZobLivePeerStatus {
-  if (peer.status === "online" && hasLocalSocketEndpointEvidence(peer)) return "online";
+  if (peer.status === "online" && hasLocalSocketEndpointEvidence(peer, { requireVerified: zpeerStrictSocketEvidenceRequired() })) return "online";
   if (peer.status === "stale") return "stale";
   return "offline";
 }
@@ -221,9 +269,34 @@ async function peerRespondsToAliasPing(peer: ZobLivePeerCard): Promise<boolean> 
   }
 }
 
+async function probeAndReviveZpeerCandidate(repoRoot: string, entry: ZpeerRoomPeer): Promise<ZpeerRoomPeer | undefined> {
+  if (!hasLocalSocketEndpointEvidence(entry.peer)) return undefined;
+  const nowIso = new Date().toISOString();
+  try {
+    const response = await sendZobLocalEnvelope(entry.peer.endpoint, {
+      schema: "zob.live-envelope.v1",
+      type: "ping",
+      msgId: `zpeer-candidate-probe:${entry.peer.roleId}:${Date.now()}`,
+      hops: 0,
+      timestamp: nowIso,
+      bodyStored: false,
+    }, { timeoutMs: 1_000 });
+    if (response.type !== "pong" && response.type !== "ack") return undefined;
+    const revived = { ...entry.peer, heartbeatAt: nowIso, status: "online", socketVerifiedAt: nowIso } as ZobLivePeerCard;
+    if (revived.zpeerAdhoc === true || revived.projectId !== buildZobComsProjectId(repoRoot)) {
+      writeZobLivePeerCardToProjectId(revived);
+    } else {
+      writeZobLiveTeamAgentLease(repoRoot, revived, { reason: "zpeer_candidate_probe" });
+    }
+    return { ...entry, peer: revived };
+  } catch {
+    return undefined;
+  }
+}
+
 async function activeAliasCollision(repoRoot: string, self: ZobLivePeerCard, roomId: string, alias: string): Promise<ZpeerRoomPeer | undefined> {
   for (const entry of peersInRoom(repoRoot, roomId)) {
-    if (entry.peer.sessionHash === self.sessionHash || entry.membership.alias !== alias) continue;
+    if (entry.peer.sessionHash === self.sessionHash || !zpeerAliasesEquivalent(entry.membership.alias, alias)) continue;
     if (await peerRespondsToAliasPing(entry.peer)) return entry;
     if (zpeerReachableStatus(entry.peer) === "online") {
       try { writeZobLivePeerCard(repoRoot, { ...entry.peer, heartbeatAt: new Date().toISOString(), status: "offline" }); } catch { /* best-effort stale alias release */ }
@@ -290,7 +363,7 @@ function buildZpeerRoomSummaryFromPeers(projectId: string, self: ZobLivePeerCard
     statusAliases[status].push(entry.membership.alias);
   }
   const onlineAliases = statusAliases.online.sort();
-  const duplicateAliases = onlineAliases.filter((alias, index) => onlineAliases.indexOf(alias) !== index).filter((alias, index, all) => all.indexOf(alias) === index);
+  const duplicateAliases = duplicateZpeerAliasLookupKeys(onlineAliases);
   return {
     schema: "zob.zpeer-room-summary.v1",
     projectId,
@@ -560,8 +633,8 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
   if (priority === "force" && !ZPEER_FORCE_ALLOWED_SENDER_ROLE_TYPES.has(self.roleType)) return finish("attempt", { status: "blocked", reason: `force interrupt not allowed from role type ${self.roleType}`, targetAlias: targetAlias ?? undefined, taskHash, interruptStatus: "force_blocked", bodyStored: false });
   if (!targetAlias) return finish("attempt", { status: "blocked", reason: "invalid target alias", bodyStored: false });
   if (!transientPrompt.trim()) return finish("attempt", { status: "blocked", reason: "empty peer prompt", targetAlias, bodyStored: false });
-  const candidates = peersInRoom(repoRoot, roomId).filter((entry) => entry.membership.alias === targetAlias && entry.peer.sessionHash !== self.sessionHash);
-  if (targetAlias === senderAlias) return finish("attempt", { status: "blocked", reason: "cannot send to self", targetAlias, taskHash, bodyStored: false });
+  const candidates = peersInRoom(repoRoot, roomId).filter((entry) => zpeerAliasesEquivalent(entry.membership.alias, targetAlias) && entry.peer.sessionHash !== self.sessionHash);
+  if (zpeerAliasesEquivalent(targetAlias, senderAlias)) return finish("attempt", { status: "blocked", reason: "cannot send to self", targetAlias, taskHash, bodyStored: false });
   if (candidates.length === 0) return finish("attempt", { status: "blocked", reason: `peer @${targetAlias} not found in room '${roomId}'`, targetAlias, taskHash, bodyStored: false }, 0);
   let liveCandidates = candidates.filter((entry) => zpeerReachableStatus(entry.peer) === "online");
   if (liveCandidates.length > 1) {
@@ -576,20 +649,29 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
     liveCandidates = responsiveCandidates;
   }
   if (liveCandidates.length === 0) {
+    const probedCandidates: ZpeerRoomPeer[] = [];
+    for (const entry of candidates) {
+      const revived = await probeAndReviveZpeerCandidate(repoRoot, entry);
+      if (revived) probedCandidates.push(revived);
+    }
+    liveCandidates = probedCandidates;
+  }
+  if (liveCandidates.length === 0) {
     const statuses = [...new Set(candidates.map((entry) => zpeerReachableStatus(entry.peer)))].sort().join("/") || "offline";
     // WS-ZH4: last-resort fallback delivery. When local-socket transport is blocked
     // but the caller injected a fallback (e.g. tmux send-keys to the target agent's
     // pane), deliver the prompt best-effort. This is NOT verified delivery:
     // outputHash/confirmation_ref stay absent and bodyStored stays false; the receiver,
     // if it answers at all, answers via its own local_socket later (that ledgered reply
-    // is what WS-Q5 counts). If no fallback is supplied or it fails/declines, fall
-    // through to the standard blocked result unchanged.
-    if (options.fallbackDelivery && targetAlias && priority === "normal") {
+    // is what WS-Q5 counts). Urgent/steer is eligible when the caller explicitly wires
+    // a safe fallback hook; force/abort is never eligible. If no fallback is supplied or
+    // it fails/declines, fall through to the standard blocked result unchanged.
+    if (options.fallbackDelivery && targetAlias && priority !== "force") {
       try {
-        const fallback = await options.fallbackDelivery({ targetAlias, roomId, taskHash, prompt: transientPrompt });
+        const fallback = await options.fallbackDelivery({ targetAlias, senderAlias, roomId, taskHash, prompt: transientPrompt, priority, interruptMode, requireResponse, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined });
         if (fallback.delivered) {
           const fallbackMsgId = `zpeer-fallback:${self.sessionHash.slice(0, 8)}:${Date.now()}`;
-          return finish("attempt", { status: "delivered", reason: `tmux_sendkeys_fallback: peer @${targetAlias} socket ${statuses}; best-effort delivery to ${fallback.target ?? targetAlias} (not verified)`, msgId: fallbackMsgId, targetAlias, taskHash, deliveryMethod: "tmux_sendkeys", fallback_delivery: true, best_effort: true, bodyStored: false }, candidates.length);
+          return finish("attempt", { status: "delivered", reason: `tmux_sendkeys_fallback: peer @${targetAlias} socket ${statuses}; best-effort delivery to ${fallback.target ?? targetAlias} (not verified)`, msgId: fallbackMsgId, targetAlias, taskHash, deliveryStatus: "blocked", deliveryMethod: "tmux_sendkeys", fallback_delivery: true, best_effort: true, responseReceived: requireResponse ? false : undefined, bodyStored: false }, candidates.length);
         }
       } catch {
         // best-effort fallback failed; fall through to the standard blocked result.

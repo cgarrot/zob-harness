@@ -246,6 +246,7 @@ function buildTeamAgentLease(repoRoot: string, peer: ZobLivePeerCard, input: { n
     contextUsedPct: peer.contextUsedPct,
     queueDepth: peer.queueDepth,
     status: peer.status === "offline" ? "offline" : "online",
+    socketVerifiedAt: peer.socketVerifiedAt,
     zpeerRoomId: peer.zpeerRoomId,
     zpeerAlias: peer.zpeerAlias,
     zpeerActiveRoomId: peer.zpeerActiveRoomId,
@@ -291,6 +292,7 @@ function leaseToPeerCard(lease: ZobLiveTeamAgentLease, nowMs: number): ZobLivePe
     contextUsedPct: lease.contextUsedPct,
     queueDepth: lease.queueDepth,
     status: deriveLeaseStatus(lease, nowMs),
+    socketVerifiedAt: lease.socketVerifiedAt,
     zpeerRoomId: lease.zpeerRoomId,
     zpeerAlias: lease.zpeerAlias,
     zpeerActiveRoomId: lease.zpeerActiveRoomId,
@@ -578,8 +580,9 @@ export async function sweepZobLivePeerHealth(repoRoot: string, input: { teamName
       }
     }
     if (responds) {
+      const livePeer = { ...peer, heartbeatAt: nowIso, status: "online", socketVerifiedAt: nowIso } as ZobLivePeerCard;
+      applySweepPeerUpdate(repoRoot, livePeer, nowMs);
       if (peer.status !== "online") {
-        applySweepPeerUpdate(repoRoot, { ...peer, heartbeatAt: nowIso, status: "online", socketVerifiedAt: nowIso } as ZobLivePeerCard, nowMs);
         revived += 1;
       } else {
         retainedLive += 1;

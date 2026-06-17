@@ -19,6 +19,7 @@ const previousZpeerProfile = process.env.ZPEER_PROFILE;
 const previousComsSessionId = process.env.ZOB_COMS_SESSION_ID;
 const previousTmuxPane = process.env.TMUX_PANE;
 const previousZobComsRoleId = process.env.ZOB_COMS_ROLE_ID;
+const previousZpeerStrict = process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET;
 const servers = [];
 
 function fail(message) {
@@ -101,6 +102,7 @@ async function main() {
   const zpeerProfile = await import(`${compiledComsV2}/zpeer-profile.js`);
   const toolsComs = await import(`${compiledSrc}/runtime/tools-coms.js`);
   const localTransport = await import(`${compiledComsV2}/local-transport.js`);
+  const liveRegistry = await import(`${compiledComsV2}/registry.js`);
   const envelope = await import(`${compiledComsV2}/envelope.js`);
   const pendingModule = await import(`${compiledComsV2}/pending-replies.js`);
   const hashing = await import(`${compiledSrc}/core/utils/hashing.js`);
@@ -203,6 +205,10 @@ async function main() {
   const workerTwoEndpoint = join(root, 'worker-two.sock');
   const adhocOneEndpoint = join(root, 'adhoc-one.sock');
   const adhocTwoEndpoint = join(root, 'adhoc-two.sock');
+  const planningLeadEndpoint = join(root, 'planning-lead.sock');
+  const equivalenceSenderEndpoint = join(root, 'equivalence-sender.sock');
+  const hyphenWorkerEndpoint = join(root, 'hyphen-worker.sock');
+  const underscoreWorkerEndpoint = join(root, 'underscore-worker.sock');
   const pendingReplies = new Map();
   const receivedPrompts = [];
   const receivedResponses = [];
@@ -258,6 +264,13 @@ async function main() {
     receivedPrompts.push(incoming);
     return envelope.buildZobLiveAckEnvelope(incoming);
   }));
+  servers.push(await localTransport.bindZobLocalEndpoint(planningLeadEndpoint, async (incoming) => {
+    receivedPrompts.push(incoming);
+    return envelope.buildZobLiveAckEnvelope(incoming);
+  }));
+  servers.push(await localTransport.bindZobLocalEndpoint(equivalenceSenderEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
+  servers.push(await localTransport.bindZobLocalEndpoint(hyphenWorkerEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
+  servers.push(await localTransport.bindZobLocalEndpoint(underscoreWorkerEndpoint, async (incoming) => envelope.buildZobLiveAckEnvelope(incoming)));
 
   const oldHeartbeatAt = new Date(Date.now() - 180_000).toISOString();
   let alpha = zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'alpha', roomId: 'room-one', endpoint: alphaEndpoint, endpointHash: hashing.sha256(alphaEndpoint), sha256: hashing.sha256, heartbeatAt: oldHeartbeatAt }), 'room-one', 'alpha');
@@ -273,14 +286,25 @@ async function main() {
   assert(staleSummary.online === 0, `stale room-one summary expected 0 online peers before refresh, got ${staleSummary.online}`);
   assert(staleSummary.aliases.includes('alpha') && staleSummary.aliases.includes('beta') && !staleSummary.aliases.includes('gamma'), 'stale room-one aliases must include alpha/beta only');
 
-  alpha = zpeer.refreshZpeerSelf(repoRoot, alpha);
+  const alphaSocketVerifiedAtMs = Date.now();
+  alpha = zpeer.refreshZpeerSelf(repoRoot, alpha, undefined, undefined, undefined, { socketVerifiedAtMs: alphaSocketVerifiedAtMs });
   beta = zpeer.refreshZpeerSelf(peerRepoRoot, beta);
   workerOne = zpeer.refreshZpeerSelf(repoRoot, workerOne);
   workerTwo = zpeer.refreshZpeerSelf(repoRoot, workerTwo);
+  const leaseBackedAlpha = liveRegistry.readZobLiveRegistrySnapshot(repoRoot).peers.find((peer) => peer.sessionHash === alpha.sessionHash);
+  assert(typeof leaseBackedAlpha?.socketVerifiedAt === 'string' && Date.parse(leaseBackedAlpha.socketVerifiedAt) >= alphaSocketVerifiedAtMs, 'stable lease-backed registry snapshot must preserve peer socketVerifiedAt');
   const initialSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha);
   assert(initialSummary.peerCount === 2, `room-one summary expected 2 peers, got ${initialSummary.peerCount}`);
   assert(initialSummary.online === 2, `room-one summary expected 2 online peers after refresh, got ${initialSummary.online}`);
   assert(initialSummary.aliases.includes('alpha') && initialSummary.aliases.includes('beta') && !initialSummary.aliases.includes('gamma'), 'room-one aliases must include alpha/beta only');
+
+  const sweepRetainedPeer = zpeer.refreshZpeerSelf(repoRoot, zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'sweepretained', roomId: 'sweep-room', endpoint: gammaEndpoint, endpointHash: hashing.sha256(gammaEndpoint), sha256: hashing.sha256, roleId: 'sweep-lead', roleType: 'lead' }), 'sweep-room', 'sweepretained'));
+  const sweepBefore = liveRegistry.readZobLiveRegistrySnapshot(repoRoot).peers.find((peer) => peer.sessionHash === sweepRetainedPeer.sessionHash);
+  assert(sweepBefore?.status === 'online' && sweepBefore.socketVerifiedAt === undefined, 'retained-live sweep fixture must start online without socketVerifiedAt');
+  const sweepResult = await liveRegistry.sweepZobLivePeerHealth(repoRoot, { teamName: 'zob-core', sample: 99 });
+  const sweepAfter = liveRegistry.readZobLiveRegistrySnapshot(repoRoot).peers.find((peer) => peer.sessionHash === sweepRetainedPeer.sessionHash);
+  assert(sweepResult.retainedLive >= 1, `health sweep must count responsive already-online peers as retainedLive, got ${sweepResult.retainedLive}`);
+  assert(sweepAfter?.status === 'online' && typeof sweepAfter.socketVerifiedAt === 'string', 'health sweep must stamp heartbeat/status/socketVerifiedAt for responsive retained-live peers');
 
   const waitForReply = (msgId) => new Promise((resolve) => {
     const timer = setTimeout(() => resolve({ status: 'timeout' }), 5_000);
@@ -303,6 +327,22 @@ async function main() {
   const adhocAsync = await zpeer.sendZpeerPrompt(repoRoot, adhocOne, 'adhoctwo', rawPrompt, waitForReply, { mode: 'async' });
   assert(adhocAsync.status === 'waiting', `ad-hoc same-room send expected waiting after ACK, got ${adhocAsync.status}${adhocAsync.reason ? `: ${adhocAsync.reason}` : ''}`);
   assert(receivedPrompts.length === adhocPromptCountBefore + 1 && receivedPrompts.at(-1).receiver === 'adhoctwo', 'ad-hoc same-room send must deliver to the target without a stable team-agent lease');
+
+  const planningLead = zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'planning_lead', roomId: 'equiv-room', endpoint: planningLeadEndpoint, endpointHash: hashing.sha256(planningLeadEndpoint), sha256: hashing.sha256, roleId: 'planning-lead', roleType: 'lead' }), 'equiv-room', 'planning_lead'), zpeerAdhoc: true });
+  const equivalenceSender = zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'equivsender', roomId: 'equiv-room', endpoint: equivalenceSenderEndpoint, endpointHash: hashing.sha256(equivalenceSenderEndpoint), sha256: hashing.sha256, roleId: 'equivalence-sender', roleType: 'lead' }), 'equiv-room', 'equivsender'), zpeerAdhoc: true });
+  const planningPromptCountBefore = receivedPrompts.length;
+  const planningResult = await zpeer.sendZpeerPrompt(repoRoot, equivalenceSender, 'planning-lead', rawPrompt, waitForReply, { mode: 'async', roomId: 'equiv-room' });
+  assert(planningResult.status === 'waiting', `hyphen target lookup must reach underscore live alias, got ${planningResult.status}${planningResult.reason ? `: ${planningResult.reason}` : ''}`);
+  assert(receivedPrompts.length === planningPromptCountBefore + 1 && receivedPrompts.at(-1).receiver === 'planning_lead', 'hyphen target lookup must deliver envelope to actual stored room membership alias planning_lead');
+  assert(planningLead.zpeerAlias === 'planning_lead' && zpeer.peerAliasInRoom(planningLead, 'equiv-room') === 'planning_lead', 'hyphen lookup must not migrate stored/display alias planning_lead');
+  const planningSelfBlocked = await zpeer.sendZpeerPrompt(repoRoot, planningLead, 'planning-lead', rawPrompt, waitForReply, { mode: 'async', roomId: 'equiv-room' });
+  assert(planningSelfBlocked.status === 'blocked' && String(planningSelfBlocked.reason).includes('self'), 'self-send guard must treat planning-lead and planning_lead as equivalent');
+  zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'worker-one', roomId: 'equiv-room', endpoint: hyphenWorkerEndpoint, endpointHash: hashing.sha256(hyphenWorkerEndpoint), sha256: hashing.sha256, roleId: 'hyphen-worker', roleType: 'lead' }), 'equiv-room', 'worker-one'), zpeerAdhoc: true });
+  zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'worker_one', roomId: 'equiv-room', endpoint: underscoreWorkerEndpoint, endpointHash: hashing.sha256(underscoreWorkerEndpoint), sha256: hashing.sha256, roleId: 'underscore-worker', roleType: 'lead' }), 'equiv-room', 'worker_one'), zpeerAdhoc: true });
+  const ambiguousResult = await zpeer.sendZpeerPrompt(repoRoot, equivalenceSender, 'worker-one', rawPrompt, waitForReply, { mode: 'async', roomId: 'equiv-room' });
+  assert(ambiguousResult.status === 'blocked' && String(ambiguousResult.reason).includes('duplicate live alias'), 'worker-one vs worker_one live aliases must block as ambiguous under lookup equivalence');
+  const equivalenceSummary = zpeer.buildZpeerRoomSummary(repoRoot, equivalenceSender, 'equiv-room');
+  assert(equivalenceSummary.duplicateAliases.includes('worker-one') && equivalenceSummary.duplicateAliases.includes('worker_one'), 'room summary must report live lookup-equivalent duplicate aliases');
 
   const joinedAlpha = await zpeer.joinZpeerRoom(repoRoot, alpha, 'shared-room', 'sharedalpha', 'bridge');
   assert(joinedAlpha.ok === true, `alpha multi-room join expected ok, got ${joinedAlpha.reason ?? 'not ok'}`);
@@ -534,6 +574,58 @@ async function main() {
   assert(String(workerDirectResult.reason).includes('zpeer topology blocked'), 'same-room worker-to-worker send must fall through to legacy topology block');
   assert(receivedPrompts.length === promptCountBeforeWorkerDirect, 'same-room worker-to-worker send must not deliver a prompt to workertwo');
 
+  let strictPeer = zpeer.refreshZpeerSelf(repoRoot, { ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'strictpeer', roomId: 'strict-room', endpoint: gammaEndpoint, endpointHash: hashing.sha256(gammaEndpoint), sha256: hashing.sha256, roleId: 'strict-lead', roleType: 'lead' }), 'strict-room', 'strictpeer'), zpeerAdhoc: true });
+  const normalStrictSummary = zpeer.buildZpeerRoomSummary(repoRoot, strictPeer, 'strict-room');
+  assert(normalStrictSummary.online === 1, 'without strict mode an online peer with an existing socket may remain reachable by legacy existsSync floor');
+  process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET = '1';
+  const strictUnverifiedSummary = zpeer.buildZpeerRoomSummary(repoRoot, strictPeer, 'strict-room');
+  assert(strictUnverifiedSummary.online === 0 && strictUnverifiedSummary.offline === 1, 'strict socket mode must require recent socketVerifiedAt evidence');
+  strictPeer = zpeer.refreshZpeerSelf(repoRoot, strictPeer, undefined, undefined, undefined, { socketVerifiedAtMs: Date.now() });
+  const strictVerifiedSummary = zpeer.buildZpeerRoomSummary(repoRoot, strictPeer, 'strict-room');
+  assert(strictVerifiedSummary.online === 1, 'strict socket mode must revive when socketVerifiedAt is freshly stamped');
+
+  const joinedProbeRoom = await zpeer.joinZpeerRoom(repoRoot, alpha, 'strict-probe-room', 'probealpha');
+  assert(joinedProbeRoom.ok === true, `strict probe room join expected ok, got ${joinedProbeRoom.reason ?? 'not ok'}`);
+  alpha = joinedProbeRoom.peer;
+  const strictProbePeer = zpeer.refreshZpeerSelf(repoRoot, zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'strictprobe', roomId: 'strict-probe-room', endpoint: gammaEndpoint, endpointHash: hashing.sha256(gammaEndpoint), sha256: hashing.sha256, roleId: 'strict-probe-lead', roleType: 'lead' }), 'strict-probe-room', 'strictprobe'));
+  const strictProbeSummary = zpeer.buildZpeerRoomSummary(repoRoot, alpha, 'strict-probe-room');
+  assert(strictProbeSummary.offline >= 1 && strictProbeSummary.online < strictProbeSummary.peerCount, 'strict mode must classify the unverified local-socket probe candidate offline before send');
+  const revivedFallbackInputs = [];
+  const revivedViaProbe = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'strictprobe', rawPrompt, waitForReply, {
+    roomId: 'strict-probe-room',
+    mode: 'async',
+    priority: 'urgent',
+    interruptMode: 'steer',
+    fallbackDelivery: async (input) => { revivedFallbackInputs.push(input); return { delivered: true, target: 'strictprobe-pane' }; },
+  });
+  const strictProbeStamped = liveRegistry.readZobLiveRegistrySnapshot(repoRoot).peers.find((peer) => peer.sessionHash === strictProbePeer.sessionHash);
+  assert(revivedViaProbe.status === 'waiting' && revivedViaProbe.deliveryStatus === 'delivered' && revivedViaProbe.fallback_delivery !== true, `responsive strict-offline candidate must use local_socket, got ${revivedViaProbe.status}/${revivedViaProbe.deliveryStatus}/${revivedViaProbe.deliveryMethod}`);
+  assert(revivedFallbackInputs.length === 0, 'responsive strict-offline candidate must be probed/revived before tmux fallback hook is called');
+  assert(strictProbeStamped?.status === 'online' && typeof strictProbeStamped.socketVerifiedAt === 'string', 'responsive strict-offline probe must stamp socketVerifiedAt/online into the stable lease-backed registry');
+  if (previousZpeerStrict === undefined) delete process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET;
+  else process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET = previousZpeerStrict;
+
+  const fallbackPeer = {
+    ...zpeer.ensureZpeerFields(repoRoot, makePeer({ alias: 'fallbackbeta', roomId: 'room-one', endpoint: join(root, 'dead-fallbackbeta.sock'), endpointHash: hashing.sha256(join(root, 'dead-fallbackbeta.sock')), sha256: hashing.sha256, roleId: 'fallback-lead', roleType: 'lead' }), 'room-one', 'fallbackbeta'),
+    heartbeatAt: new Date().toISOString(),
+    status: 'offline',
+    socketVerifiedAt: undefined,
+  };
+  liveRegistry.writeZobLiveTeamAgentLease(repoRoot, fallbackPeer, { reason: 'smoke_demote_fallback_peer' });
+  const fallbackInputs = [];
+  const fallbackResult = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'fallbackbeta', rawPrompt, waitForReply, {
+    mode: 'async',
+    priority: 'urgent',
+    interruptMode: 'steer',
+    fallbackDelivery: async (input) => { fallbackInputs.push(input); return { delivered: true, target: 'fallbackbeta-pane' }; },
+  });
+  assert(fallbackResult.status === 'delivered' && fallbackResult.fallback_delivery === true && fallbackResult.best_effort === true && fallbackResult.deliveryMethod === 'tmux_sendkeys', `urgent fallback expected best-effort delivered/tmux_sendkeys, got ${fallbackResult.status}/${fallbackResult.deliveryMethod}`);
+  assert(fallbackResult.outputHash === undefined && fallbackResult.deliveryStatus === 'blocked', 'fallback must not carry outputHash and must mark local_socket deliveryStatus blocked/not verified');
+  assert(fallbackInputs.length === 1 && fallbackInputs[0].targetAlias === 'fallbackbeta' && fallbackInputs[0].senderAlias === 'alpha' && fallbackInputs[0].priority === 'urgent', 'fallback hook must receive room-scoped sender/target/priority metadata');
+  let forceFallbackCalled = false;
+  const forceFallbackBlocked = await zpeer.sendZpeerPrompt(repoRoot, alpha, 'fallbackbeta', rawPrompt, waitForReply, { mode: 'async', priority: 'force', interruptMode: 'abort', interruptReasonHash: forceReasonHash, fallbackDelivery: async () => { forceFallbackCalled = true; return { delivered: true }; } });
+  assert(forceFallbackBlocked.status === 'blocked' && forceFallbackCalled === false, 'force fallback must be blocked and must not call the fallbackDelivery hook');
+
   const messagesPath = join(repoRoot, '.pi', 'coms', 'peer-messages.jsonl');
   const statusesPath = join(repoRoot, '.pi', 'coms', 'peer-status.jsonl');
   const messages = readJsonl(messagesPath);
@@ -559,6 +651,7 @@ async function main() {
   assert(messages.some((record) => record.event === 'ack' && record.priority === 'force' && record.interruptMode === 'abort' && record.interruptStatus === 'force_accepted' && record.interruptReasonHash === forceReasonHash), 'peer ledger must include force accepted interrupt metadata with reason hash only');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.priority === 'force' && record.interruptStatus === 'force_blocked' && record.interruptReasonHash === forceReasonHash && record.targetAliasHash === hashing.sha256('workertwo')), 'peer ledger must include force role-policy blocked metadata');
   assert(messages.some((record) => record.event === 'attempt' && record.status === 'blocked' && record.targetAliasHash === hashing.sha256('workertwo') && record.reasonHash), 'peer ledger must include hash-only blocked record for same-room worker-to-worker send');
+  assert(messages.some((record) => record.event === 'attempt' && record.status === 'delivered' && record.deliveryMethod === 'tmux_sendkeys' && record.fallbackDelivery === true && record.outputHash === undefined), 'peer ledger must include best-effort tmux fallback metadata without outputHash');
 
   const realRepoComs = join(process.cwd(), '.pi', 'coms');
   assert(messagesPath !== join(realRepoComs, 'peer-messages.jsonl'), 'smoke must not target real .pi/coms peer-messages ledger');
@@ -588,5 +681,7 @@ try {
   else process.env.TMUX_PANE = previousTmuxPane;
   if (previousZobComsRoleId === undefined) delete process.env.ZOB_COMS_ROLE_ID;
   else process.env.ZOB_COMS_ROLE_ID = previousZobComsRoleId;
+  if (previousZpeerStrict === undefined) delete process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET;
+  else process.env.ZOB_ZPEER_REQUIRE_VERIFIED_SOCKET = previousZpeerStrict;
   rmSync(root, { recursive: true, force: true });
 }
