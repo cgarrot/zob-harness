@@ -49,6 +49,10 @@ export interface ZobLiveLastEvent {
   priority?: ZpeerInterruptPriority;
   interruptMode?: ZpeerInterruptMode;
   interruptStatus?: ZpeerInterruptStatus;
+  terminal?: boolean;
+  statusRank?: number;
+  superseded?: boolean;
+  supersededByStatus?: string;
   at: string;
   localOnly: true;
   networkEnabled: false;
@@ -98,6 +102,7 @@ export interface ZobLiveRuntimeState {
   inboundQueue?: string[];
   activeInboundMsgId?: string;
   lastEvent?: ZobLiveLastEvent;
+  latestZpeerEventByMsgId?: Record<string, ZobLiveLastEvent>;
   passivePeerWait?: ZobPassivePeerWaitState;
   leaseOwned?: boolean;
   leaseStatus?: "owned" | "blocked" | "unavailable";

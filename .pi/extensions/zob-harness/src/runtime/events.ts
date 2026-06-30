@@ -40,6 +40,7 @@ import { capturePlanArtifact } from "./plan-capture.js";
 import { redactPlanTodosBlockForDisplay } from "../domains/plan/plan-todos.js";
 import { applyMode, renderHarnessWidget } from "./widget.js";
 import { createStopRestoreCandidate, markStopRestoreAssistantMessage, markStopRestoreToolVisible } from "./stop-restore.js";
+import { recordZpeerRuntimeEvent } from "./zpeer-events.js";
 
 function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" | "unregister"): void {
   try {
@@ -51,14 +52,8 @@ function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" 
   }
 }
 
-function setZpeerLastEvent(state: HarnessRuntimeState, event: Omit<ZobLiveLastEvent, "at" | "localOnly" | "networkEnabled" | "bodyStored"> & { at?: string }): void {
-  state.zobLive.lastEvent = {
-    ...event,
-    at: event.at ?? new Date().toISOString(),
-    localOnly: true,
-    networkEnabled: false,
-    bodyStored: false,
-  };
+function setZpeerLastEvent(state: HarnessRuntimeState, event: Omit<ZobLiveLastEvent, "at" | "localOnly" | "networkEnabled" | "bodyStored" | "terminal" | "statusRank" | "superseded" | "supersededByStatus"> & { at?: string }): ZobLiveLastEvent {
+  return recordZpeerRuntimeEvent(state, event).event;
 }
 
 function clearPassivePeerWaitForResponse(state: HarnessRuntimeState, envelope: { msgId?: string; runId?: string; sender?: string; type?: string }): void {
@@ -1060,7 +1055,10 @@ async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntim
   const activeInbound = activeZpeerInboundForResponse(state);
   const inbound = activeInbound ?? state.zobLive.inbound;
   if (!inbound || inbound.responseSent || !inbound.envelope.replyEndpoint) return;
-  if (activeInbound?.requiredResponseStatus === "expired") return;
+  // ZOB-COMS-GUARDS: a late reply after expiry is now permitted (the watchdog
+  // already stopped reinjecting; sender-side pendingReplies resolves to no-op).
+  // Dropping this early-out recovers nudge/reply paths (e.g. a late oracle
+  // review) without weakening the real anti-abuse (reinject cap + sender expire).
   if (state.zobLive.inboundByMsgId && !activeInbound) return;
   const responseText = latestAssistantText(event);
   if (!responseText.trim()) return;
@@ -1118,7 +1116,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     const taskHash = typeof details.taskHash === "string" ? details.taskHash : undefined;
     const outputHash = typeof details.outputHash === "string" ? details.outputHash : undefined;
     const route = fromAlias || toAlias ? `${fromAlias ? `@${fromAlias}` : "?"} → ${toAlias ? `@${toAlias}` : "?"}` : "room status";
-    const statusColor = status === "completed" || status === "sent" || status === "prompt_received" || status === "response_sent" ? "success" : status === "blocked" || status === "timeout" || status === "error" || status === "required_response_expired" ? "warning" : "muted";
+    const statusColor = status === "reply" || status === "completed" || status === "sent" || status === "delivered" || status === "prompt_received" || status === "response_sent" ? "success" : status === "blocked" || status === "timeout" || status === "error" || status === "expired" || status === "required_response_expired" ? "warning" : "muted";
     const line = [
       theme.fg("accent", "◆ ZPeer"),
       theme.fg("muted", kind),

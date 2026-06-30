@@ -10,6 +10,7 @@ import { validateZobComsEdge } from "../../topology/coms.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../../topology/teams.js";
 import { loadZteamManifest, zteamAllowsZpeerContact } from "../zagents.js";
 import { sha256 } from "../../../core/utils/hashing.js";
+import { annotateZpeerStatus } from "./zpeer-status.js";
 
 const DEFAULT_ROOM_ID = "default";
 const ALIAS_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{1,31}$/;
@@ -67,6 +68,8 @@ export interface ZpeerSendResult {
   deliveryMethod?: "local_socket" | "tmux_sendkeys";
   fallback_delivery?: boolean;
   best_effort?: boolean;
+  terminal?: boolean;
+  statusRank?: number;
   bodyStored: false;
 }
 
@@ -620,7 +623,7 @@ export async function sendZpeerPrompt(repoRoot: string, self: ZobLivePeerCard, t
       deliveryMethod: result.deliveryMethod,
       fallbackDelivery: result.fallback_delivery,
     });
-    return { roomId, priority, interruptMode, interruptReasonHash, requireResponse: requireResponse || undefined, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, ...result };
+    return annotateZpeerStatus({ roomId, priority, interruptMode, interruptReasonHash, requireResponse: requireResponse || undefined, responseTimeoutMs: requireResponse ? responseTimeoutMs : undefined, maxReinjects: requireResponse ? maxReinjects : undefined, ...result });
   };
 
   if (priority === "force" && !interruptReasonHash) return finish("attempt", { status: "blocked", reason: "force interrupt requires reason hash", targetAlias: targetAlias ?? undefined, taskHash, interruptStatus: "force_blocked", bodyStored: false });

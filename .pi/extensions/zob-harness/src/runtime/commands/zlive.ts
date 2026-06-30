@@ -17,6 +17,7 @@ import { loadActiveZagentScopedMode } from "../events.js";
 import { resolveRuleProfile } from "../../domains/governance/rules.js";
 import type { HarnessRuntimeState } from "../state.js";
 import { applyMode, renderHarnessWidget } from "../widget.js";
+import { recordZpeerRuntimeEvent } from "../zpeer-events.js";
 
 function zpeerCommandProfileId(ctx: ExtensionCommandContext): string {
   const sessionIdentity = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
@@ -1140,18 +1141,21 @@ async function executeZteamTmuxActionPlan(_repoRoot: string, plan: ZteamTmuxActi
 }
 
 export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeState): void {
-  const rememberZpeerEvent = (event: { kind: NonNullable<typeof state.zobLive.lastEvent>["kind"]; roomId?: string; fromAlias?: string; toAlias?: string; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string; priority?: ZpeerInterruptPriority; interruptMode?: ZpeerInterruptMode; interruptStatus?: ZpeerInterruptStatus }): void => {
-    state.zobLive.lastEvent = { ...event, at: new Date().toISOString(), localOnly: true, networkEnabled: false, bodyStored: false };
+  const rememberZpeerEvent = (event: { kind: NonNullable<typeof state.zobLive.lastEvent>["kind"]; roomId?: string; fromAlias?: string; toAlias?: string; status: string; reason?: string; msgId?: string; taskHash?: string; outputHash?: string; priority?: ZpeerInterruptPriority; interruptMode?: ZpeerInterruptMode; interruptStatus?: ZpeerInterruptStatus }): NonNullable<typeof state.zobLive.lastEvent> | undefined => {
+    const recorded = recordZpeerRuntimeEvent(state, event);
+    return recorded.accepted ? recorded.event : undefined;
   };
 
-  const emitZpeerEvent = (event: Parameters<typeof rememberZpeerEvent>[0]): void => {
-    rememberZpeerEvent(event);
+  const emitZpeerEvent = (event: Parameters<typeof rememberZpeerEvent>[0]): boolean => {
+    const recorded = rememberZpeerEvent(event);
+    if (!recorded) return false;
     void pi.sendMessage({
       customType: "zob-zpeer-event",
       content: `ZPeer ${event.kind} ${event.fromAlias ? `@${event.fromAlias}` : "?"} → ${event.toAlias ? `@${event.toAlias}` : "?"} ${event.status}`,
       display: true,
-      details: { ...state.zobLive.lastEvent },
+      details: { ...recorded },
     }, { triggerTurn: false });
+    return true;
   };
 
   pi.registerCommand("zagent", {
@@ -1682,6 +1686,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
           maxReinjects: sendMode.maxReinjects,
           onFeedback: (feedback) => {
             feedbackEmittedTerminal = feedback.result.status === "waiting" || feedback.result.status === "reply" || feedback.result.status === "completed" || feedback.result.status === "blocked" || feedback.result.status === "error" || feedback.result.status === "timeout" || feedback.result.status === "expired" || feedback.result.status === "required_response_expired";
+            if (feedback.kind === "waiting" && (sendMode.requireResponse === true || sendMode.mode !== "async")) return;
             const feedbackRoomId = feedback.result.roomId ?? eventRoomId;
             emitZpeerEvent({ kind: feedback.kind, roomId: feedbackRoomId, fromAlias: state.zobLive.peerCard ? peerAliasInRoom(state.zobLive.peerCard, feedbackRoomId) ?? eventFromAlias : eventFromAlias, toAlias: feedback.result.targetAlias ?? targetAlias, status: feedback.result.status, reason: feedback.result.reason, msgId: feedback.result.msgId, taskHash: feedback.result.taskHash, outputHash: feedback.result.outputHash, priority: feedback.result.priority ?? sendMode.priority, interruptMode: feedback.result.interruptMode ?? sendMode.interruptMode, interruptStatus: feedback.result.interruptStatus });
           },

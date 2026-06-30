@@ -617,6 +617,7 @@ export { ZobPendingReplies } from "./src/domains/coms/coms-v2/pending-replies.js
 export { buildZobLiveResponseCapture, buildZobLiveResponseEnvelope } from "./src/domains/coms/coms-v2/response-capture.js";
 export { appendLiveSendRequestedRef, appendLiveDeliveredStatus, appendLiveRunningStatus, appendLiveCompletedRef, appendLiveErrorStatus, appendPeerStaleStatus } from "./src/domains/coms/coms-v2/ledger-bridge.js";
 export { redactZobComsText, writeZobComsRedactedCapture } from "./src/domains/coms/coms-v2/transcript-capture.js";
+export { annotateZpeerStatus, isZpeerTerminalStatus, shouldAcceptZpeerStatusUpdate, zpeerStatusRank } from "./src/domains/coms/coms-v2/zpeer-status.js";
 export type { ZobLiveEnvelope, ZobLiveEnvelopeType } from "./src/domains/coms/coms-v2/envelope.js";
 export type { ZobComsTranscriptCapturePolicy, ZobComsTranscriptMode, ZobComsTranscriptRetentionClass, ZobComsTransportMode, ZobComsV2Policy, ZobLivePeerCard, ZobLivePeerStatus, ZobLivePresenceSummary, ZobLiveRegistrySnapshot } from "./src/domains/coms/coms-v2/types.js";
 
