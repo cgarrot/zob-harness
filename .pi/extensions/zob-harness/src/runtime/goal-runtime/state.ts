@@ -529,10 +529,29 @@ export function resumeRuntimeGoal(goal: RuntimeGoal, requestedAdditionalTurns?: 
   return { previousBlocker, additionalTurns: extendWindow ? additionalTurns : undefined };
 }
 
+// Pending inbound ZPeer prompts whose transient body has not yet been delivered
+// to a turn starve the goal-continuation loop: the body (deliverAs "followUp")
+// never reaches a turn slot while continuation keeps re-arming every turn. Yield
+// the loop until EVERY pending inbound has started its turn (turnStartedAt) or
+// been answered, mirroring the outbound passivePeerWait suppression.
+export function hasPendingUndeliveredZpeerInbound(state: HarnessRuntimeState): boolean {
+  const queue = state.zobLive.inboundQueue;
+  const byMsgId = state.zobLive.inboundByMsgId;
+  if (!queue || queue.length === 0 || !byMsgId) return false;
+  return queue.some((msgId) => {
+    const inbound = byMsgId[msgId];
+    return Boolean(inbound && !inbound.responseSent && !inbound.turnStartedAt);
+  });
+}
+
 export function queueRuntimeGoalContinuation(pi: ExtensionAPI, state: HarnessRuntimeState, ctx: ExtensionContext, options: { userVisible?: boolean; retryMs?: number } = {}): void {
   const goal = state.runtimeGoal;
   if (!canContinue(goal)) return;
   if (state.zobLive.passivePeerWait?.suppressGoalContinuation === true) {
+    clearRuntimeGoalContinuationTimer(state);
+    return;
+  }
+  if (hasPendingUndeliveredZpeerInbound(state)) {
     clearRuntimeGoalContinuationTimer(state);
     return;
   }

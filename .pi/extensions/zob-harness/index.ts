@@ -39,7 +39,7 @@ export { pathMatches } from "./src/core/utils/paths.js";
 
 export { parseGoalState, validateGoalState, validateStrictGoalSpecAnchor, parseBillableJobIntake, validateBillableJobIntake } from "./src/domains/goal/goal.js";
 export type { StrictGoalSpecAnchor, StrictGoalSpecAnchorKind } from "./src/domains/goal/goal.js";
-export { DEFAULT_GOAL_ACTIVATION_MODE, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, formatGoalActivationMode, formatRuntimeGoalSummary, queueRuntimeGoalContinuation, restoreRuntimeGoalFromBranch, resumeRuntimeGoal, runtimeGoalStatusLine } from "./src/runtime/goal-runtime.js";
+export { DEFAULT_GOAL_ACTIVATION_MODE, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, formatGoalActivationMode, formatRuntimeGoalSummary, hasPendingUndeliveredZpeerInbound, queueRuntimeGoalContinuation, restoreRuntimeGoalFromBranch, resumeRuntimeGoal, runtimeGoalStatusLine } from "./src/runtime/goal-runtime.js";
 export type { GoalActivationMode, RuntimeGoal, RuntimeGoalStatus, RuntimeGoalOracleStatus, RuntimeGoalOracleVerdict } from "./src/runtime/goal-runtime.js";
 export { extractModeIntent, looksLikeCompletePlanResponse, stripModeIntentMarkup, validateModeIntent } from "./src/runtime/mode-intent.js";
 export type { ZobModeIntent, ZobModeIntentConfidence, ZobModeIntentRisk, ZobModeIntentValidation } from "./src/runtime/mode-intent.js";

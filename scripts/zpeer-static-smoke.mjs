@@ -263,6 +263,9 @@ const goalRuntime = contents['.pi/extensions/zob-harness/src/runtime/goal-runtim
 for (const needle of ['state.zobLive.passivePeerWait?.suppressGoalContinuation === true', 'clearRuntimeGoalContinuationTimer(state)', 'return;']) {
   if (!goalRuntime.includes(needle)) failures.push(`goal runtime missing passive peer continuation suppression ${needle}`);
 }
+for (const needle of ['export function hasPendingUndeliveredZpeerInbound(state: HarnessRuntimeState): boolean', '!inbound.responseSent && !inbound.turnStartedAt', 'if (hasPendingUndeliveredZpeerInbound(state)) {']) {
+  if (!goalRuntime.includes(needle)) failures.push(`goal runtime missing inbound ZPeer body-delivery continuation suppression ${needle}`);
+}
 
 const childRunner = contents['.pi/extensions/zob-harness/src/domains/delegation/child-runner.ts'];
 for (const needle of ['childModelPattern', 'ctx.model', 'resolveCodexFastModeExtension', 'getAgentDir()', 'codex-fast-mode.ts', 'childCodexFastModeExtension', 'args.push("-e", childCodexFastModeExtension)', 'const model = resolvedModel']) {
