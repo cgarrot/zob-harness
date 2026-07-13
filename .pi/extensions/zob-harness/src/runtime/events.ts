@@ -239,7 +239,7 @@ function handleInboundZpeerPrompt(pi: ExtensionAPI, state: HarnessRuntimeState, 
     content: priority === "normal" ? "ZPeer inbound prompt received (transient body delivered only to agent turn)" : `ZPeer ${priority} inbound prompt received (transient body delivered only to agent turn)`,
     display: true,
     details: { kind: "inbound", roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: interruptStatus ?? "prompt_received", msgId: envelope.msgId, taskHash: envelope.taskHash, priority, interruptMode, interruptStatus, bodyStored: false, localOnly: true, networkEnabled: false },
-  }, { triggerTurn: false });
+  }, { triggerTurn: false, deliverAs: "nextTurn" });
   void pi.sendMessage({
     customType: "zob-coms-inbound",
     content: envelope.transientPrompt ?? "",
@@ -615,7 +615,7 @@ function formatZpeerLastEvent(event: ZobLiveLastEvent | undefined): string {
 
 function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string): string {
   if (!state.zobLive.peerCard) {
-    return "\n\nZPEER AWARENESS\n- local peer endpoint: unavailable this turn\n- Use zpeer_ask with mode=\"async\" or /zpeer only when useful or user-requested for peer coordination; avoid spam/loops and do not invent hidden worker-to-worker chat.";
+    return "\n\nZPEER AWARENESS\n- local peer endpoint: unavailable this turn\n- Use zpeer_ask with mode=\"async\" or /zpeer only when useful or user-requested for peer coordination; avoid spam/loops and do not invent hidden worker-to-worker chat.\n- If the user explicitly asks for a reply, status, or confirmation, use requireResponse=true with mode=\"await\" or mode=\"long\"; status=waiting is delivery-only, not evidence that the peer is working or done.";
   }
   const summaries = buildZpeerPeerRoomSummaries(repoRoot, state.zobLive.peerCard);
   const activeSummary = summaries.find((summary) => summary.active) ?? summaries[0];
@@ -632,7 +632,7 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
   const activePeerAliases = (activeSummary?.onlineAliases ?? []).filter((alias) => alias !== activeSelfAlias).slice(0, 8).map((alias) => `@${alias}`);
   const activeUnavailable = (activeSummary?.stale ?? 0) + (activeSummary?.offline ?? 0);
   const activeDuplicateLine = activeSummary && activeSummary.duplicateAliases.length > 0 ? `\n- duplicate live aliases: ${activeSummary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
-  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- If the user explicitly asks for a reply, status, or confirmation, use requireResponse=true with mode=\"await\" or mode=\"long\"; status=waiting is delivery-only, not evidence that the peer is working or done.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [
@@ -780,7 +780,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
           content: envelope.errorCode === "zpeer_required_response_expired" ? "ZPeer required response expired" : "ZPeer error received",
           display: true,
           details: { kind: state.zobLive.lastEvent?.kind, roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: state.zobLive.lastEvent?.status, msgId: envelope.msgId, taskHash: envelope.taskHash, errorHash: envelope.errorHash, bodyStored: false, localOnly: true, networkEnabled: false },
-        }, { triggerTurn: false });
+        }, { triggerTurn: false, deliverAs: "nextTurn" });
         return buildZobLiveAckEnvelope(envelope);
       }
       if (envelope.type === "response") {
@@ -802,7 +802,7 @@ async function startOrRefreshZobLiveRuntime(pi: ExtensionAPI, state: HarnessRunt
           content: "ZPeer reply received (transient response available; durable records remain hash-only)",
           display: true,
           details: { kind: "reply", roomId: state.zobLive.lastEvent?.roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: "reply", msgId: envelope.msgId, taskHash: envelope.taskHash, outputHash: envelope.outputHash, bodyStored: false, localOnly: true, networkEnabled: false },
-        }, { triggerTurn: false });
+        }, { triggerTurn: false, deliverAs: "nextTurn" });
         if (!completedActiveWait && envelope.transientResponse) {
           void pi.sendMessage({
             customType: "zob-zpeer-response",
@@ -1101,7 +1101,7 @@ async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntim
     content: "ZPeer response sent (transient response delivered over local socket; durable records remain hash-only)",
     display: true,
     details: { kind: "response_sent", roomId: state.zobLive.lastEvent?.roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash, priority: activeInbound?.priority, interruptMode: activeInbound?.interruptMode, bodyStored: false, localOnly: true, networkEnabled: false },
-  }, { triggerTurn: false });
+  }, { triggerTurn: false, deliverAs: "nextTurn" });
 }
 
 export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeState): void {

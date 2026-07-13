@@ -354,13 +354,13 @@ const ZpeerAskParams = Type.Object({
   targetAlias: Type.String({ description: "ZPeer target alias in the current local room. May include or omit the leading @." }),
   message: Type.String({ description: "Transient peer request body. Used only for local live delivery; never persisted in durable ledgers or reports." }),
   roomId: Type.Optional(Type.String({ description: "Optional ZPeer room id. Defaults to the current active local room." })),
-  mode: Type.Optional(StringEnum(["async", "await", "long"] as const, { description: "Send mode. Default async for agent-initiated coordination.", default: "async" })),
+  mode: Type.Optional(StringEnum(["async", "await", "long"] as const, { description: "Send mode. Default async for non-blocking coordination; when an actual reply/status is required, use await or long with requireResponse=true.", default: "async" })),
   reason: Type.Optional(Type.String({ description: "Optional transient coordination/interrupt reason. Required for force; hashed only in visible metadata; raw value is not persisted." })),
   urgency: Type.Optional(StringEnum(["normal", "urgent", "force"] as const, { description: "ZPeer delivery priority. normal=follow-up, urgent=steer, force=controlled abort+steer when policy allows." })),
   force: Type.Optional(Type.Boolean({ description: "Alias for urgency=force. Requires reason and remains local/hash-only." })),
   interruptMode: Type.Optional(StringEnum(["none", "steer", "abort"] as const, { description: "Requested interrupt mode. Derived from urgency when omitted; invalid broadening is blocked by runtime." })),
   timeoutMs: Type.Optional(Type.Number({ description: "Bounded reply wait timeout for await/long modes, and required-response expiration when requireResponse=true; capped by runtime." })),
-  requireResponse: Type.Optional(Type.Boolean({ description: "Opt in to a real msgId-correlated required response. Default false; when true the sender waits only for the exact msgId reply and expires explicitly." })),
+  requireResponse: Type.Optional(Type.Boolean({ description: "Opt in to a real msgId-correlated required response. Set true whenever the user asks for a reply, status, or confirmation; the sender waits only for the exact msgId reply and expires explicitly." })),
   maxReinjects: Type.Optional(Type.Number({ description: "Bounded receiver reminder budget for requireResponse. Default 1, capped 0..3." })),
 });
 

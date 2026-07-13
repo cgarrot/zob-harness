@@ -471,10 +471,11 @@ async function main() {
   const registeredTools = new Map();
   const appendEntries = [];
   const feedMessages = [];
+  const feedDeliveries = [];
   const mockPi = {
     registerTool: (tool) => registeredTools.set(tool.name, tool),
     appendEntry: (customType, data) => appendEntries.push({ customType, data }),
-    sendMessage: (message) => { feedMessages.push(message); return Promise.resolve(); },
+    sendMessage: (message, options) => { feedMessages.push(message); feedDeliveries.push({ message, options }); return Promise.resolve(); },
   };
   const toolState = { zobLive: { peerCard: alpha, pendingReplies: { wait: waitForReply } } };
   toolsComs.registerComsTools(mockPi, toolState);
@@ -488,6 +489,9 @@ async function main() {
   assert(JSON.stringify(toolResult?.content ?? '').includes('idle/passive wait: no follow-up turn queued'), 'zpeer_ask async waiting result must tell the agent to idle instead of polling/continuing just to wait');
   const asyncWaitingFeed = feedMessages.filter((item) => item.customType === 'zob-zpeer-event' && item.details?.source === 'agent-request' && item.details?.status === 'waiting' && item.details?.msgId === toolResult?.details?.msgId);
   assert(asyncWaitingFeed.length === 1, `zpeer_ask async must emit exactly one compact waiting feed event, got ${asyncWaitingFeed.length}`);
+  const asyncWaitingDelivery = feedDeliveries.find((item) => item.message.details?.source === 'agent-request' && item.message.details?.msgId === toolResult?.details?.msgId);
+  assert(asyncWaitingDelivery?.options?.triggerTurn === false && asyncWaitingDelivery?.options?.deliverAs === 'nextTurn', 'zpeer_ask waiting feed must use nextTurn delivery and never create an extra steering/follow-up turn');
+  assert(JSON.stringify(toolResult?.content ?? '').includes('delivery-only: no reply received; not evidence the target is working or done'), 'zpeer_ask waiting result must not imply peer progress from delivery-only status');
   assert(!feedMessages.some((item) => item.customType === 'zob-zpeer-event' && item.details?.source === 'agent-request' && item.details?.kind === 'attempt'), 'zpeer_ask async must not emit a pre-ACK attempt feed event');
   assert(!containsRawBody(toolResult), 'zpeer_ask async tool result must not echo the full prompt/response body');
   assert(appendEntries.some((item) => item.customType === 'zob-zpeer' && item.data?.schema === 'zob.zpeer-ask.v1' && item.data?.action === 'agent_request' && item.data?.mode === 'async' && item.data?.bodyStored === false), 'zpeer_ask must append hash-only visible command metadata');
@@ -538,6 +542,8 @@ async function main() {
   const explicitReplyCountBefore = receivedResponses.length;
   const explicitReplyResult = await zpeerReply.execute('tool-call-zpeer-reply', { msgId: explicitReplyMsgId, message: rawResponse }, undefined, undefined, { cwd: repoRoot });
   assert(explicitReplyResult?.details?.status === 'response_sent' && explicitReplyResult?.details?.msgId === explicitReplyMsgId && explicitReplyResult?.details?.outputHash === hashing.sha256(rawResponse), 'zpeer_reply must send a msgId-bound response with outputHash metadata');
+  const explicitReplyFeedDelivery = feedDeliveries.find((item) => item.message.details?.kind === 'response_sent' && item.message.details?.msgId === explicitReplyMsgId);
+  assert(explicitReplyFeedDelivery?.options?.triggerTurn === false && explicitReplyFeedDelivery?.options?.deliverAs === 'nextTurn', 'zpeer_reply feed must use nextTurn delivery and never create an extra steering/follow-up turn');
   assert(!toolState.zobLive.inboundByMsgId?.[explicitReplyMsgId] && toolState.zobLive.activeInboundMsgId === undefined && toolState.zobLive.inboundQueue.length === 0, 'zpeer_reply must clear the answered inbound msgId from receiver state');
   assert(receivedResponses.length > explicitReplyCountBefore && receivedResponses.at(-1)?.replyToMsgId === explicitReplyMsgId && receivedResponses.at(-1)?.responseHash === hashing.sha256(rawResponse), 'zpeer_reply must deliver a local response envelope bound to replyToMsgId');
   const wrongExplicitReply = await zpeerReply.execute('tool-call-zpeer-reply-wrong', { msgId: 'missing-msgid', message: rawResponse }, undefined, undefined, { cwd: repoRoot });

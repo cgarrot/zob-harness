@@ -1154,7 +1154,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
       content: `ZPeer ${event.kind} ${event.fromAlias ? `@${event.fromAlias}` : "?"} → ${event.toAlias ? `@${event.toAlias}` : "?"} ${event.status}`,
       display: true,
       details: { ...recorded },
-    }, { triggerTurn: false });
+    }, { triggerTurn: false, deliverAs: "nextTurn" });
     return true;
   };
 

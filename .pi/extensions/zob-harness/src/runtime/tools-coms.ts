@@ -275,7 +275,11 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
     name: "zpeer_ask",
     label: "ZPeer Ask",
     description: "Ask a visible local ZPeer via the governed room-scoped local_socket path. Defaults to mode=async; raw message/reply bodies are transient and durable metadata is hash-only.",
-    promptSnippet: "Use zpeer_ask with mode=\"async\" for useful non-trivial peer review/debug/planning coordination; if it returns waiting and nothing else is actionable, stop/idle instead of polling.",
+    promptSnippet: "Use zpeer_ask with mode=\"async\" for non-blocking coordination; when an actual reply/status is required, set requireResponse=true and use mode=\"await\" or mode=\"long\".",
+    promptGuidelines: [
+      "When the user asks for an actual reply, current status, confirmation, or a response requirement, call zpeer_ask with requireResponse=true and mode=\"await\" or mode=\"long\".",
+      "Treat zpeer_ask status=waiting as delivery-only: it does not prove the peer read the request, is working, or finished. If nothing else is actionable, stop/idle instead of polling.",
+    ],
     parameters: ZpeerAskParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!state?.zobLive.peerCard) return { content: [{ type: "text", text: "zpeer_ask blocked: current session has not registered a local peer endpoint" }], details: { schema: "zob.zpeer-ask-result.v1", status: "blocked", reason: "local_peer_unavailable", bodyStored: false } };
@@ -296,7 +300,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
             content: queued.content,
             display: true,
             details: queued.details,
-          }, { triggerTurn: false }));
+          }, { triggerTurn: false, deliverAs: "nextTurn" }));
         }
       };
       const emitZpeerAskEvent = (event: { kind: NonNullable<HarnessRuntimeState["zobLive"]["lastEvent"]>["kind"]; status: string; reason?: string; msgId?: string; roomId?: string; taskHash?: string; outputHash?: string; interruptStatus?: ZpeerInterruptStatus }): boolean => {
@@ -344,7 +348,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
       updatePassivePeerWaitState(state, result, { roomId: requestedRoomId, targetAlias });
       pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-ask.v1", action: "agent_request", mode, status: result.status, priority: interrupt.priority, interruptMode: interrupt.interruptMode, interruptStatus: result.interruptStatus, reasonHash: result.reason ? sha256(result.reason) : undefined, msgId: result.msgId, targetAliasHash: result.targetAlias ? sha256(result.targetAlias) : sha256(targetAlias), roomIdHash: sha256(result.roomId ?? requestedRoomId), taskHash: result.taskHash, outputHash: result.outputHash, reasonInputHash: params.reason ? sha256(params.reason) : undefined, interruptReasonHash: interrupt.interruptReasonHash, requireResponse: requireResponse || undefined, responseRequiredBy: result.responseRequiredBy, responseTimeoutMs: result.responseTimeoutMs, maxReinjects: result.maxReinjects, responseReceived: result.responseReceived, deliveryStatus: result.deliveryStatus, deliveryMethod: result.deliveryMethod, fallbackDelivery: result.fallback_delivery, bestEffort: result.best_effort, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
       const ok = result.status === "reply" || result.status === "completed" || result.status === "waiting" || result.status === "delivered";
-      const passiveWaitSuffix = result.status === "waiting" ? " · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";
+      const passiveWaitSuffix = result.status === "waiting" ? " · delivery-only: no reply received; not evidence the target is working or done · idle/passive wait: no follow-up turn queued; stop if no other action is actionable" : "";
       const transientReplyText = (result.status === "reply" || result.status === "completed") && result.transientResponse
         ? `\n\nTransient ZPeer reply (not stored in .pi/coms):\n${result.transientResponse}`
         : "";
@@ -391,7 +395,7 @@ export function registerComsTools(pi: ExtensionAPI, state?: HarnessRuntimeState)
         state.zobLive.inboundQueue = (state.zobLive.inboundQueue ?? []).filter((candidate) => candidate !== inbound.envelope.msgId);
         const roomId = inbound.envelope.runId?.startsWith("zpeer:") ? inbound.envelope.runId.slice("zpeer:".length) : undefined;
         const recorded = recordZpeerRuntimeEvent(state, { kind: "response_sent", roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode });
-        if (recorded.accepted) void pi.sendMessage({ customType: "zob-zpeer-event", content: "ZPeer explicit reply sent", display: true, details: { ...recorded.event } }, { triggerTurn: false });
+        if (recorded.accepted) void pi.sendMessage({ customType: "zob-zpeer-event", content: "ZPeer explicit reply sent", display: true, details: { ...recorded.event } }, { triggerTurn: false, deliverAs: "nextTurn" });
         pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-reply.v1", action: "reply", status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
         return { content: [{ type: "text", text: `zpeer_reply sent: msgId=${inbound.envelope.msgId} outputHash=${outputHash}` }], details: { schema: "zob.zpeer-reply-result.v1", status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash, bodyStored: false, localOnly: true, networkEnabled: false } };
       } catch (error) {
