@@ -75,6 +75,93 @@ export interface RuleResolution {
 
 export type DelegationFailureKind = "preflight" | "config" | "output_gate" | "child_runtime" | "aborted";
 
+export type OutputGateIssueCode =
+  | "empty_output"
+  | "unknown_contract"
+  | "invalid_requirement_pattern"
+  | "missing_final_marker"
+  | "missing_requirement"
+  | "deliverable_rejected"
+  | "mismatched_todo_id"
+  | "stale_child_goal_binding"
+  | "mismatched_delegation_attempt";
+
+export type OutputGateIssueClassification =
+  | "output_missing"
+  | "contract_configuration"
+  | "contract_format"
+  | "output_gate_semantic"
+  | "deliverable_rejected";
+
+export interface OutputGateIssue {
+  code: OutputGateIssueCode;
+  classification: OutputGateIssueClassification;
+  failureKind: "output_gate";
+  contractId: string;
+  requirement?: string;
+  message: string;
+}
+
+export type ToolFailureClass =
+  | "reference_resolution"
+  | "state_progress"
+  | "schema_validation"
+  | "policy_enforcement"
+  | "output_gate"
+  | "file_input";
+
+export type ToolFailureReasonCode =
+  | "todo_ref_not_found"
+  | "claim_state_unchanged"
+  | "schema_validation_failed"
+  | "policy_blocked"
+  | "output_gate_failed"
+  | "file_input_unavailable";
+
+export interface ToolFailureAttempt {
+  schema: "zob.tool-failure-attempt.v1";
+  attemptHash: string;
+  toolHash: string;
+  inputHash: string;
+  stateHash: string;
+  failureClass: ToolFailureClass;
+  reasonCode: ToolFailureReasonCode;
+  stateRevision: number;
+  occurredAt: string;
+  bodyStored: false;
+}
+
+export interface ToolFailureReplayFixture {
+  schema: "zob.tool-failure-replay-fixture.v1";
+  taxonomyRevision: 1;
+  bodyStored: false;
+  attempts: ToolFailureAttempt[];
+}
+
+export interface ToolFailureReplaySummary {
+  schema: "zob.tool-failure-replay.v1";
+  taxonomyRevision: 1;
+  rawAttemptCount: number;
+  uniqueIncidentCount: number;
+  unchangedStateRetryCount: number;
+  countsByClass: Record<ToolFailureClass, number>;
+  countsByReason: Record<ToolFailureReasonCode, number>;
+  incidentKeys: string[];
+  firstOccurredAt?: string;
+  lastOccurredAt?: string;
+  bodyStored: false;
+}
+
+export interface DelegationPreflightDiagnostic {
+  schema: string;
+  code: string;
+  field: string;
+  retry_policy: string;
+  safe_next_actions: readonly string[];
+  errors: readonly { code: string; field: string; message: string; index?: number }[];
+  candidates: readonly { canonicalId: string; goalId: string; path: string }[];
+}
+
 export interface ChildResult {
   agent: string;
   task: string;
@@ -88,7 +175,9 @@ export interface ChildResult {
   outputContract?: string;
   contractErrors?: string[];
   gateErrors?: string[];
+  gateIssues?: OutputGateIssue[];
   gatePassed?: boolean;
+  preflightDiagnostics?: DelegationPreflightDiagnostic[];
   failureKind?: DelegationFailureKind;
   stopReason?: string;
   stopCondition?: ChildStopCondition;

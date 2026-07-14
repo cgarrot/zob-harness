@@ -3,14 +3,16 @@ import { join, relative } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 
-import type { AgentScope, ChildResult, ChildStopCondition, ChildThinkingLevel, DelegationDetails, DelegationFailureKind } from "../../types.js";
+import type { AgentScope, ChildResult, ChildStopCondition, ChildThinkingLevel, DelegationDetails, DelegationFailureKind, DelegationPreflightDiagnostic, OutputGateIssue } from "../../types.js";
 import { AwaitDelegationRunParams, DelegateParams, DelegateTaskParams, DelegationCatalogParams, DelegationRunParams } from "../schemas.js";
 import { discoverAgents, formatAgentList } from "../../domains/delegation/agents.js";
-import { applyTodoSplitRequest, extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoPeerResultFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, resolveGoalTodoReference, returnGoalTodoClaim, type GoalTodoNode } from "../../domains/goal/goal-todos.js";
+import { extractTodoClaimFromText, extractTodoClaimValidationFromText, extractTodoSplitRequestFromText, isActionableTodoClaimValidation, isActionableTodoSplitRequest, linkGoalTodoDelegation, recordGoalTodoClaimValidationResult, requestGoalTodoClaimValidation, returnGoalTodoClaim, type GoalTodoNode } from "../../domains/goal/goal-todos.js";
+import { goalTodoReferenceDiagnostic, resolveCanonicalGoalTodoReference } from "../../domains/goal/goal-todos/reference.js";
+import { finalizeGoalTodoDelegationAttempt, hasActiveGoalTodoDelegation, hasOnlyNoneLike, isCanonicalGoalTodoClaimBinding, isDelegatableGoalTodoNode } from "../../domains/goal/goal-todos/operations.js";
 import { isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride } from "../../domains/delegation/child-runner.js";
 import { classifyChildStopCondition, classifyDelegationChronicleCompletion, outputHasEvidenceMarker } from "../../domains/telemetry/chronicle.js";
 import { validateExplicitModelOverride } from "../../domains/models/model-availability.js";
-import { applyChildGates, getOutputContractDefinitions, inferOutputContract, listOutputContracts, validateOutputContractId } from "../../domains/delegation/output-contracts.js";
+import { applyChildGates, getOutputContractDefinitions, getOutputContractFinalMarker, inferOutputContract, listOutputContracts, validateOutputContractId } from "../../domains/delegation/output-contracts.js";
 import { captureZcommitChildDirtySnapshot, diffZcommitChildDirtySnapshots, type ZcommitChildChangedPathRef } from "../../domains/git/git-ops.js";
 import {
   parseToolList,
@@ -49,13 +51,43 @@ import { delegateViewLink } from "../delegation-mouse.js";
 import type { BackgroundDelegationRuntimeRun, HarnessRuntimeState } from "../state.js";
 import { strictGoalErrors, strictGoalSpecErrors } from "../state.js";
 import { renderHarnessWidget } from "../widget.js";
-import type { AgenticClaimValidationInput, ChildGoalInput, DelegateTaskAliasInput, DelegateTaskCanonicalInput } from "./types.js";
+import type { AgenticClaimValidationInput, ChildGoalBinding, ChildGoalInput, DelegateTaskAliasInput, DelegateTaskCanonicalInput } from "./types.js";
+
+const DELEGATION_LEDGER_RAW_KEYS = new Set(["body", "prompt", "task", "output", "stderr", "error", "errorMessage", "errors", "gateErrors"]);
+
+/** Persisted delegation ledgers are recursively body-free; transient tool results keep compatibility text in memory only. */
+export function bodyFreeDelegationLedgerEntry(entry: Record<string, unknown>): Record<string, unknown> {
+  const sanitize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sanitize);
+    if (!value || typeof value !== "object") return value;
+    const output: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if (DELEGATION_LEDGER_RAW_KEYS.has(key)) {
+        const bodies = Array.isArray(nested) ? nested.filter((item): item is string => typeof item === "string") : typeof nested === "string" ? [nested] : [];
+        if (bodies.length > 0) {
+          output[`${key}Hashes`] = bodies.map((body) => sha256(body));
+          output[`${key}Count`] = bodies.length;
+        }
+        continue;
+      }
+      output[key] = sanitize(nested);
+    }
+    return output;
+  };
+  return {
+    ...(sanitize(entry) as Record<string, unknown>),
+    bodyStored: false,
+    promptBodiesStored: false,
+    outputBodiesStored: false,
+  };
+}
 
 export function appendLedgerFile(repoRoot: string, entry: Record<string, unknown>): void {
   const dir = join(repoRoot, ".pi", "logs", "runs");
   mkdirSync(dir, { recursive: true });
   const day = new Date().toISOString().slice(0, 10);
-  appendFileSync(join(dir, `${day}.jsonl`), `${JSON.stringify({ ...entry, timestamp: new Date().toISOString() })}\n`, "utf8");
+  const bodyFree = bodyFreeDelegationLedgerEntry(entry);
+  appendFileSync(join(dir, `${day}.jsonl`), `${JSON.stringify({ ...bodyFree, timestamp: new Date().toISOString() })}\n`, "utf8");
 }
 
 export function asDelegationDetails(value: unknown): DelegationDetails | undefined {
@@ -173,9 +205,42 @@ export function normalizeDelegateTaskParams(input: DelegateTaskAliasInput): { pa
   };
 }
 
+function copyDelegationDiagnostic(diagnostic: DelegationPreflightDiagnostic): DelegationPreflightDiagnostic {
+  return {
+    ...diagnostic,
+    safe_next_actions: [...diagnostic.safe_next_actions],
+    errors: diagnostic.errors.map((error) => ({ ...error })),
+    candidates: diagnostic.candidates.map((candidate) => ({ ...candidate })),
+  };
+}
+
+function formatChildGoalDiagnostic(diagnostic: DelegationPreflightDiagnostic): string {
+  const candidates = diagnostic.candidates.map((candidate) => `${candidate.goalId}:${candidate.path}=${candidate.canonicalId}`).join("|") || "none";
+  const messages = diagnostic.errors.map((error) => `${error.code}:${error.message}`).join("; ") || diagnostic.code;
+  return `child_goal preflight failed: code=${diagnostic.code} field=${diagnostic.field} retry_policy=${diagnostic.retry_policy} safe_next_actions=${diagnostic.safe_next_actions.join("|") || "none"} candidates=${candidates}; ${messages}`;
+}
+
+function childGoalFailure(
+  childGoal: ChildGoalInput,
+  diagnostic: DelegationPreflightDiagnostic,
+  extraErrors: string[] = [],
+): { childGoal: ChildGoalInput; errors: string[]; diagnostics: DelegationPreflightDiagnostic[] } {
+  const cleanChildGoal = { ...childGoal, binding: undefined };
+  return {
+    childGoal: cleanChildGoal,
+    errors: [formatChildGoalDiagnostic(diagnostic), ...extraErrors],
+    diagnostics: [copyDelegationDiagnostic(diagnostic)],
+  };
+}
+
+function customChildGoalDiagnostic(input: Omit<DelegationPreflightDiagnostic, "schema">): DelegationPreflightDiagnostic {
+  return { schema: "zob.child-goal-todo-reference-diagnostic.v1", ...input };
+}
+
 export function childGoalGuidance(childGoal: ChildGoalInput | undefined, parentGoalId: string | undefined, runId: string): string[] {
   if (!childGoal || childGoal.enabled === false || !childGoal.objective?.trim()) return [];
   const childGoalId = parentGoalId ? `child:${parentGoalId}:${runId}` : `child:${runId}`;
+  const binding = childGoal.binding;
   return [
     "ZOB CHILD GOAL:",
     `- CHILD_GOAL_ID: ${childGoalId}`,
@@ -183,6 +248,12 @@ export function childGoalGuidance(childGoal: ChildGoalInput | undefined, parentG
     childGoal.todo_id ? `- TODO_ID: ${childGoal.todo_id}` : undefined,
     childGoal.parent_todo_id ? `- PARENT_TODO_ID: ${childGoal.parent_todo_id}` : undefined,
     childGoal.todo_path ? `- TODO_PATH: ${childGoal.todo_path}` : undefined,
+    binding ? `- BOUND_GOAL_ID: ${binding.goal_id}` : undefined,
+    binding ? `- BOUND_GRAPH_REVISION: ${binding.graph_revision}` : undefined,
+    binding ? `- BOUND_TODO_REVISION: ${binding.todo_revision}` : undefined,
+    binding ? `- DELEGATION_ATTEMPT_ID: ${binding.delegation_attempt_id}` : undefined,
+    binding ? `- VALIDATION_POLICY: ${binding.validation_policy}` : undefined,
+    binding ? `- EXPECTED_CLAIM_TODO_ID: ${binding.expected_claim.todo_id}` : undefined,
     childGoal.delegation_depth !== undefined ? `- DELEGATION_DEPTH: ${childGoal.delegation_depth}` : undefined,
     childGoal.request_id ? `- REQUEST_ID: ${childGoal.request_id}` : undefined,
     `- ORACLE_REQUIRED: ${childGoal.oracle_required !== false}`,
@@ -197,6 +268,8 @@ export function childGoalGuidance(childGoal: ChildGoalInput | undefined, parentG
     "- Child no_ship is advisory/readiness evidence: parent/oracle decides review_no_ship and the runtime computes hard_no_ship/effective_no_ship.",
     childGoal.todo_id ? "- This is a TODO-linked child goal. Do not mark the parent TODO done directly; return TODO_CHILD_RESULT.v2 (v1 remains accepted) fields for parent acceptance." : undefined,
     childGoal.todo_id ? "- TODO_CHILD_RESULT.v2 should include acceptance_blockers and target_readiness: ready_for_parent_acceptance | needs_parent_review | blocked." : undefined,
+    childGoal.todo_id ? `- The result todo_id must be exactly ${childGoal.todo_id}; never return its path or another TODO id.` : undefined,
+    childGoal.todo_id ? "- TODO_CHILD_RESULT.v2 must include deliverable_delivered: yes and end exactly with FINAL_MARKER: TODO_CHILD_RESULT_V2_END." : undefined,
     childGoal.todo_id ? "- Do not run multiple write-capable workers on this same leaf TODO. If parallel work is needed, ask the parent to split the TODO into subtodos/XDEF leaves and delegate separate leaves/workspaces." : undefined,
     childGoal.todo_id ? "- If explicitly operating under compute high/xhigh/max and this TODO is too broad for your scope/context, return TODO_SPLIT_REQUEST.v1 instead of forcing a poor completion; parent will decide/apply any split." : undefined,
     childGoal.todo_id ? "- TODO_SPLIT_REQUEST.v1 must include deliverable_delivered: yes, todo_id, reason, recommended_action, proposed_subtodos, risk_level, validation_plan, evidence, risks_blockers, no_ship, compliance, and FINAL_MARKER: TODO_SPLIT_REQUEST_END." : undefined,
@@ -211,156 +284,348 @@ export function appendChildGoalToTask(task: string, childGoal: ChildGoalInput | 
   return guidance.length > 0 ? `${guidance.join("\n")}\n${task}` : task;
 }
 
-export function resolveChildGoalTodoRef(state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined): { childGoal: ChildGoalInput | undefined; errors: string[]; node?: GoalTodoNode } {
-  if (!childGoal) return { childGoal, errors: [] };
-  if (!childGoal.todo_id && !childGoal.todo_path) return { childGoal, errors: [] };
+export function resolveChildGoalTodoRef(
+  state: HarnessRuntimeState,
+  childGoal: ChildGoalInput | undefined,
+  delegationAttemptId = "preflight",
+  outputContract = "todo-child-result.v2",
+): { childGoal: ChildGoalInput | undefined; errors: string[]; diagnostics: DelegationPreflightDiagnostic[]; node?: GoalTodoNode } {
+  if (!childGoal) return { childGoal, errors: [], diagnostics: [] };
+  const cleanChildGoal = { ...childGoal, binding: undefined };
+  if (childGoal.todo_id === undefined && childGoal.todo_path === undefined) return { childGoal: cleanChildGoal, errors: [], diagnostics: [] };
+
   const goalId = state.runtimeGoal?.goalId;
-  const primaryRef = childGoal.todo_id ?? childGoal.todo_path;
-  let resolution = resolveGoalTodoReference(state.goalTodos, goalId, primaryRef, childGoal.todo_id ? "child_goal.todo_id" : "child_goal.todo_path", { requireDelegatable: true });
-  if (childGoal.todo_id && childGoal.todo_path && !resolution.node) {
-    const pathResolution = resolveGoalTodoReference(state.goalTodos, goalId, childGoal.todo_path, "child_goal.todo_path", { requireDelegatable: true });
-    if (pathResolution.node && pathResolution.errors.length === 0) resolution = pathResolution;
+  const resolution = resolveCanonicalGoalTodoReference(state.goalTodos, goalId, { todoId: childGoal.todo_id, todoPath: childGoal.todo_path });
+  if (!resolution.node || !resolution.canonicalId || !resolution.path) {
+    return childGoalFailure(cleanChildGoal, goalTodoReferenceDiagnostic(resolution));
   }
-  const errors = [...resolution.errors];
-  if (childGoal.delegation_depth !== undefined && childGoal.delegation_depth > state.goalTodos.policy.maxDelegationDepth) errors.push(`child_goal.delegation_depth exceeds maxDelegationDepth=${state.goalTodos.policy.maxDelegationDepth}`);
-  if (!resolution.node || errors.length > 0) return { childGoal: { ...childGoal, todo_id: undefined }, errors };
+
+  const node = resolution.node;
+  if (childGoal.parent_todo_id !== undefined) {
+    const parentResolution = resolveCanonicalGoalTodoReference(state.goalTodos, goalId, { todoId: childGoal.parent_todo_id });
+    if (!parentResolution.node || !parentResolution.canonicalId) {
+      const parentDiagnostic = goalTodoReferenceDiagnostic(parentResolution);
+      return childGoalFailure(cleanChildGoal, {
+        ...parentDiagnostic,
+        field: "parent_todo_id",
+        errors: parentDiagnostic.errors.map((error) => ({ ...error, field: "parent_todo_id" })),
+      });
+    }
+    if (node.parentId !== parentResolution.canonicalId) {
+      const actualParent = node.parentId ? state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === node.parentId) : undefined;
+      return childGoalFailure(cleanChildGoal, customChildGoalDiagnostic({
+        code: "parent_todo_mismatch",
+        field: "parent_todo_id",
+        retry_policy: "fix_input",
+        safe_next_actions: ["refresh_goal_todos", "provide_actual_parent_todo_id"],
+        errors: [{
+          code: "parent_todo_mismatch",
+          field: "parent_todo_id",
+          message: `parent_todo_id ${parentResolution.canonicalId} is not the actual parent ${node.parentId ?? "<root>"} of ${node.id}`,
+        }],
+        candidates: [parentResolution.node, ...(actualParent ? [actualParent] : [])].map((candidate) => ({ canonicalId: candidate.id, goalId: candidate.goalId, path: candidate.path })),
+      }));
+    }
+  }
+
+  if (!isDelegatableGoalTodoNode(node)) {
+    const active = hasActiveGoalTodoDelegation(node);
+    return childGoalFailure(cleanChildGoal, customChildGoalDiagnostic({
+      code: active ? "active_delegation" : "todo_not_delegatable",
+      field: childGoal.todo_id !== undefined ? "todo_id" : "todo_path",
+      retry_policy: "after_context_change",
+      safe_next_actions: active
+        ? ["wait_for_active_delegation", "refresh_goal_todos", "split_into_subtodos"]
+        : ["resolve_todo_state", "refresh_goal_todos"],
+      errors: [{
+        code: active ? "active_delegation" : "todo_not_delegatable",
+        field: childGoal.todo_id !== undefined ? "todo_id" : "todo_path",
+        message: active
+          ? `TODO ${node.id} path ${node.path} already has active delegation ${node.delegation?.runId ?? "unknown"}; same-leaf double dispatch is blocked`
+          : `TODO ${node.id} path ${node.path} status ${node.status} is not delegatable`,
+      }],
+      candidates: [{ canonicalId: node.id, goalId: node.goalId, path: node.path }],
+    }));
+  }
+
+  const depthError = childGoal.delegation_depth !== undefined && childGoal.delegation_depth > state.goalTodos.policy.maxDelegationDepth
+    ? `child_goal.delegation_depth exceeds maxDelegationDepth=${state.goalTodos.policy.maxDelegationDepth}`
+    : undefined;
+  if (depthError) {
+    return childGoalFailure(cleanChildGoal, customChildGoalDiagnostic({
+      code: "delegation_depth_exceeded",
+      field: "delegation_depth",
+      retry_policy: "fix_input",
+      safe_next_actions: ["reduce_delegation_depth"],
+      errors: [{ code: "delegation_depth_exceeded", field: "delegation_depth", message: depthError }],
+      candidates: [{ canonicalId: node.id, goalId: node.goalId, path: node.path }],
+    }));
+  }
+
+  const validationPolicy = childGoal.agentic_validation?.mode === "oracle_then_auto_accept" ? "oracle_required" as const : "parent_review" as const;
+  const binding: ChildGoalBinding = {
+    schema: "zob.child-goal-binding.v1",
+    goal_id: goalId!,
+    goal_revision: state.runtimeGoal?.revision ?? 0,
+    graph_revision: state.goalTodos.graphRevisions?.[goalId!] ?? 0,
+    todo_id: node.id,
+    todo_path: node.path,
+    todo_revision: node.revision ?? 0,
+    parent_todo_id: node.parentId,
+    delegation_attempt_id: delegationAttemptId,
+    validation_policy: validationPolicy,
+    expected_claim: {
+      goal_id: goalId!,
+      todo_id: node.id,
+      todo_path: node.path,
+      todo_revision: node.revision ?? 0,
+      delegation_attempt_id: delegationAttemptId,
+      validation_policy: validationPolicy,
+      output_contract: outputContract,
+    },
+  };
   return {
     childGoal: {
-      ...childGoal,
-      todo_id: resolution.node.id,
-      todo_path: childGoal.todo_path ?? resolution.node.path,
+      ...cleanChildGoal,
+      todo_id: node.id,
+      todo_path: node.path,
+      parent_todo_id: node.parentId,
+      binding,
     },
-    errors,
-    node: resolution.node,
+    errors: [],
+    diagnostics: [],
+    node,
   };
 }
 
 export function linkChildGoalTodoDelegationIfReady(pi: ExtensionAPI, state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined, runId: string, agent?: string): void {
-  const goalId = state.runtimeGoal?.goalId;
-  if (!goalId || !childGoal?.todo_id) return;
-  if (!state.goalTodos.nodes.some((node) => node.goalId === goalId && node.id === childGoal.todo_id)) return;
-  linkGoalTodoDelegation(pi, state, goalId, childGoal.todo_id, { runId, agent, requestId: childGoal.request_id, delegationDepth: childGoal.delegation_depth }, "delegation");
+  const binding = childGoal?.binding;
+  if (!binding || childGoal?.todo_id !== binding.todo_id || childGoal.todo_path !== binding.todo_path) return;
+  if (binding.goal_id !== state.runtimeGoal?.goalId || binding.delegation_attempt_id !== runId) throw new Error("child_goal binding changed before delegation link");
+  const current = state.goalTodos.nodes.find((node) => node.goalId === binding.goal_id && node.id === binding.todo_id);
+  if (!current || current.path !== binding.todo_path || (current.revision ?? 0) !== binding.todo_revision) throw new Error("child_goal TODO binding became stale before delegation link");
+  const linked = linkGoalTodoDelegation(pi, state, binding.goal_id, binding.todo_id, { attemptId: binding.delegation_attempt_id, runId, agent, requestId: childGoal.request_id, delegationDepth: childGoal.delegation_depth, outputContract: binding.expected_claim.output_contract, validationPolicy: binding.validation_policy }, "delegation");
+  if (!linked) throw new Error("child_goal TODO disappeared during delegation link");
+  binding.goal_revision = state.runtimeGoal?.revision ?? binding.goal_revision;
+  binding.graph_revision = state.goalTodos.graphRevisions?.[binding.goal_id] ?? binding.graph_revision;
+  binding.todo_revision = linked.revision ?? binding.todo_revision;
+  binding.expected_claim.todo_revision = binding.todo_revision;
 }
 
 export function retargetTodoSplitRequestResult(result: ChildResult, childGoal: ChildGoalInput | undefined, repoRoot: string): void {
-  const todoId = childGoal?.todo_id;
+  const todoId = childGoal?.binding?.expected_claim.todo_id;
   if (!todoId) return;
   const splitRequest = extractTodoSplitRequestFromText(result.output || result.stderr || "");
   if (!isActionableTodoSplitRequest(splitRequest, todoId)) return;
   const previousContract = result.outputContract;
   const previousGatePassed = result.gatePassed;
   const previousGateErrors = result.gateErrors;
+  const previousGateIssues = result.gateIssues;
   result.outputContract = "todo-split-request.v1";
   result.gatePassed = undefined;
   result.gateErrors = undefined;
-  applyChildGates(result, { repoRoot });
+  result.gateIssues = undefined;
+  applyChildGates(result, { repoRoot, expectedTodoId: todoId });
   if (result.gatePassed !== true) {
     result.outputContract = previousContract;
     result.gatePassed = previousGatePassed;
     result.gateErrors = previousGateErrors;
+    result.gateIssues = previousGateIssues;
   }
 }
 
+function appendSemanticGateIssue(result: ChildResult, issue: OutputGateIssue): void {
+  result.gateIssues = [...(result.gateIssues ?? []), issue];
+  result.gateErrors = result.gateIssues.map((candidate) => candidate.message);
+  result.gatePassed = false;
+}
+
+export function enforceChildGoalClaimCorrelation(state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined, result: ChildResult, runId: string): void {
+  const binding = childGoal?.binding;
+  if (!binding) return;
+  const contractId = result.outputContract ?? binding.expected_claim.output_contract;
+  if (binding.delegation_attempt_id !== runId || binding.expected_claim.delegation_attempt_id !== runId) {
+    appendSemanticGateIssue(result, {
+      code: "mismatched_delegation_attempt",
+      classification: "output_gate_semantic",
+      failureKind: "output_gate",
+      contractId,
+      requirement: "delegation_attempt_id",
+      message: `Bound child result delegation attempt mismatch: expected ${binding.delegation_attempt_id}; received ${runId}`,
+    });
+    return;
+  }
+
+  const node = state.goalTodos.nodes.find((candidate) => candidate.goalId === binding.goal_id && candidate.id === binding.todo_id);
+  const currentGraphRevision = state.goalTodos.graphRevisions?.[binding.goal_id] ?? 0;
+  const currentGoalRevision = state.runtimeGoal?.goalId === binding.goal_id ? state.runtimeGoal.revision : -1;
+  const identityStale = !node
+    || node.path !== binding.todo_path
+    || node.parentId !== binding.parent_todo_id
+    || (node.revision ?? 0) !== binding.expected_claim.todo_revision
+    || currentGraphRevision < binding.graph_revision
+    || currentGoalRevision < binding.goal_revision;
+  if (identityStale) {
+    appendSemanticGateIssue(result, {
+      code: "stale_child_goal_binding",
+      classification: "output_gate_semantic",
+      failureKind: "output_gate",
+      contractId,
+      requirement: "child_goal_binding",
+      message: `Bound child result correlation is stale for goal=${binding.goal_id} todo=${binding.todo_id} path=${binding.todo_path} graph_revision=${binding.graph_revision} todo_revision=${binding.expected_claim.todo_revision}`,
+    });
+    return;
+  }
+  const latestAttempt = node.delegationAttempts?.at(-1);
+  if (node.delegation?.runId !== runId || latestAttempt?.attemptId !== binding.delegation_attempt_id || latestAttempt.runId !== runId || latestAttempt.validationPolicy !== binding.validation_policy) {
+    appendSemanticGateIssue(result, {
+      code: "mismatched_delegation_attempt",
+      classification: "output_gate_semantic",
+      failureKind: "output_gate",
+      contractId,
+      requirement: "delegation_attempt_id",
+      message: `Bound child result does not match active delegation attempt ${node.delegation?.runId ?? "none"}; received ${runId}`,
+    });
+  }
+}
+
+export function recordBoundTodoDelegationPreflightFailure(
+  pi: ExtensionAPI,
+  state: HarnessRuntimeState,
+  childGoal: ChildGoalInput | undefined,
+  input: { runId: string; agent?: string; failureKind: "preflight" | "config"; errors: string[] },
+): GoalTodoNode | undefined {
+  const binding = childGoal?.binding;
+  if (!binding || binding.delegation_attempt_id !== input.runId || binding.expected_claim.delegation_attempt_id !== input.runId) return undefined;
+  const node = state.goalTodos.nodes.find((candidate) => candidate.goalId === binding.goal_id && candidate.id === binding.todo_id);
+  if (!node || node.path !== binding.todo_path || (node.revision ?? 0) !== binding.todo_revision || node.parentId !== binding.parent_todo_id) return undefined;
+  const reasonCode = input.failureKind === "config"
+    ? "preflight_config_failed"
+    : input.errors.some((error) => /policy|scope|allowed_paths|forbidden_paths|must not|damage/i.test(error))
+      ? "preflight_policy_failed"
+      : "preflight_contract_failed";
+  return finalizeGoalTodoDelegationAttempt(pi, state, binding.goal_id, binding.todo_id, {
+    attemptId: binding.delegation_attempt_id,
+    runId: input.runId,
+    requestId: childGoal?.request_id,
+    agent: input.agent,
+    delegationDepth: childGoal?.delegation_depth,
+    status: "failed_preflight",
+    reasonCode,
+    failureKind: input.failureKind,
+    outputContract: binding.expected_claim.output_contract,
+    validationPolicy: binding.validation_policy,
+    failureHash: sha256(input.errors.join("\n") || reasonCode),
+  }, "delegation");
+}
+
 export function recordTodoClaimFromChildResult(pi: ExtensionAPI, state: HarnessRuntimeState, childGoal: ChildGoalInput | undefined, result: ChildResult, meta: { runId?: string; outputHash?: string } = {}): { goalId?: string; todoId?: string; claimHash?: string; validReadyClaim: boolean; node?: GoalTodoNode; splitApplied?: boolean } {
-  const goalId = state.runtimeGoal?.goalId;
-  const todoId = childGoal?.todo_id;
-  if (!goalId || !todoId) return { validReadyClaim: false };
+  const binding = childGoal?.binding;
+  const goalId = binding?.goal_id;
+  const todoId = binding?.expected_claim.todo_id;
+  const runId = meta.runId;
+  if (!binding || !goalId || !todoId || !runId) return { goalId, todoId, validReadyClaim: false };
+  const current = state.goalTodos.nodes.find((candidate) => candidate.goalId === goalId && candidate.id === todoId);
+  const latestAttempt = current?.delegationAttempts?.at(-1);
+  if (!current || !latestAttempt
+    || latestAttempt.attemptId !== binding.delegation_attempt_id
+    || latestAttempt.runId !== runId
+    || binding.expected_claim.delegation_attempt_id !== runId) {
+    return { goalId, todoId, validReadyClaim: false };
+  }
+
   const text = result.output || result.stderr || "";
-  const splitRequest = extractTodoSplitRequestFromText(text);
-  if (isActionableTodoSplitRequest(splitRequest, todoId) && result.gatePassed === true && result.outputContract === "todo-split-request.v1") {
-    try {
-      applyTodoSplitRequest(pi, state, goalId, todoId, splitRequest, "delegation");
-      return { goalId, todoId, validReadyClaim: false, splitApplied: true };
-    } catch (error) {
-      const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
-        claimText: `TODO_SPLIT_REQUEST handling failed: ${error instanceof Error ? error.message : String(error)}`,
-        evidenceRefs: [],
-        validationCommands: [],
-        noShip: true,
-        runId: meta.runId,
-        outputHash: meta.outputHash,
-        outputContract: result.outputContract,
-        gatePassed: result.gatePassed,
-        childChangedPaths: result.childChangedPaths ?? [],
-      }, "delegation");
-      return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim: false, node };
-    }
-  }
-  const peerResult = extractTodoPeerResultFromText(text);
-  if (peerResult.contract) {
-    const peerItem = peerResult.items.find((item) => item.todoId === todoId);
-    const peerBlockers = [
-      ...(!peerResult.hasFinalMarker ? ["missing_final_marker"] : []),
-      ...(peerItem ? [] : [`mismatched_todo_id:${todoId}`]),
-      ...(peerItem?.statusClaim ? [] : ["missing_status_claim"]),
-      ...(peerItem?.statusClaim === "done" && peerItem.evidenceRefs.length === 0 && peerItem.validationCommands.length === 0 ? ["missing_evidence_for_done"] : []),
-      ...(peerItem?.noShip === true ? ["no_ship_true"] : []),
-      ...(peerItem?.acceptanceBlockers ?? []),
-      ...(peerItem?.risks ?? []).map((risk) => `risk:${risk}`),
-    ];
-    const peerStatusClaim = peerItem?.statusClaim ?? "blocked";
-    const validReadyClaim = !isFailed(result)
-      && Boolean(peerItem)
-      && peerResult.hasFinalMarker
-      && peerStatusClaim === "done"
-      && (peerItem!.evidenceRefs.length > 0 || peerItem!.validationCommands.length > 0)
-      && peerItem!.noShip !== true
-      && peerBlockers.length === 0;
-    const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
-      claimText: text || `peer returned no ${peerResult.contract} body`,
-      evidenceRefs: peerItem?.evidenceRefs ?? [],
-      validationCommands: peerItem?.validationCommands ?? [],
-      noShip: validReadyClaim ? false : true,
-      runId: meta.runId,
-      outputHash: meta.outputHash,
-      outputContract: peerResult.contract,
-      gatePassed: result.gatePassed === true && validReadyClaim,
-      childGoalStatus: validReadyClaim ? "ready_for_oracle" : peerStatusClaim === "blocked" ? "blocked" : "incomplete",
-      statusClaim: peerStatusClaim,
-      targetReadiness: validReadyClaim ? "ready_for_parent_acceptance" : peerStatusClaim === "blocked" ? "blocked" : "needs_parent_review",
-      acceptanceBlockers: [...new Set(peerBlockers)],
-      childChangedPaths: result.childChangedPaths ?? [],
-    }, "delegation");
-    return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim, node };
-  }
+  const outputHash = meta.outputHash ?? (text ? sha256(text) : undefined);
   const claim = extractTodoClaimFromText(text);
-  const validReadyClaim = !isFailed(result)
+  const issueCodes = (result.gateIssues ?? []).map((issue) => issue.code);
+  const semanticGateFailure = result.gateIssues?.some((issue) => issue.classification === "output_gate_semantic") === true;
+  const formatGateFailure = result.gatePassed === false && !semanticGateFailure;
+  const runtimeFailure = result.stopReason === "aborted"
+    ? { status: "cancelled" as const, reasonCode: "child_aborted" as const, failureKind: "aborted" as const }
+    : result.exitCode !== 0 || result.stopReason === "error"
+      ? { status: "failed_runtime" as const, reasonCode: "child_runtime_failed" as const, failureKind: "child_runtime" as const }
+      : undefined;
+  const exactContract = result.outputContract === binding.expected_claim.output_contract
+    && (result.outputContract === "todo-child-result.v1" || result.outputContract === "todo-child-result.v2");
+  const validReadyClaim = !runtimeFailure
+    && result.gatePassed === true
+    && exactContract
     && claim.todoId === todoId
     && claim.childGoalStatus === "ready_for_oracle"
     && claim.statusClaim === "done"
+    && claim.targetReadiness === "ready_for_parent_acceptance"
     && claim.hasFinalMarker
     && (claim.evidenceRefs.length > 0 || claim.validationCommands.length > 0)
-    && claim.noShip !== true;
-  const childBlockers = [
-    ...(!claim.hasFinalMarker ? ["missing_final_marker"] : []),
-    ...(claim.todoId && claim.todoId !== todoId ? [`mismatched_todo_id:${claim.todoId}`] : []),
-    ...(claim.statusClaim === "done" && claim.evidenceRefs.length === 0 && claim.validationCommands.length === 0 ? ["missing_evidence_for_done"] : []),
-    ...(claim.noShip === true ? ["no_ship_true"] : []),
-    ...claim.acceptanceBlockers,
-  ];
-  const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
-    claimText: text || "child returned no TODO_CHILD_RESULT.v1/v2 claim",
-    evidenceRefs: claim.evidenceRefs,
-    validationCommands: claim.validationCommands,
-    noShip: validReadyClaim ? false : true,
-    runId: meta.runId,
-    outputHash: meta.outputHash,
-    outputContract: result.outputContract,
-    gatePassed: result.gatePassed,
-    childGoalStatus: claim.childGoalStatus,
-    statusClaim: claim.statusClaim,
-    targetReadiness: claim.targetReadiness,
-    acceptanceBlockers: [...new Set(childBlockers)],
-    childChangedPaths: result.childChangedPaths ?? [],
-  }, "delegation");
-  return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim, node };
+    && hasOnlyNoneLike(claim.acceptanceBlockers)
+    && claim.noShip === false;
+
+  if (validReadyClaim) {
+    const node = returnGoalTodoClaim(pi, state, goalId, todoId, {
+      claimText: text,
+      evidenceRefs: claim.evidenceRefs,
+      validationCommands: claim.validationCommands,
+      noShip: false,
+      runId,
+      outputHash,
+      outputContract: result.outputContract,
+      gatePassed: true,
+      childGoalStatus: "ready_for_oracle",
+      statusClaim: "done",
+      targetReadiness: "ready_for_parent_acceptance",
+      acceptanceBlockers: [],
+      childChangedPaths: result.childChangedPaths ?? [],
+    }, "delegation");
+    return { goalId, todoId, claimHash: node?.claim?.claimHash, validReadyClaim: true, node };
+  }
+
+  if (semanticGateFailure && (current.delegation?.attemptId !== latestAttempt.attemptId || current.delegation?.runId !== runId)) {
+    return { goalId, todoId, validReadyClaim: false };
+  }
+  const declaredBlocked = claim.childGoalStatus === "blocked" || claim.statusClaim === "blocked" || claim.targetReadiness === "blocked";
+  const outcome = runtimeFailure
+    ?? (semanticGateFailure
+      ? { status: "failed_output_gate_semantic" as const, reasonCode: "output_gate_semantic" as const, failureKind: "output_gate" as const }
+      : formatGateFailure
+        ? {
+          status: "failed_output_gate_format" as const,
+          reasonCode: result.gateIssues?.some((issue) => issue.code === "empty_output") ? "output_missing" as const
+            : result.gateIssues?.some((issue) => issue.classification === "contract_configuration") ? "output_gate_contract_configuration" as const
+              : "output_gate_format" as const,
+          failureKind: "output_gate" as const,
+        }
+        : {
+          status: "output_declared_incomplete" as const,
+          reasonCode: declaredBlocked ? "output_declared_blocked" as const : "output_declared_incomplete" as const,
+          failureKind: undefined,
+        });
+  let node: GoalTodoNode | undefined;
+  try {
+    node = finalizeGoalTodoDelegationAttempt(pi, state, goalId, todoId, {
+      attemptId: latestAttempt.attemptId,
+      runId,
+      requestId: childGoal?.request_id,
+      status: outcome.status,
+      reasonCode: outcome.reasonCode,
+      failureKind: outcome.failureKind,
+      outputContract: result.outputContract,
+      outputHash,
+      failureHash: runtimeFailure ? sha256(result.errorMessage || result.stopReason || result.stderr || `child_runtime:${result.exitCode}`) : undefined,
+      gateIssueCodes: issueCodes,
+      gateIssueCount: result.gateIssues?.length ?? 0,
+      evidenceRefCount: claim.evidenceRefs.length,
+      validationCommandCount: claim.validationCommands.length,
+    }, "delegation");
+  } catch (error) {
+    if (!/delegation_attempt_(mismatch|finalized|missing|request_mismatch)/.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
+  return { goalId, todoId, validReadyClaim: false, node };
 }
 
 export function shouldRunAgenticClaimValidation(childGoal: ChildGoalInput | undefined, claimRecord: { validReadyClaim: boolean; node?: GoalTodoNode; splitApplied?: boolean }): boolean {
   const settings = childGoal?.agentic_validation;
   if (!settings || settings.mode !== "oracle_then_auto_accept") return false;
-  if (claimRecord.splitApplied || !claimRecord.validReadyClaim || !claimRecord.node?.claim) return false;
-  if (claimRecord.node.claim.noShip === true) return false;
+  if (claimRecord.splitApplied || !claimRecord.validReadyClaim || !isCanonicalGoalTodoClaimBinding(claimRecord.node?.claim)) return false;
+  if (claimRecord.node.claim.validationPolicy !== "oracle_required" || claimRecord.node.claim.noShip === true) return false;
   return true;
 }
 
@@ -392,6 +657,10 @@ export function formatTodoClaimValidationTask(node: GoalTodoNode, childGoal: Chi
     `- todo_path: ${node.path}`,
     `- owner/status: ${node.owner}/${node.status}`,
     `- claim_hash: ${claim?.claimHash ?? "missing"}`,
+    `- claim_attempt_id: ${claim?.attemptId ?? "missing"}`,
+    `- claim_graph_revision: ${claim?.graphRevision ?? "missing"}`,
+    `- claim_todo_revision: ${claim?.todoRevision ?? "missing"}`,
+    `- validation_policy: ${claim?.validationPolicy ?? "missing"}`,
     `- claim_output_hash: ${claim?.outputHash ?? "none"}`,
     `- claim_output_contract: ${claim?.outputContract ?? "unknown"}`,
     `- claim_gate_passed: ${claim?.gatePassed === true}`,
@@ -423,14 +692,15 @@ export async function runAgenticTodoClaimValidation(input: {
   const goalId = claimRecord.goalId;
   const todoId = claimRecord.todoId;
   const node = claimRecord.node;
-  if (!goalId || !todoId || !node?.claim) return;
+  if (!goalId || !todoId || !isCanonicalGoalTodoClaimBinding(node?.claim)) return;
   const settings = childGoal?.agentic_validation;
   const agentName = settings?.oracle_agent ?? "oracle";
   const agents = discoverAgents(ctx.cwd, "both");
   const agent = agents.find((candidate) => candidate.name.toLowerCase() === agentName.toLowerCase());
   const validationRunId = newRunId("todo_claim_validation");
+  let validationRequestNode: GoalTodoNode;
   try {
-    requestGoalTodoClaimValidation(pi, state, goalId, todoId, { runId: validationRunId, agent: agentName }, "delegation");
+    validationRequestNode = requestGoalTodoClaimValidation(pi, state, goalId, todoId, { runId: validationRunId, agent: agentName }, "delegation");
   } catch (error) {
     appendDelegationLedger({ event: "todo_claim_validation_request_failed", parentRunId, runId: validationRunId, goalId, todoId, errorHash: sha256(error instanceof Error ? error.message : String(error)), at: new Date().toISOString() });
     return;
@@ -455,7 +725,7 @@ export async function runAgenticTodoClaimValidation(input: {
     applyChildGates(result, { repoRoot: ctx.cwd });
     result.failureKind = classifyChildFailure(result);
   }
-  const outputHash = result.output ? sha256(result.output) : undefined;
+  const outputHash = sha256(result.output || result.stderr || JSON.stringify([result.exitCode, result.stopReason ?? "", result.failureKind ?? "", result.gateIssues?.map((issue) => issue.code) ?? []]));
   let parsed = extractTodoClaimValidationFromText(result.output || result.stderr || "");
   if (!isActionableTodoClaimValidation(parsed, todoId, node.claim.claimHash) || isFailed(result)) {
     parsed = {
@@ -479,6 +749,11 @@ export async function runAgenticTodoClaimValidation(input: {
       outputHash,
       autoAccept: settings?.auto_accept_on_pass !== false,
       repoRoot: ctx.cwd,
+      expectedClaimHash: node.claim.claimHash,
+      expectedAttemptId: node.claim.attemptId,
+      expectedValidationPolicy: node.claim.validationPolicy,
+      expectedGraphRevision: validationRequestNode.validation?.graphRevision ?? -1,
+      expectedTodoRevision: validationRequestNode.validation?.todoRevision ?? -1,
     }, "delegation");
   } catch (error) {
     appendDelegationLedger({ event: "todo_claim_validation_record_failed", parentRunId, runId: validationRunId, goalId, todoId, errorHash: sha256(error instanceof Error ? error.message : String(error)), at: new Date().toISOString() });
@@ -510,18 +785,18 @@ export function finalFormatGuidance(outputContract: string): string[] {
     "- verification_commands: exact commands run",
     "- results: exact command outcomes",
     "- evidence: concise proof",
-    "- risks/blockers: unresolved risks",
+    "- risks_blockers: unresolved risks",
     "- compliance: forbidden zones respected, no commits",
     "- final line must be exactly: deliverable_delivered: yes",
   ];
   if (outputContract === "qa.v1") return [
     "FINAL FORMAT (qa.v1):",
     "- verdict: PASS / FAIL / WARN / INCONCLUSIVE",
-    "- commands: exact command, cwd, and exit code",
-    "- important output: stdout/stderr excerpts or artifact evidence",
+    "- command: exact command and cwd",
+    "- exit_or_output: exit code plus stdout/stderr excerpts or artifact evidence",
     "- reproduction: steps to reproduce",
     "- evidence: concrete verification evidence",
-    "- risks/blockers: unresolved risks",
+    "- risks_blockers: unresolved risks",
     "- compliance: read-only QA; forbidden zones respected; no commits",
     "- final line must be exactly: deliverable_delivered: yes",
   ];
@@ -601,12 +876,20 @@ export function finalFormatGuidance(outputContract: string): string[] {
       `- final line must be exactly: FINAL_MARKER: ${finalMarker}`,
     ];
   }
+  const definition = getOutputContractDefinitions().find((contract) => contract.id === outputContract);
+  const finalMarker = getOutputContractFinalMarker(outputContract);
+  if (definition && finalMarker) return [
+    `FINAL FORMAT (${outputContract}):`,
+    "- Use these exact required headings/field names:",
+    ...definition.required.map((requirement) => `- ${requirement}: required`),
+    `- final line must be exactly: ${finalMarker}`,
+  ];
   return [
-    "FINAL FORMAT:",
+    `FINAL FORMAT (${outputContract}):`,
     "- result",
     "- evidence",
-    "- risks/blockers",
-    "- compliance line",
+    "- risks_blockers",
+    "- compliance",
     "- final line must be exactly: deliverable_delivered: yes",
   ];
 }

@@ -20,6 +20,7 @@ import type { ZAgentRoomBinding } from "../domains/coms/zagents.js";
 import { createZcompactRuntimeState, restoreZcompactStateFromBranch, type ZcompactRuntimeState } from "./auto-compaction.js";
 import { createZcommitRuntimeState, recordZcommitOwnedPath, type ZcommitLastCommitRecord, type ZcommitOwnershipSource, type ZcommitRuntimeState, type ZcommitToggleState } from "../domains/git/git-ops.js";
 import type { StopRestoreCandidate } from "./stop-restore.js";
+import { createFileToolPreflightRuntimeState, type FileToolPreflightRuntimeState } from "../domains/governance/file-tool-preflight.js";
 
 export interface DelegationMouseRuntimeState {
   tui?: TUI;
@@ -80,7 +81,12 @@ export interface ZobInboundZpeerMessage {
   receivedAt: string;
   injectedAt?: string;
   turnStartedAt?: string;
+  /** Proof that turn correlation came from an exact custom-message msgId, never taskHash alone. */
+  turnBindingSource?: "custom_message";
   responseSent: boolean;
+  /** Atomic claim held across response socket I/O to prevent duplicate transport. */
+  responseInFlight?: boolean;
+  responseClaimSource?: "auto" | "tool" | "command" | "watchdog";
   priority: ZpeerInterruptPriority;
   interruptMode: ZpeerInterruptMode;
   repoRoot: string;
@@ -90,7 +96,11 @@ export interface ZobInboundZpeerMessage {
   reinjectCount?: number;
   maxReinjects?: number;
   requiredResponseStatus?: "owed" | "reinjecting" | "replied" | "expired" | "cancelled";
+  /** Runtime goal created while this inbound was active; auto-reply waits for a terminal goal state. */
+  boundGoalId?: string;
   watchdogTimer?: ReturnType<typeof setTimeout>;
+  watchdogRetryAt?: string;
+  watchdogTransportFailures?: number;
 }
 
 export interface ZobLiveRuntimeState {
@@ -184,6 +194,7 @@ export interface HarnessRuntimeState {
   activeRuleResolution?: RuleResolution;
   lastUserInputText?: string;
   stopRestoreCandidate?: StopRestoreCandidate;
+  fileToolPreflight: FileToolPreflightRuntimeState;
   lastModeIntent?: ZobModeIntent & { at: number; accepted: boolean; validationReason: string };
   delegations: DelegationMonitorState;
   delegationMouse: DelegationMouseRuntimeState;
@@ -213,6 +224,7 @@ export function createHarnessRuntimeState(): HarnessRuntimeState {
     activeRuleResolution: undefined,
     lastUserInputText: undefined,
     stopRestoreCandidate: undefined,
+    fileToolPreflight: createFileToolPreflightRuntimeState(),
     lastModeIntent: undefined,
     delegations: createDelegationMonitorState(),
     delegationMouse: { enabled: false, opening: false, mouseReleaseEpoch: 0 },

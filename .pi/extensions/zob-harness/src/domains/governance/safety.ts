@@ -3,7 +3,8 @@ import { join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 import { DEFAULT_RULES } from "../../core/constants.js";
-import type { BudgetSidecar, DamageRules, HarnessAgent } from "../../types.js";
+import { sha256Hex } from "../../core/utils/hashing.js";
+import type { BudgetSidecar, DamageRules, HarnessAgent, ModeName } from "../../types.js";
 import { expandHome, pathMatches } from "../../core/utils/paths.js";
 
 function loadDamageRules(cwd: string): DamageRules {
@@ -333,6 +334,173 @@ export function buildChildEnv(repoRoot: string, pathPolicy?: { allowedPaths?: st
   if (pathPolicy?.forbiddenPaths && pathPolicy.forbiddenPaths.length > 0) env.ZOB_FORBIDDEN_PATHS = pathPolicy.forbiddenPaths.join(",");
   if (pathPolicy?.sandboxRoot) env.ZOB_SANDBOX_ROOT = pathPolicy.sandboxRoot;
   return env;
+}
+
+export const DAMAGE_CONTROL_REASON_CODES = [
+  "mode_blocked",
+  "zero_access",
+  "read_only",
+  "protected_delete",
+  "destructive_command",
+  "approval_denied",
+] as const;
+
+export type DamageControlReasonCode = (typeof DAMAGE_CONTROL_REASON_CODES)[number];
+
+export interface DamageControlBlockMetadata {
+  schema: "zob.damage-control-block.v1";
+  block: true;
+  executionPerformed: false;
+  currentMode: ModeName;
+  toolName: string;
+  reasonCode: DamageControlReasonCode;
+  ruleDigest: string;
+  argumentHash: string;
+  argumentCount: number;
+  bodyStored: false;
+}
+
+const DAMAGE_CONTROL_METADATA_FIELDS = new Set([
+  "schema",
+  "block",
+  "executionPerformed",
+  "currentMode",
+  "toolName",
+  "reasonCode",
+  "ruleDigest",
+  "argumentHash",
+  "argumentCount",
+  "bodyStored",
+]);
+const DAMAGE_CONTROL_BODY_LIKE_FIELDS = new Set([
+  "command",
+  "path",
+  "input",
+  "body",
+  "prompt",
+  "output",
+  "stderr",
+  "error",
+  "diff",
+  "patch",
+  "message",
+  "text",
+  "content",
+  "secret",
+  "token",
+  "password",
+  "apikey",
+  "authorization",
+  "credential",
+  "credentials",
+]);
+const DAMAGE_CONTROL_HASH_PATTERN = /^[a-f0-9]{64}$/;
+
+function stableHashInput(value: unknown, seen = new WeakSet<object>()): string {
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "bigint") return JSON.stringify(value.toString());
+    if (typeof value === "undefined") return '"[undefined]"';
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? JSON.stringify(String(value)) : serialized;
+  }
+  if (seen.has(value)) return '"[circular]"';
+  seen.add(value);
+  if (Array.isArray(value)) return `[${value.map((entry) => stableHashInput(entry, seen)).join(",")}]`;
+  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableHashInput((value as Record<string, unknown>)[key], seen)}`).join(",")}}`;
+}
+
+function damageControlArgumentCount(value: unknown): number {
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === "object" && value !== null) return Object.keys(value).length;
+  return value === undefined ? 0 : 1;
+}
+
+function damageControlFieldIsBodyLike(field: string): boolean {
+  const normalized = field.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  if (normalized === "bodystored" || normalized.endsWith("hash") || normalized.endsWith("digest")) return false;
+  return [...DAMAGE_CONTROL_BODY_LIKE_FIELDS].some((bodyLike) => (
+    normalized === bodyLike || normalized.startsWith(bodyLike) || normalized.endsWith(bodyLike)
+  )) || (normalized.startsWith("raw") && DAMAGE_CONTROL_BODY_LIKE_FIELDS.has(normalized.slice(3)));
+}
+
+export function damageControlBodyLikeFieldViolations(value: unknown): string[] {
+  const violations: string[] = [];
+  const seen = new WeakSet<object>();
+
+  function visit(candidate: unknown, path: string): void {
+    if (typeof candidate !== "object" || candidate === null || seen.has(candidate)) return;
+    seen.add(candidate);
+    if (Array.isArray(candidate)) {
+      candidate.forEach((entry, index) => visit(entry, `${path}[${index}]`));
+      return;
+    }
+    for (const [field, entry] of Object.entries(candidate)) {
+      const fieldPath = `${path}.${field}`;
+      if (damageControlFieldIsBodyLike(field)) violations.push(fieldPath);
+      visit(entry, fieldPath);
+    }
+  }
+
+  visit(value, "$");
+  return violations.sort();
+}
+
+export function validateDamageControlBlockMetadata(value: unknown): string[] {
+  const errors = damageControlBodyLikeFieldViolations(value).map((path) => `${path} is a forbidden body-like field`);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return [...errors, "$ must be an object"];
+  const record = value as Record<string, unknown>;
+  for (const field of Object.keys(record)) {
+    if (!DAMAGE_CONTROL_METADATA_FIELDS.has(field)) errors.push(`$.${field} is not allowed`);
+  }
+  if (record.schema !== "zob.damage-control-block.v1") errors.push("$.schema must equal zob.damage-control-block.v1");
+  if (record.block !== true) errors.push("$.block must be true");
+  if (record.executionPerformed !== false) errors.push("$.executionPerformed must be false");
+  if (typeof record.currentMode !== "string" || record.currentMode.length === 0) errors.push("$.currentMode must be a non-empty mode");
+  if (typeof record.toolName !== "string" || record.toolName.length === 0) errors.push("$.toolName must be a non-empty tool name");
+  if (!DAMAGE_CONTROL_REASON_CODES.includes(record.reasonCode as DamageControlReasonCode)) errors.push("$.reasonCode must be a stable damage-control reason code");
+  if (typeof record.ruleDigest !== "string" || !DAMAGE_CONTROL_HASH_PATTERN.test(record.ruleDigest)) errors.push("$.ruleDigest must be a lowercase sha256 hash");
+  if (typeof record.argumentHash !== "string" || !DAMAGE_CONTROL_HASH_PATTERN.test(record.argumentHash)) errors.push("$.argumentHash must be a lowercase sha256 hash");
+  if (!Number.isSafeInteger(record.argumentCount) || (record.argumentCount as number) < 0) errors.push("$.argumentCount must be a non-negative safe integer");
+  if (record.bodyStored !== false) errors.push("$.bodyStored must be false");
+  return [...new Set(errors)].sort();
+}
+
+export function buildDamageControlBlockMetadata(input: {
+  toolName: string;
+  currentMode: ModeName;
+  reasonCode: DamageControlReasonCode;
+  ruleIdentity: string;
+  attemptedInput: unknown;
+}): DamageControlBlockMetadata {
+  const metadata: DamageControlBlockMetadata = {
+    schema: "zob.damage-control-block.v1",
+    block: true,
+    executionPerformed: false,
+    currentMode: input.currentMode,
+    toolName: input.toolName,
+    reasonCode: input.reasonCode,
+    ruleDigest: sha256Hex(input.ruleIdentity),
+    argumentHash: sha256Hex(stableHashInput(input.attemptedInput)),
+    argumentCount: damageControlArgumentCount(input.attemptedInput),
+    bodyStored: false,
+  };
+  const errors = validateDamageControlBlockMetadata(metadata);
+  if (errors.length > 0) throw new Error(`unsafe damage-control metadata: ${errors.join("; ")}`);
+  return metadata;
+}
+
+export function persistDamageControlBlockFailClosed(
+  metadata: DamageControlBlockMetadata,
+  appendEntry: (customType: "zob-damage-control", data: DamageControlBlockMetadata) => void,
+): { block: true; telemetryRecorded: boolean } {
+  try {
+    const errors = validateDamageControlBlockMetadata(metadata);
+    if (errors.length > 0) throw new Error(`unsafe damage-control metadata: ${errors.join("; ")}`);
+    appendEntry("zob-damage-control", metadata);
+    return { block: true, telemetryRecorded: true };
+  } catch {
+    return { block: true, telemetryRecorded: false };
+  }
 }
 
 export { formatContractTemplate, loadDamageRules };

@@ -1,0 +1,19 @@
+{
+  "schema": "zob.tool-failure-replay-fixture.v1",
+  "taxonomyRevision": 1,
+  "bodyStored": false,
+  "attempts": [
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "toolHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "inputHash": "9090909090909090909090909090909090909090909090909090909090909090",
+      "stateHash": "abababababababababababababababababababababababababababababababab",
+      "failureClass": "output_gate",
+      "reasonCode": "output_gate_failed",
+      "stateRevision": 2,
+      "occurredAt": "2026-07-13T10:04:00.000Z",
+      "bodyStored": false
+    }
+  ]
+}

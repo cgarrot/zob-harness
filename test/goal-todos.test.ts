@@ -105,6 +105,6 @@ test("blockGoalTodo: blocks a todo with the supplied reason", () => {
 test("acceptGoalTodoClaim: refuses todos without a returned delegated claim", () => {
   const state = createHarnessRuntimeState();
   const created = addGoalTodo(pi, state, "goal-1", { title: "Task A" });
-  assert.throws(() => acceptGoalTodoClaim(pi, state, "goal-1", created.id), /has no returned delegated claim to accept/);
+  assert.throws(() => acceptGoalTodoClaim(pi, state, "goal-1", created.id), /code=invalid_transition current=planned action=accept_claim/);
   assert.throws(() => acceptGoalTodoClaim(pi, state, "goal-1", "ghost"), /Goal TODO not found/);
 });

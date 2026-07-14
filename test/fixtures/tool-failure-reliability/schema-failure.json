@@ -1,0 +1,19 @@
+{
+  "schema": "zob.tool-failure-replay-fixture.v1",
+  "taxonomyRevision": 1,
+  "bodyStored": false,
+  "attempts": [
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "toolHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "inputHash": "5050505050505050505050505050505050505050505050505050505050505050",
+      "stateHash": "6060606060606060606060606060606060606060606060606060606060606060",
+      "failureClass": "schema_validation",
+      "reasonCode": "schema_validation_failed",
+      "stateRevision": 1,
+      "occurredAt": "2026-07-13T10:02:00.000Z",
+      "bodyStored": false
+    }
+  ]
+}

@@ -26,7 +26,9 @@ Use this skill when:
 - For `handoff_goal_todo` and `/goal todo handoff`, require an explicit team/ZTeam context, an existing live peer receiver, and a maintainer-provided custom contextual message; do not auto-launch teams or count handoff delivery as TODO completion.
 - For children launched without harness extensions, owner-change coordination is via final-output `OWNER_CHANGE_REQUEST.v1` blocks extracted by the parent, not direct child Goal Room/ZPeer writes.
 - When a live answer changes ownership, scope, conflict, or merge readiness, mirror only typed hash/body-free metadata to Goal Room.
-- Let the runtime capture normal inbound responses when handling live prompts.
+- Let the runtime capture normal inbound responses when handling live prompts: short tasks auto-reply at `agent_end`; an inbound that creates a runtime goal stays bound to its exact `msgId` until goal completion, while blocked/paused/failed terminal states send a correlated blocker instead of silent success.
+- Treat automatic capture as fail-closed: exact custom-message `details.msgId` is canonical, taskHash is only an integrity check, and multiple unanswered inbounds require explicit `zpeer_reply` rather than guessing.
+- An async ask without `requireResponse` remains non-blocking delivery-only at send time; a later automatic correlated reply is best-effort follow-up, not proof at the initial `waiting` status.
 - Prefer `zob_coms_get` / `zob_coms_await` with the `msgId` returned by your own send; required-response success must come from exact msgId/replyToMsgId correlation, not ACK/reinjection/delivery metadata.
 
 ## MUST NOT
@@ -35,7 +37,7 @@ Use this skill when:
 - Do not use `zob_coms_send` to create worker-to-worker free chat.
 - Do not replace ZPeer/ZTeam room membership with custom file-backed `rooms/`, shell inbox/outbox scripts, or pane-paste protocols when the owner asked for agent rooms or live team communication.
 - Do not use ZPeer to bypass parent-owned owner arbitration, TODO handoff acceptance, TODO split, sandbox, merge, or oracle gates.
-- Do not mark `queued`, `planned`, delivered, acknowledged, stale, or offline as completion.
+- Do not mark `queued`, `planned`, delivered, acknowledged, `waiting`, stale, or offline as completion.
 - Do not create ping-pong loops; answer the inbound live prompt normally.
 - Do not bypass topology guards.
 - Do not enable network transport without explicit auth/locality policy.

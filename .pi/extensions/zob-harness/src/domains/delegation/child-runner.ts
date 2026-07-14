@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +40,7 @@ function providerFromModelPattern(model: string | undefined): string | undefined
 }
 
 function resolveCodexFastModeExtension(ctx: ExtensionContext, model: string | undefined): string | undefined {
-  const provider = ctx.model?.provider ?? providerFromModelPattern(model);
+  const provider = providerFromModelPattern(model) ?? ctx.model?.provider;
   const usesCodexProvider = provider === "openai-codex" || provider === "codex-auto" || provider?.startsWith("codex-") === true;
   if (!usesCodexProvider) return undefined;
   const extensionPath = join(getAgentDir(), "extensions", "codex-fast-mode.ts");
@@ -47,6 +48,17 @@ function resolveCodexFastModeExtension(ctx: ExtensionContext, model: string | un
 }
 
 const CHILD_THINKING_LEVELS = new Set<string>(["low", "medium", "high", "xhigh"]);
+
+function createChildSessionPath(
+  agentSessionDir: string,
+  agentName: string,
+  options: { now?: number; pid?: number; uniqueSuffix?: string } = {},
+): string {
+  const now = options.now ?? Date.now();
+  const pid = options.pid ?? process.pid;
+  const uniqueSuffix = options.uniqueSuffix ?? randomUUID();
+  return join(agentSessionDir, `${now}-${pid}-${safeFileStem(agentName)}-${safeFileStem(uniqueSuffix)}.jsonl`);
+}
 
 function validateChildThinkingOverride(thinking: string | undefined, fieldName = "thinking"): string[] {
   if (thinking === undefined) return [];
@@ -93,7 +105,7 @@ function createSupervisedReadonlyDispatcher(ctx: ExtensionContext, signal: Abort
     if (isFailed(childResult)) {
       const gateErrorHash = childResult.gateErrors && childResult.gateErrors.length > 0 ? sha256(childResult.gateErrors.join("\n")) : undefined;
       const runtimeErrorHash = childResult.errorMessage ? sha256(childResult.errorMessage) : undefined;
-      return { status: "failed", outputHash, output: childResult.output, error: gateErrorHash ?? runtimeErrorHash ?? `child_failed:${childResult.exitCode}`, dispatcher: "live_child_pi", mocked: false, sessionPath: childResult.sessionPath, outputContractValidated: childResult.gatePassed !== undefined, gatePassed: childResult.gatePassed };
+      return { status: "failed", outputHash, output: childResult.output, error: runtimeErrorHash ?? gateErrorHash ?? `child_failed:${childResult.exitCode}`, dispatcher: "live_child_pi", mocked: false, sessionPath: childResult.sessionPath, outputContractValidated: childResult.gatePassed !== undefined, gatePassed: childResult.gatePassed };
     }
 
     return { status: "completed", outputHash, output: childResult.output, dispatcher: "live_child_pi", mocked: false, sessionPath: childResult.sessionPath, outputContractValidated: childResult.gatePassed !== undefined, gatePassed: childResult.gatePassed };
@@ -140,7 +152,7 @@ async function runChildAgent(
   const tmp = await mkdtemp(join(tmpdir(), "zob-agent-"));
   const agentSessionDir = join(ctx.cwd, ".pi", "agent-sessions");
   mkdirSync(agentSessionDir, { recursive: true });
-  const sessionPath = join(agentSessionDir, `${Date.now()}-${process.pid}-${safeFileStem(agent.name)}.jsonl`);
+  const sessionPath = createChildSessionPath(agentSessionDir, agent.name);
   result.sessionPath = sessionPath;
   emitUpdate?.(result);
 
@@ -271,4 +283,4 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T,
   return results;
 }
 
-export { createSupervisedReadonlyDispatcher, isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride };
+export { createChildSessionPath, createSupervisedReadonlyDispatcher, isFailed, mapWithConcurrency, runChildAgent, validateChildThinkingOverride };

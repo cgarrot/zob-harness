@@ -37,13 +37,19 @@ const source = readSurface(join(repoRoot, ".pi", "extensions", "zob-harness", "s
 assert(!source.includes("append_goal_room: Type.Optional"), "handoff_goal_todo must not expose append_goal_room in its public parameter schema");
 assert(source.includes("append_goal_room=false is not allowed for live TODO handoff"), "legacy append_goal_room=false must be hard-blocked before live delivery");
 
-const handoffStart = source.indexOf("async function handoffGoalTodos");
-assert(handoffStart >= 0, "handoffGoalTodos implementation must exist");
-const handoffBody = source.slice(handoffStart, source.indexOf("function goalTodoStatusIcon", handoffStart));
+const handoffStart = source.indexOf("async function executeHandoffGoalTodoEffects");
+assert(handoffStart >= 0, "executeHandoffGoalTodoEffects implementation must exist");
+const handoffSurfaceStart = source.lastIndexOf("function handoffGoalRoomInput", handoffStart);
+assert(handoffSurfaceStart >= 0, "executeHandoffGoalTodoEffects metadata helper must exist");
+const handoffMetadataEnd = source.indexOf("/** Canonicalize caller identity", handoffSurfaceStart);
+assert(handoffMetadataEnd > handoffSurfaceStart && handoffMetadataEnd < handoffStart, "handoff metadata helper surface must be bounded");
+const handoffEnd = source.indexOf("async function handoffGoalTodos", handoffStart);
+assert(handoffEnd > handoffStart, "executeHandoffGoalTodoEffects surface must end before the compatibility wrapper");
+const handoffBody = `${source.slice(handoffSurfaceStart, handoffMetadataEnd)}\n${source.slice(handoffStart, handoffEnd)}`;
 
-const appendIndex = handoffBody.indexOf("appendGoalRoomMessage(repoRoot");
+const appendIndex = handoffBody.indexOf("appendGoalRoom(repoRoot");
 const queuedIndex = handoffBody.indexOf('status: "queued"');
-const deliveryIndex = handoffBody.indexOf("await deliverHandoffLive");
+const deliveryIndex = handoffBody.indexOf("await deliverLive");
 assert(appendIndex >= 0, "handoff must append canonical Goal Room metadata");
 assert(queuedIndex >= 0, "handoff must prepare TODO delegation tracking");
 assert(deliveryIndex >= 0, "handoff must perform live delivery");
@@ -52,7 +58,7 @@ assert(queuedIndex < deliveryIndex, "TODO delegation tracking must be prepared b
 
 assert(handoffBody.includes("canonicalGoalRoomPrepared: true"), "Goal Room handoff metadata must declare canonical preparation");
 assert(handoffBody.includes("liveDeliveryRequired: true"), "handoff metadata must declare live delivery requirement");
-assert(handoffBody.includes('status: "failed"'), "handoff must mark TODO delegation failed if live delivery fails after preparation");
+assert(handoffBody.includes("markGoalTodoDelegationFailed"), "handoff must use the dedicated failure transition if live delivery fails after preparation");
 assert(handoffBody.includes("failureHash"), "handoff failure telemetry must be hash-only");
 assert(!handoffBody.includes("deliveryPreparedOnly: true"), "handoff must not leave prepared-only success semantics");
 assert(!handoffBody.includes("custom_message,"), "raw custom_message must not be persisted in handoff metadata");

@@ -67,13 +67,17 @@ for (const file of listTsFiles(srcRoot)) {
 }
 
 const goalTodos = await import(pathToFileURL(join(outRoot, "domains", "goal", "goal-todos.js")).href);
+const goalTodoReference = await import(pathToFileURL(join(outRoot, "domains", "goal", "goal-todos", "reference.js")).href);
 const modeIntent = await import(pathToFileURL(join(outRoot, "runtime", "mode-intent.js")).href);
 const modelAvailability = await import(pathToFileURL(join(outRoot, "domains", "models", "model-availability.js")).href);
 const toolsDelegationSource = readSurface(join(srcRoot, "runtime", "tools-delegation.ts"));
 assert(!toolsDelegationSource.includes("childGoalTodoErrors"), "delegation runtime must not reference stale childGoalTodoErrors symbol");
 assert(toolsDelegationSource.includes("...childGoalResolution.errors"), "delegation preflight must include structured childGoalResolution.errors");
-assert(toolsDelegationSource.includes("if (childGoal.todo_id && childGoal.todo_path && !resolution.node)"), "delegation preflight should attempt stale todo_id -> explicit todo_path fallback only after the id fails");
-assert(toolsDelegationSource.includes("resolution = pathResolution"), "delegation preflight should retarget to the safe resolved todo_path when it is unique and delegatable");
+assert(toolsDelegationSource.includes("resolveCanonicalGoalTodoReference"), "delegation preflight must reuse the strict canonical resolver");
+assert(!toolsDelegationSource.includes("resolution = pathResolution"), "delegation preflight must never retarget a failed todo_id through todo_path fallback");
+assert(toolsDelegationSource.includes("parent_todo_mismatch"), "delegation preflight must validate the actual canonical parent");
+assert(toolsDelegationSource.includes("expectedTodoId"), "delegation output gates must bind the exact canonical claim todo_id");
+assert(toolsDelegationSource.includes("output_gate_semantic"), "delegation result correlation must expose semantic gate diagnostics");
 assert(toolsDelegationSource.includes("subtodos/XDEF leaves"), "TODO-linked child prompts must recommend XDEF/subtodo split before parallel work");
 assert(toolsDelegationSource.includes("TODO_SPLIT_REQUEST.v1"), "TODO-linked child prompts must preserve split request guidance");
 
@@ -144,6 +148,22 @@ const todoState = {
     { ...baseNode, id: "todo_split20", path: "20", title: "Broad XDEF lane", status: "ready", createdAt: 14, updatedAt: 14 },
   ],
 };
+const strictGoalId = "goal-child-strict-smoke";
+const strictTodoState = {
+  ...todoState,
+  nodes: [
+    { ...baseNode, goalId: strictGoalId, id: "todo_aaaaaaaaaaaa", path: "1", revision: 2 },
+    { ...baseNode, goalId: strictGoalId, id: "todo_bbbbbbbbbbbb", path: "1.1", parentId: "todo_aaaaaaaaaaaa", depth: 2, revision: 3 },
+    { ...baseNode, goalId: strictGoalId, id: "todo_cccccccccccc", path: "2", revision: 4 },
+  ],
+};
+const strictDual = goalTodoReference.resolveCanonicalGoalTodoReference(strictTodoState, strictGoalId, { todoId: "todo_bbbbbbbbbbbb", todoPath: "1.1" });
+assert.equal(strictDual.canonicalId, "todo_bbbbbbbbbbbb", "strict dual child refs should agree on one canonical TODO");
+assert.equal(strictDual.path, "1.1", "strict dual child refs should retain the visible path");
+const strictMismatch = goalTodoReference.resolveCanonicalGoalTodoReference(strictTodoState, strictGoalId, { todoId: "todo_bbbbbbbbbbbb", todoPath: "2" });
+assert.equal(strictMismatch.code, "reference_mismatch", "strict dual child refs must reject disagreement without retargeting");
+assert.equal(goalTodoReference.resolveCanonicalGoalTodoReference(strictTodoState, strictGoalId, { todoId: "1.1" }).code, "invalid_todo_id", "strict child todo_id must never accept path text");
+
 const childGoalResolutionOptions = { requireDelegatable: true };
 
 const exact = goalTodos.resolveGoalTodoReference(todoState, goalId, "todo_canonical8", "child_goal.todo_id", childGoalResolutionOptions);

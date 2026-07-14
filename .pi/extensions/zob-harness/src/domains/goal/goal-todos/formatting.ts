@@ -97,8 +97,11 @@ export function formatGoalTodoTree(todoState: GoalTodoState, goalId: string | un
       const last = index === children.length - 1;
       const branch = indent ? (last ? "└─" : "├─") : "";
       const required = node.required ? "req" : "opt";
-      const delegation = node.delegation?.runId ? ` · run ${node.delegation.runId}` : "";
-      const claim = node.claim?.claimHash ? ` · claim ${node.claim.claimHash.slice(0, 12)}` : "";
+      const latestAttempt = node.delegationAttempts?.at(-1);
+      const delegation = latestAttempt
+        ? ` · attempt ${latestAttempt.attemptId} ${latestAttempt.status}${(node.delegationAttempts?.length ?? 0) > 1 ? ` (${node.delegationAttempts?.length} total)` : ""}`
+        : node.delegation?.runId ? ` · run ${node.delegation.runId}` : "";
+      const claim = node.claim?.claimHash ? ` · claim ${node.claim.claimHash.slice(0, 12)} (full hash/bindings/next actions in tool details)` : "";
       const validation = node.validation ? ` · validation ${node.validation.status}${node.validation.verdict ? `/${node.validation.verdict}` : ""}${node.validation.runId ? ` ${node.validation.runId}` : ""}` : "";
       const blocker = node.blocker ? ` · blocker ${node.blocker}` : "";
       lines.push(`${indent}${branch}${icon(node)} ${node.path} ${node.title} [${node.status}/${node.owner}/${required}/${node.priority}] · id ${node.id}${delegation}${claim}${validation}${blocker}`);

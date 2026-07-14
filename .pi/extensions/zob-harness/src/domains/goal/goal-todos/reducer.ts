@@ -4,7 +4,8 @@ import type { HarnessRuntimeState } from "../../../runtime/state.js";
 import type { GoalRoomTodoReducerDecision, GoalTodoEvent, GoalTodoNode, GoalTodoState } from "../goal-todo-types.js";
 import { SHA256_HEX, VALID_CHILD_GOAL_STATUS, VALID_STATUS_CLAIM, VALID_TARGET_READINESS, ZOB_GOAL_TODO_ENTRY_TYPE } from "./constants.js";
 import { applyEvent, baseTodoReducerDecision, cloneNode, goalRoomMessageString, goalRoomMetadata, includesString, metadataString, reducerStringArray } from "./normalize.js";
-import { blockGoalTodo, patchGoalTodo, returnGoalTodoClaim } from "./operations.js";
+import { authorizeGoalTodoTransition, blockGoalTodo, hasOnlyNoneLike, patchGoalTodo, returnGoalTodoClaim } from "./operations.js";
+import { cloneGoalMutationReceiptState, createGoalMutationReceiptState } from "../mutation-cas.js";
 
 export function reduceGoalRoomEventToTodoDecision(message: Record<string, unknown>): GoalRoomTodoReducerDecision {
   const decision = baseTodoReducerDecision(message);
@@ -32,15 +33,17 @@ export function reduceGoalRoomEventToTodoDecision(message: Record<string, unknow
   if (kind === "TODO_CLAIM") {
     const artifactRefs = reducerStringArray(message.artifactRefs);
     const evidenceRefs = [...new Set([...decision.evidenceRefs, ...artifactRefs])];
-    decision.action = "return_claim";
     decision.claimHash = validBodyHash;
     decision.outputHash = decision.outputHash && SHA256_HEX.test(decision.outputHash) ? decision.outputHash : validBodyHash;
     decision.evidenceRefs = evidenceRefs;
-    decision.statusClaim = decision.statusClaim ?? "done";
-    decision.childGoalStatus = decision.childGoalStatus ?? "ready_for_oracle";
-    decision.targetReadiness = decision.targetReadiness ?? (decision.noShip === true || decision.acceptanceBlockers.length > 0 ? "needs_parent_review" : "ready_for_parent_acceptance");
-    if (evidenceRefs.length === 0) decision.acceptanceBlockers = [...new Set([...decision.acceptanceBlockers, "missing_evidence_refs"] )];
-    if (decision.acceptanceBlockers.length > 0 && decision.noShip !== true) decision.noShip = true;
+    if (decision.childGoalStatus !== "ready_for_oracle") decision.reasonCodes.push("child_status_not_ready");
+    if (decision.statusClaim !== "done") decision.reasonCodes.push("child_status_claim_not_done");
+    if (decision.targetReadiness !== "ready_for_parent_acceptance") decision.reasonCodes.push("target_not_ready");
+    if (decision.noShip !== false) decision.reasonCodes.push("no_ship_not_clear");
+    if (!hasOnlyNoneLike(decision.acceptanceBlockers)) decision.reasonCodes.push("acceptance_blockers_present");
+    if (evidenceRefs.length === 0) decision.reasonCodes.push("missing_evidence_refs");
+    if (decision.reasonCodes.length > 0) return decision;
+    decision.action = "return_claim";
     return decision;
   }
 
@@ -89,16 +92,53 @@ export function applyGoalRoomEventTodoReducer(pi: ExtensionAPI, state: HarnessRu
     return { decision, node: cloneNode(node) };
   }
   if (decision.action === "mark_needs_review") {
-    const node = patchGoalTodo(pi, state, activeGoalId, decision.todoId, { status: "needs_review", owner: "agent", blocker: `goal-room event ${decision.claimHash?.slice(0, 12) ?? "hash"} requires parent action`, reviewNoShip: decision.noShip === true }, "runtime");
+    const existing = state.goalTodos.nodes.find((candidate) => candidate.goalId === activeGoalId && candidate.id === decision.todoId);
+    if (!existing) return { decision };
+    const reason = `goal-room event ${decision.claimHash?.slice(0, 12) ?? "hash"} requires parent action`;
+    const authorization = authorizeGoalTodoTransition(existing, "mark_needs_review", { reason });
+    const node = patchGoalTodo(pi, state, activeGoalId, decision.todoId, { status: authorization.decision.nextStatus, owner: "agent", blocker: reason, reviewNoShip: decision.noShip === true }, "runtime", authorization);
     return { decision, node: cloneNode(node) };
   }
   return { decision };
 }
 
 export function appendGoalTodoEvent(pi: ExtensionAPI, state: HarnessRuntimeState, event: GoalTodoEvent): GoalTodoEvent {
-  pi.appendEntry(ZOB_GOAL_TODO_ENTRY_TYPE, event);
-  applyEvent(state.goalTodos, event);
-  return event;
+  state.goalTodos.graphRevisions ??= {};
+  state.goalTodos.revisionDiagnostics ??= [];
+  state.goalTodos.restoreBlocked ??= {};
+  state.goalTodos.mutationReceipts ??= createGoalMutationReceiptState();
+  const blocked = state.goalTodos.restoreBlocked[event.goalId];
+  if (blocked) throw new Error(`Goal/TODO stream restore-blocked: ${blocked.message}`);
+  const todoId = event.kind === "add"
+    ? event.node.id
+    : "todoId" in event && event.kind !== "focus" ? event.todoId : undefined;
+  const existing = todoId ? state.goalTodos.nodes.find((node) => node.goalId === event.goalId && node.id === todoId) : undefined;
+  const revisioned: GoalTodoEvent = event.version === 2
+    ? event
+    : {
+      ...event,
+      version: 2,
+      graphRevision: (state.goalTodos.graphRevisions[event.goalId] ?? 0) + 1,
+      nodeRevision: todoId ? (existing ? (existing.revision ?? 0) + 1 : 1) : undefined,
+    } as GoalTodoEvent;
+  const shadow: GoalTodoState = {
+    nodes: state.goalTodos.nodes.map(cloneNode),
+    policy: { ...state.goalTodos.policy },
+    graphRevisions: { ...state.goalTodos.graphRevisions },
+    revisionDiagnostics: [],
+    restoreBlocked: Object.fromEntries(Object.entries(state.goalTodos.restoreBlocked).map(([goalId, diagnostic]) => [goalId, { ...diagnostic }])),
+    mutationReceipts: cloneGoalMutationReceiptState(state.goalTodos.mutationReceipts),
+    focusTodoId: state.goalTodos.focusTodoId,
+  };
+  if (!applyEvent(shadow, revisioned)) {
+    const rejected = shadow.restoreBlocked?.[event.goalId];
+    if (rejected && !state.goalTodos.restoreBlocked[event.goalId]) state.goalTodos.restoreBlocked[event.goalId] = { ...rejected };
+    state.goalTodos.revisionDiagnostics.push(...shadow.revisionDiagnostics.map((diagnostic) => ({ ...diagnostic })));
+    throw new Error(rejected ? `Goal/TODO stream restore-blocked: ${rejected.message}` : "Goal/TODO v2 revision event rejected");
+  }
+  pi.appendEntry(ZOB_GOAL_TODO_ENTRY_TYPE, revisioned);
+  applyEvent(state.goalTodos, revisioned);
+  return revisioned;
 }
 
 export function nextTodoId(): string {

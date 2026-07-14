@@ -1,10 +1,9 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { parseGoalState, validateGoalState } from "../../domains/goal/goal.js";
-import { handleGoalTodoTextCommand } from "../../domains/goal/goal-todos.js";
+import { goalTodoCompletionDiagnostics, handleGoalTodoTextCommand } from "../../domains/goal/goal-todos.js";
 import type { HarnessRuntimeState } from "../state.js";
-import { sha256 } from "../../core/utils/hashing.js";
-import type { RuntimeGoal, RuntimeGoalOracleVerdict } from "./state.js";
-import { appendRuntimeGoalEntry, asGoalActivationMode, clearEntry, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, createRuntimeGoal, formatGoalActivationMode, formatRuntimeGoalSummary, maybeStructuredGate, persistGoalActivationMode, queueRuntimeGoalContinuation, resumeRuntimeGoal, setEntry, unixSeconds } from "./state.js";
+import type { RuntimeGoal, RuntimeGoalCompletionProposalV2, RuntimeGoalOracleVerdict } from "./state.js";
+import { appendRuntimeGoalEntry, asGoalActivationMode, assertRuntimeGoalMutable, buildRuntimeGoalOracleBinding, clearEntry, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, cloneGoal, createRuntimeGoal, evaluateRuntimeGoalCompletionProposalFreshness, formatGoalActivationMode, formatRuntimeGoalSummary, isRuntimeGoalCompletionProposalV2, isRuntimeGoalOracleBindingV2, maybeStructuredGate, persistGoalActivationMode, queueRuntimeGoalContinuation, resumeRuntimeGoal, setEntry, unixSeconds } from "./state.js";
 import { handoffGoalTodos, parseGoalTodoHandoffTextCommand } from "./tools.js";
 
 export function handleGoalGateCommand(pi: ExtensionAPI, state: HarnessRuntimeState, text: string, ctx: ExtensionCommandContext, render: () => void): void {
@@ -54,7 +53,15 @@ export function handleGoalGateCommand(pi: ExtensionAPI, state: HarnessRuntimeSta
 export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeState, args: string, ctx: ExtensionCommandContext, render: () => void): Promise<void> {
   const text = args.trim();
   if (!text || text === "status") {
-    ctx.ui.notify(formatRuntimeGoalSummary(state.runtimeGoal, state.goalActivationMode), state.runtimeGoal?.status === "blocked" || state.runtimeGoal?.status === "oracle_failed" ? "warning" : "info");
+    const goal = state.runtimeGoal;
+    const diagnostics = goalTodoCompletionDiagnostics(state.goalTodos, goal?.goalId);
+    const freshness = evaluateRuntimeGoalCompletionProposalFreshness({
+      goal,
+      todoGraphRevision: goal ? state.goalTodos.graphRevisions?.[goal.goalId] ?? 0 : 0,
+      todoRestoreBlocked: Boolean(goal && state.goalTodos.restoreBlocked?.[goal.goalId]),
+      completionDiagnostics: diagnostics,
+    });
+    ctx.ui.notify(formatRuntimeGoalSummary(goal, state.goalActivationMode, undefined, freshness), goal?.status === "blocked" || goal?.status === "oracle_failed" ? "warning" : "info");
     return;
   }
   if (text === "mode") {
@@ -125,11 +132,13 @@ export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeS
     }
     const extraTurnsRaw = text === "resume" ? undefined : Number.parseInt(text.slice("resume ".length).trim(), 10);
     const extraTurns = Number.isFinite(extraTurnsRaw) ? extraTurnsRaw : undefined;
-    const resumed = resumeRuntimeGoal(state.runtimeGoal, extraTurns);
-    clearRuntimeGoalContinuationStateFor(state, state.runtimeGoal.goalId);
-    appendRuntimeGoalEntry(pi, state, setEntry(state.runtimeGoal, "command"));
+    const nextGoal = cloneGoal(state.runtimeGoal);
+    const resumed = resumeRuntimeGoal(nextGoal, extraTurns);
+    appendRuntimeGoalEntry(pi, state, setEntry(nextGoal, "command"));
+    const persistedGoal = state.runtimeGoal!;
+    clearRuntimeGoalContinuationStateFor(state, persistedGoal.goalId);
     render();
-    const extensionNote = resumed.additionalTurns ? ` · turn window extended +${resumed.additionalTurns} to ${state.runtimeGoal.loop.maxTurns}` : "";
+    const extensionNote = resumed.additionalTurns ? ` · turn window extended +${resumed.additionalTurns} to ${persistedGoal.loop.maxTurns}` : "";
     const blockerNote = resumed.previousBlocker ? ` (cleared blocker: ${resumed.previousBlocker})` : "";
     ctx.ui.notify(`ZOB runtime goal resumed${extensionNote}${blockerNote}`, "info");
     queueRuntimeGoalContinuation(pi, state, ctx, { userVisible: true });
@@ -143,16 +152,8 @@ export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeS
     ctx.ui.notify("ZOB runtime goal cleared", "info");
     return;
   }
-  if (text.startsWith("oracle ")) {
-    const [verdictRaw, ...rest] = text.slice("oracle ".length).trim().split(/\s+/);
-    const verdict = verdictRaw?.toUpperCase();
-    if (!state.runtimeGoal || (verdict !== "PASS" && verdict !== "WARN" && verdict !== "FAIL")) {
-      ctx.ui.notify("Usage: /goal oracle PASS|WARN|FAIL <evidence summary>", "warning");
-      return;
-    }
-    recordOracleVerdict(pi, state, verdict, verdict !== "PASS", rest.join(" ") || "manual oracle command");
-    render();
-    ctx.ui.notify(`ZOB goal oracle recorded: ${verdict}`, verdict === "PASS" ? "info" : "warning");
+  if (text === "oracle" || text.startsWith("oracle ")) {
+    ctx.ui.notify("Legacy /goal oracle recording is disabled because it cannot provide exact proposal-hash and CAS lineage. Use get_goal, then record_goal_oracle with expected_proposal_hash and cas.expected_goal_revision.", "warning");
     return;
   }
 
@@ -164,31 +165,74 @@ export async function handleGoalCommand(pi: ExtensionAPI, state: HarnessRuntimeS
     }
   }
   const gate = maybeStructuredGate(text);
-  if (gate) state.activeGoal = gate;
   const goal = createRuntimeGoal(gate?.activeGoal ?? text, { gate, gateRequired: state.goalRequired });
   appendRuntimeGoalEntry(pi, state, setEntry(goal, "command"));
-  if (gate) pi.appendEntry("zob-goal", gate);
+  const persistedGoal = state.runtimeGoal!;
+  if (persistedGoal.gate) {
+    state.activeGoal = persistedGoal.gate;
+    pi.appendEntry("zob-goal", persistedGoal.gate);
+  }
   render();
-  ctx.ui.notify(`ZOB runtime goal started: ${goal.objective.slice(0, 100)}`, "info");
+  ctx.ui.notify(`ZOB runtime goal started: ${persistedGoal.objective.slice(0, 100)}`, "info");
   queueRuntimeGoalContinuation(pi, state, ctx);
 }
 
-export function recordOracleVerdict(pi: ExtensionAPI, state: HarnessRuntimeState, verdict: RuntimeGoalOracleVerdict, noShip: boolean, evidenceSummary: string, evidenceRefs: string[] = []): RuntimeGoal | undefined {
+export interface RecordGoalOracleInput {
+  verdict: RuntimeGoalOracleVerdict;
+  noShip: boolean;
+  evidenceSummary: string;
+  evidenceRefs?: string[];
+  expectedProposalHash: string;
+  expectedGoalRevision: number;
+}
+
+function oracleRecordError(code: string, field: string, safeNextActions: string, message: string): Error {
+  return new Error(`record_goal_oracle blocked; code=${code} field=${field} retry_policy=refresh_goal safe_next_actions=${safeNextActions}; ${message}`);
+}
+
+export function assertGoalOracleRecordable(state: HarnessRuntimeState, input: Pick<RecordGoalOracleInput, "expectedProposalHash" | "expectedGoalRevision">): RuntimeGoalCompletionProposalV2 {
   const goal = state.runtimeGoal;
-  if (!goal) return undefined;
-  goal.oracle = {
-    required: true,
-    status: verdict === "PASS" && noShip === false ? "passed" : "failed",
-    verdict,
-    noShip,
-    evidenceRefs,
-    reviewHash: sha256(evidenceSummary),
-    reviewedAt: new Date().toISOString(),
-    blockerSummary: verdict === "PASS" && noShip === false ? undefined : evidenceSummary,
-  };
-  goal.status = verdict === "PASS" && noShip === false ? "ready_for_oracle" : "oracle_failed";
-  goal.loop.enabled = false;
-  goal.updatedAt = unixSeconds();
-  appendRuntimeGoalEntry(pi, state, setEntry(goal, "tool"));
-  return goal;
+  if (!goal) throw oracleRecordError("GOAL_MISSING", "goal", "create_goal", "No ZOB runtime goal exists");
+  assertRuntimeGoalMutable(goal);
+  if (!/^[a-f0-9]{64}$/.test(input.expectedProposalHash)) throw oracleRecordError("PROPOSAL_HASH_INVALID", "expected_proposal_hash", "get_goal", "an exact full lowercase sha256 is required");
+  if (!Number.isSafeInteger(input.expectedGoalRevision) || input.expectedGoalRevision < 0) throw oracleRecordError("GOAL_REVISION_INVALID", "cas.expected_goal_revision", "get_goal", "a canonical nonnegative revision is required");
+  if (input.expectedGoalRevision !== goal.revision) throw oracleRecordError("GOAL_REVISION_STALE", "cas.expected_goal_revision", "get_goal", `expected=${input.expectedGoalRevision} current=${goal.revision}`);
+  if (goal.status !== "ready_for_oracle") throw oracleRecordError("GOAL_NOT_READY_FOR_ORACLE", "goal.status", "resume_goal_then_propose_goal_completion", `current=${goal.status}`);
+  const diagnostics = goalTodoCompletionDiagnostics(state.goalTodos, goal.goalId);
+  const freshness = evaluateRuntimeGoalCompletionProposalFreshness({
+    goal,
+    todoGraphRevision: state.goalTodos.graphRevisions?.[goal.goalId] ?? 0,
+    todoRestoreBlocked: Boolean(state.goalTodos.restoreBlocked?.[goal.goalId]),
+    completionDiagnostics: diagnostics,
+  });
+  if (freshness.status !== "fresh") throw oracleRecordError("PROPOSAL_NOT_FRESH", "completionProposal", freshness.safeReproposeAction, `freshness=${freshness.code}`);
+  const proposal = goal.completionProposal;
+  if (!proposal || !isRuntimeGoalCompletionProposalV2(proposal)) throw oracleRecordError("PROPOSAL_V2_REQUIRED", "completionProposal", "propose_goal_completion", "legacy, malformed, or unbound proposals cannot be reviewed");
+  if (proposal.proposalHash !== input.expectedProposalHash) throw oracleRecordError("PROPOSAL_HASH_MISMATCH", "expected_proposal_hash", "get_goal", "the supplied hash does not exactly match the current fresh proposal");
+  if (isRuntimeGoalOracleBindingV2(goal.oracle)) throw oracleRecordError("ORACLE_ALREADY_BOUND", "oracle", "propose_goal_completion_then_record_goal_oracle", "an immutable oracle decision is already bound to this Goal revision");
+  return proposal;
+}
+
+export function recordOracleVerdict(pi: ExtensionAPI, state: HarnessRuntimeState, input: RecordGoalOracleInput): RuntimeGoal {
+  if (!input.evidenceSummary.trim()) throw oracleRecordError("EVIDENCE_SUMMARY_REQUIRED", "evidence_summary", "review_evidence", "a non-empty transient evidence summary is required");
+  const proposal = assertGoalOracleRecordable(state, input);
+  const goal = state.runtimeGoal!;
+  const nextGoal = cloneGoal(goal);
+  nextGoal.oracle = buildRuntimeGoalOracleBinding({
+    proposalHash: proposal.proposalHash,
+    proposalGoalRevision: proposal.goalRevision,
+    todoGraphRevision: proposal.todoGraphRevision,
+    goalRevision: nextGoal.revision + 1,
+    verdict: input.verdict,
+    noShip: input.noShip,
+    evidenceSummary: input.evidenceSummary,
+    evidenceRefs: input.evidenceRefs ?? [],
+  });
+  nextGoal.status = input.verdict === "PASS" && input.noShip === false ? "ready_for_oracle" : "oracle_failed";
+  nextGoal.loop.enabled = false;
+  nextGoal.updatedAt = unixSeconds();
+  appendRuntimeGoalEntry(pi, state, setEntry(nextGoal, "tool"));
+  const persistedGoal = state.runtimeGoal!;
+  clearRuntimeGoalContinuationStateFor(state, persistedGoal.goalId);
+  return persistedGoal;
 }

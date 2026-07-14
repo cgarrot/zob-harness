@@ -1,7 +1,19 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 
-import type { ChildResult, OutputContract, OutputRequirement } from "../../types.js";
+import type { ChildResult, OutputContract, OutputGateIssue, OutputGateIssueCode, OutputRequirement } from "../../types.js";
+
+export const OUTPUT_GATE_ISSUE_CODES = [
+  "empty_output",
+  "unknown_contract",
+  "invalid_requirement_pattern",
+  "missing_final_marker",
+  "missing_requirement",
+  "deliverable_rejected",
+  "mismatched_todo_id",
+  "stale_child_goal_binding",
+  "mismatched_delegation_attempt",
+] as const satisfies readonly OutputGateIssueCode[];
 
 const COMMON_OUTPUT_REQUIREMENTS: OutputRequirement[] = [
   {
@@ -504,10 +516,21 @@ const OUTPUT_CONTRACT_BY_ID = new Map(OUTPUT_CONTRACTS.map((contract) => [contra
 const OUTPUT_CONTRACT_BY_AGENT = new Map(
   OUTPUT_CONTRACTS.flatMap((contract) => contract.agentNames.map((agentName) => [agentName.toLowerCase(), contract.id] as const)),
 );
+const OUTPUT_CONTRACT_FINAL_MARKERS = new Map<string, string>([
+  ["todo-child-result.v1", "FINAL_MARKER: TODO_CHILD_RESULT_END"],
+  ["todo-child-result.v2", "FINAL_MARKER: TODO_CHILD_RESULT_V2_END"],
+  ["todo-claim-validation.v1", "FINAL_MARKER: TODO_CLAIM_VALIDATION_END"],
+  ["todo-split-request.v1", "FINAL_MARKER: TODO_SPLIT_REQUEST_END"],
+  ["delegation-request.v1", "FINAL_MARKER: DELEGATION_REQUEST_END"],
+  ["oracle-request.v1", "FINAL_MARKER: ORACLE_REQUEST_END"],
+  ["context-request.v1", "FINAL_MARKER: CONTEXT_REQUEST_END"],
+]);
 
 interface OutputContractValidationOptions {
   repoRoot?: string;
   maxArtifactBytes?: number;
+  /** Exact canonical TODO id bound by parent preflight for TODO-linked child output. */
+  expectedTodoId?: string;
 }
 
 const ARTIFACT_REF_REGEX = /(?:^|[\s("'`])((?:\.\/)?(?:reports|\.pi\/tmp|docs)\/[A-Za-z0-9._\/-]+\.(?:md|txt|json|jsonl))(?:$|[\s)"'`,.;:])/g;
@@ -571,6 +594,11 @@ export function getOutputContractDefinitions(): Array<{ id: string; required: st
   return OUTPUT_CONTRACTS.map((contract) => ({ id: contract.id, required: contract.required.map((requirement) => requirement.name) }));
 }
 
+export function getOutputContractFinalMarker(contractId: string): string | undefined {
+  if (!OUTPUT_CONTRACT_BY_ID.has(contractId)) return undefined;
+  return OUTPUT_CONTRACT_FINAL_MARKERS.get(contractId) ?? "deliverable_delivered: yes";
+}
+
 export function inferOutputContract(agentName: string): string {
   return OUTPUT_CONTRACT_BY_AGENT.get(agentName.toLowerCase()) ?? "base.v1";
 }
@@ -598,18 +626,30 @@ function extractAnyDeliverableMarker(output: string): "yes" | "no" | undefined {
   return undefined;
 }
 
-function validateOutputContractText(output: string, contract: OutputContract): string[] {
+function outputGateIssue(
+  contractId: string,
+  code: OutputGateIssueCode,
+  classification: OutputGateIssue["classification"],
+  message: string,
+  requirement?: string,
+): OutputGateIssue {
+  return { code, classification, failureKind: "output_gate", contractId, requirement, message };
+}
+
+function validateOutputContractText(output: string, contract: OutputContract): OutputGateIssue[] {
   const trimmed = output.trim();
-  if (!trimmed) return ["Child produced no assistant output"];
+  if (!trimmed) return [outputGateIssue(contract.id, "empty_output", "output_missing", "Child produced no assistant output")];
 
   const deliverableMarker = extractDeliverableMarker(trimmed);
   const allowsEmbeddedDeliverable = ["todo-child-result.v1", "todo-child-result.v2", "todo-split-request.v1", "todo-claim-validation.v1", "delegation-request.v1", "oracle-request.v1", "context-request.v1"].includes(contract.id);
   const embeddedDeliverableMarker = allowsEmbeddedDeliverable ? extractAnyDeliverableMarker(trimmed) : undefined;
   const effectiveDeliverableMarker = embeddedDeliverableMarker ?? deliverableMarker;
-  const errors: string[] = [];
+  const issues: OutputGateIssue[] = [];
   for (const requirement of contract.required) {
     if (requirement.name === "deliverable_delivered") {
-      if (allowsEmbeddedDeliverable ? !embeddedDeliverableMarker : !deliverableMarker) errors.push(requirement.message);
+      if (allowsEmbeddedDeliverable ? !embeddedDeliverableMarker : !deliverableMarker) {
+        issues.push(outputGateIssue(contract.id, "missing_final_marker", "contract_format", requirement.message, requirement.name));
+      }
       continue;
     }
 
@@ -617,40 +657,78 @@ function validateOutputContractText(output: string, contract: OutputContract): s
     try {
       pattern = new RegExp(requirement.pattern, "i");
     } catch (error) {
-      errors.push(`Invalid output contract '${contract.id}' requirement '${requirement.name}': ${error instanceof Error ? error.message : String(error)}`);
+      const message = `Invalid output contract '${contract.id}' requirement '${requirement.name}': ${error instanceof Error ? error.message : String(error)}`;
+      issues.push(outputGateIssue(contract.id, "invalid_requirement_pattern", "contract_configuration", message, requirement.name));
       continue;
     }
     const aliasPattern = requirementAliasPattern(requirement.name);
-    if (!pattern.test(trimmed) && !aliasPattern.test(trimmed)) errors.push(requirement.message);
+    if (!pattern.test(trimmed) && !aliasPattern.test(trimmed)) {
+      issues.push(outputGateIssue(contract.id, "missing_requirement", "contract_format", requirement.message, requirement.name));
+    }
   }
 
-  if (effectiveDeliverableMarker === "no") errors.push("Child reported deliverable_delivered: no");
+  if (effectiveDeliverableMarker === "no") {
+    issues.push(outputGateIssue(contract.id, "deliverable_rejected", "deliverable_rejected", "Child reported deliverable_delivered: no", "deliverable_delivered"));
+  }
 
-  return errors;
+  return issues;
+}
+
+function validateExpectedTodoId(output: string, contractId: string, expectedTodoId: string | undefined): OutputGateIssue[] {
+  if (!expectedTodoId) return [];
+  const todoIds = [...output.matchAll(/^\s*(?:[-*]\s*)?todo_id\s*[:=]\s*([^\s#]+)/gim)]
+    .map((match) => match[1]?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (todoIds.length === 0) {
+    return [outputGateIssue(contractId, "missing_requirement", "contract_format", `Bound TODO child result missing exact todo_id: expected ${expectedTodoId}`, "todo_id")];
+  }
+  const mismatches = [...new Set(todoIds.filter((todoId) => todoId !== expectedTodoId))];
+  if (mismatches.length === 0) return [];
+  return [outputGateIssue(
+    contractId,
+    "mismatched_todo_id",
+    "output_gate_semantic",
+    `Bound TODO child result todo_id mismatch: expected ${expectedTodoId}; received ${mismatches.join(", ")}`,
+    "todo_id",
+  )];
+}
+
+export function validateOutputContractIssues(output: string, contractId: string, options: OutputContractValidationOptions = {}): OutputGateIssue[] {
+  const trimmed = output.trim();
+  const contract = OUTPUT_CONTRACT_BY_ID.get(contractId);
+  if (!contract) {
+    const message = validateOutputContractId(contractId)[0] ?? `Unknown output contract '${contractId}'`;
+    return [outputGateIssue(contractId, "unknown_contract", "contract_configuration", message)];
+  }
+
+  let contractIssues = validateOutputContractText(trimmed, contract);
+  if (contractIssues.length > 0) {
+    for (const artifact of readReferencedArtifacts(trimmed, options)) {
+      if (validateOutputContractText(artifact, contract).length === 0 || validateOutputContractText(`${artifact}\n\n${trimmed}`, contract).length === 0) {
+        contractIssues = [];
+        break;
+      }
+    }
+  }
+
+  return [...contractIssues, ...validateExpectedTodoId(trimmed, contractId, options.expectedTodoId)];
 }
 
 export function validateOutputContract(output: string, contractId: string, options: OutputContractValidationOptions = {}): string[] {
-  const trimmed = output.trim();
-  const contract = OUTPUT_CONTRACT_BY_ID.get(contractId);
-  if (!contract) return validateOutputContractId(contractId);
+  return validateOutputContractIssues(output, contractId, options).map((issue) => issue.message);
+}
 
-  const directErrors = validateOutputContractText(trimmed, contract);
-  if (directErrors.length === 0) return [];
-
-  for (const artifact of readReferencedArtifacts(trimmed, options)) {
-    if (validateOutputContractText(artifact, contract).length === 0) return [];
-    if (validateOutputContractText(`${artifact}\n\n${trimmed}`, contract).length === 0) return [];
-  }
-
-  return directErrors;
+export function validateChildOutputIssues(result: ChildResult, contractId = result.outputContract ?? inferOutputContract(result.agent), options: OutputContractValidationOptions = {}): OutputGateIssue[] {
+  return validateOutputContractIssues(result.output, contractId, options);
 }
 
 export function validateChildOutput(result: ChildResult, contractId = result.outputContract ?? inferOutputContract(result.agent), options: OutputContractValidationOptions = {}): string[] {
-  return validateOutputContract(result.output, contractId, options);
+  return validateChildOutputIssues(result, contractId, options).map((issue) => issue.message);
 }
 
 export function applyChildGates(result: ChildResult, options: OutputContractValidationOptions = {}): ChildResult {
-  result.gateErrors = validateChildOutput(result, result.outputContract ?? inferOutputContract(result.agent), options);
-  result.gatePassed = result.gateErrors.length === 0;
+  result.gateIssues = validateChildOutputIssues(result, result.outputContract ?? inferOutputContract(result.agent), options);
+  result.gateErrors = result.gateIssues.map((issue) => issue.message);
+  result.gatePassed = result.gateIssues.length === 0;
   return result;
 }

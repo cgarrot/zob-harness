@@ -7,6 +7,28 @@ export type AgenticClaimValidationInput = {
   output_contract?: string;
 };
 
+export type ChildGoalBinding = {
+  schema: "zob.child-goal-binding.v1";
+  goal_id: string;
+  goal_revision: number;
+  graph_revision: number;
+  todo_id: string;
+  todo_path: string;
+  todo_revision: number;
+  parent_todo_id?: string;
+  delegation_attempt_id: string;
+  validation_policy: "parent_review" | "oracle_required";
+  expected_claim: {
+    goal_id: string;
+    todo_id: string;
+    todo_path: string;
+    todo_revision: number;
+    delegation_attempt_id: string;
+    validation_policy: "parent_review" | "oracle_required";
+    output_contract: string;
+  };
+};
+
 export type ChildGoalInput = {
   enabled?: boolean;
   objective?: string;
@@ -20,6 +42,8 @@ export type ChildGoalInput = {
   max_tokens?: number;
   completion_policy?: "return_claim" | "oracle_before_complete";
   agentic_validation?: AgenticClaimValidationInput;
+  /** Parent-runtime-only canonical binding. Input values are always discarded and recomputed before launch. */
+  binding?: ChildGoalBinding;
 };
 
 export type DelegateTaskAliasInput = {

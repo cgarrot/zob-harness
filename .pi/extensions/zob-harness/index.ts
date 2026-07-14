@@ -4,6 +4,7 @@ import zobHarnessRuntime from "./src/runtime/zobHarness.js";
 
 export { renderHarnessWidget } from "./src/runtime/widget.js";
 export { createHarnessRuntimeState, inferModeFromUserIntent } from "./src/runtime/state.js";
+export { FILE_TOOL_RELIABILITY_PROMPT } from "./src/runtime/events.js";
 
 export type {
   AdaptiveDelegationGovernorState,
@@ -27,12 +28,20 @@ export type { ChronicleState } from "./src/domains/telemetry/chronicle.js";
 
 export type {
   ChildStopCondition,
+  OutputGateIssue,
+  OutputGateIssueClassification,
+  OutputGateIssueCode,
   RuleAppliesTo,
   RuleEnforcementLevel,
   RuleOracleRequirement,
   RulePack,
   RuleResolution,
   RuleResolverInput,
+  ToolFailureAttempt,
+  ToolFailureClass,
+  ToolFailureReasonCode,
+  ToolFailureReplayFixture,
+  ToolFailureReplaySummary,
 } from "./src/types.js";
 
 export { pathMatches } from "./src/core/utils/paths.js";
@@ -41,6 +50,44 @@ export { parseGoalState, validateGoalState, validateStrictGoalSpecAnchor, parseB
 export type { StrictGoalSpecAnchor, StrictGoalSpecAnchorKind } from "./src/domains/goal/goal.js";
 export { DEFAULT_GOAL_ACTIVATION_MODE, clearRuntimeGoalContinuationState, clearRuntimeGoalContinuationStateFor, formatGoalActivationMode, formatRuntimeGoalSummary, hasPendingUndeliveredZpeerInbound, queueRuntimeGoalContinuation, restoreRuntimeGoalFromBranch, resumeRuntimeGoal, runtimeGoalStatusLine } from "./src/runtime/goal-runtime.js";
 export type { GoalActivationMode, RuntimeGoal, RuntimeGoalStatus, RuntimeGoalOracleStatus, RuntimeGoalOracleVerdict } from "./src/runtime/goal-runtime.js";
+export {
+  buildRuntimeGoalCompletionProposal,
+  buildRuntimeGoalOracleBinding,
+  evaluateRuntimeGoalCompletionProposalFreshness,
+  evaluateRuntimeGoalOracleFreshness,
+  formatRuntimeGoalCompletionProposal,
+  formatRuntimeGoalOracleBinding,
+  hashRuntimeGoalCompletionProposal,
+  hashRuntimeGoalCompletionProposalArray,
+  hashRuntimeGoalOracleDecision,
+  hashRuntimeGoalOracleEvidence,
+  isRuntimeGoalCompletionProposalV2,
+  isRuntimeGoalOracleBindingV2,
+  normalizeRuntimeGoalCompletionProposal,
+  normalizeRuntimeGoalOracleState,
+  publicRuntimeGoal,
+  runtimeGoalCompletionProposalPublicDetails,
+  runtimeGoalOraclePublicDetails,
+} from "./src/runtime/goal-runtime/state.js";
+export type {
+  BuildRuntimeGoalCompletionProposalInput,
+  BuildRuntimeGoalOracleBindingInput,
+  EvaluateRuntimeGoalCompletionProposalFreshnessInput,
+  EvaluateRuntimeGoalOracleFreshnessInput,
+  RuntimeGoalCompletionProposalFreshness,
+  RuntimeGoalCompletionProposalFreshnessCode,
+  RuntimeGoalCompletionProposalFreshnessStatus,
+  RuntimeGoalCompletionProposalLegacy,
+  RuntimeGoalCompletionProposalMalformed,
+  RuntimeGoalCompletionProposalSafeReproposeAction,
+  RuntimeGoalCompletionProposalV2,
+  RuntimeGoalEntry,
+  RuntimeGoalOracleBindingV2,
+  RuntimeGoalOracleFreshness,
+  RuntimeGoalOracleFreshnessCode,
+  RuntimeGoalOracleFreshnessStatus,
+  RuntimeGoalRevisionDiagnostic,
+} from "./src/runtime/goal-runtime/state.js";
 export { extractModeIntent, looksLikeCompletePlanResponse, stripModeIntentMarkup, validateModeIntent } from "./src/runtime/mode-intent.js";
 export type { ZobModeIntent, ZobModeIntentConfidence, ZobModeIntentRisk, ZobModeIntentValidation } from "./src/runtime/mode-intent.js";
 export { capturePlanArtifact, extractPlanTitle, listCapturedPlanEntries, shouldCapturePlanResponse, updateCapturedPlanEntry } from "./src/runtime/plan-capture.js";
@@ -91,7 +138,139 @@ export {
   summarizeGoalTodos,
   validateGoalTodoGraph,
 } from "./src/domains/goal/goal-todos.js";
-export type { GoalRoomTodoReducerAction, GoalRoomTodoReducerDecision, GoalTodoClaimRef, GoalTodoClaimValidationRef, GoalTodoCompletionDiagnostics, GoalTodoNode, GoalTodoOwner, GoalTodoPolicy, GoalTodoPriority, GoalTodoState, GoalTodoStatus, GoalTodoSummary, ResolveGoalTodoAction, TodoClaimValidationResult, TodoSplitRequest, TodoSplitRequestAction, TodoSplitRiskLevel } from "./src/domains/goal/goal-todos.js";
+export { GoalTodoTransitionError, assertCurrentGoalTodoClaimSettlementBinding, assertCurrentGoalTodoClaimValidationBinding, authorizeGoalTodoTransition, finalizeGoalTodoDelegationAttempt, isCanonicalGoalTodoClaimBinding, markGoalTodoDelegationFailed, recoverGoalTodoDelegation, updateGoalTodo } from "./src/domains/goal/goal-todos/operations.js";
+export type { FinalizeGoalTodoDelegationAttemptInput, GoalTodoClaimBindingExpectation, GoalTodoTransitionAuthorization, RecoverGoalTodoDelegationInput } from "./src/domains/goal/goal-todos/operations.js";
+export { assessDelegationAttemptLiveness } from "./src/runtime/delegation-monitor.js";
+export {
+  CANONICAL_GOAL_TODO_ID_PATTERN,
+  VISIBLE_GOAL_TODO_PATH_PATTERN,
+  GoalTodoReferenceResolutionError,
+  adaptLegacyGoalTodoReference,
+  goalTodoReferenceDiagnostic,
+  resolveCanonicalGoalTodoReference,
+  resolveCanonicalGoalTodoReferences,
+  throwGoalTodoReferenceResolution,
+} from "./src/domains/goal/goal-todos/reference.js";
+export type {
+  GoalTodoCanonicalReferenceInput,
+  GoalTodoReferenceBatchResolution,
+  GoalTodoReferenceCandidate,
+  GoalTodoReferenceCode,
+  GoalTodoReferenceDiagnostic,
+  GoalTodoReferenceError,
+  GoalTodoReferenceField,
+  GoalTodoReferenceResolution,
+  GoalTodoReferenceRetryPolicy,
+  GoalTodoReferenceSafeNextAction,
+} from "./src/domains/goal/goal-todo-types.js";
+export type { GoalRoomTodoReducerAction, GoalRoomTodoReducerDecision, GoalTodoClaimRef, GoalTodoClaimValidationRef, GoalTodoCompletionDiagnostics, GoalTodoEvent, GoalTodoNode, GoalTodoOwner, GoalTodoPolicy, GoalTodoPriority, GoalTodoState, GoalTodoStatus, GoalTodoSummary, ResolveGoalTodoAction, TodoClaimValidationResult, TodoSplitRequest, TodoSplitRequestAction, TodoSplitRiskLevel } from "./src/domains/goal/goal-todos.js";
+export {
+  GOAL_TODO_STATUSES,
+  GOAL_TODO_TRANSITION_ACTIONS,
+  GOAL_TODO_TRANSITION_TABLE,
+  decideGoalTodoTransition,
+  getGoalTodoTransitionRule,
+  listGoalTodoTransitionRules,
+} from "./src/domains/goal/goal-todos/transition-engine.js";
+export { GOAL_MUTATION_PHASE_CODES } from "./src/domains/goal/goal-todo-types.js";
+export type {
+  GoalMutationAppliedExecution,
+  GoalMutationAppliedOutcome,
+  GoalMutationApplyFailureMode,
+  GoalMutationApplyResult,
+  GoalMutationCanonicalRequest,
+  GoalMutationCasInput,
+  GoalMutationCasOutcome,
+  GoalMutationConflictOutcome,
+  GoalMutationCurrentRevisions,
+  GoalMutationExecutionDiagnostic,
+  GoalMutationExecutionInput,
+  GoalMutationExecutionOutcome,
+  GoalMutationFailedExecution,
+  GoalMutationFailureCode,
+  GoalMutationGuard,
+  GoalMutationObservation,
+  GoalMutationObservedExecution,
+  GoalMutationPhase,
+  GoalMutationPreparation,
+  GoalMutationPreparationInput,
+  GoalMutationPreparationPhase,
+  GoalMutationProtocolRecord,
+  GoalMutationPublicGuard,
+  GoalMutationReceipt,
+  GoalMutationReceiptDiagnostic,
+  GoalMutationReceiptDiagnosticCode,
+  GoalMutationReceiptInput,
+  GoalMutationReceiptState,
+  GoalMutationRejectedOutcome,
+  GoalMutationReplayedExecution,
+  GoalMutationReplayedOutcome,
+  GoalMutationSideEffectRef,
+  GoalMutationSideEffectState,
+  GoalMutationStaleOutcome,
+  GoalTodoClaimResolutionBinding,
+  GoalTodoClaimValidationPolicy,
+  GoalTodoDelegationAttempt,
+  GoalTodoDelegationAttemptFailureKind,
+  GoalTodoDelegationAttemptReasonCode,
+  GoalTodoDelegationAttemptStatus,
+  GoalTodoDelegationLiveness,
+  GoalTodoDelegationLivenessAssessmentStatus,
+  GoalTodoDelegationLivenessProof,
+  GoalTodoDelegationLivenessProofCode,
+  GoalTodoDelegationLivenessProofSource,
+  GoalTodoDelegationRecovery,
+  GoalTodoLegacyEvent,
+  GoalTodoPatchClearField,
+  GoalTodoRevisionDiagnostic,
+  GoalTodoRevisionDiagnosticCode,
+  GoalTodoRevisionEvent,
+  GoalTodoTransitionAction,
+  GoalTodoTransitionCode,
+  GoalTodoTransitionContext,
+  GoalTodoTransitionDecision,
+  GoalTodoTransitionDiagnostic,
+  GoalTodoTransitionGuard,
+  GoalTodoTransitionInput,
+  GoalTodoTransitionOperationContext,
+  GoalTodoTransitionRetryPolicy,
+  GoalTodoTransitionRule,
+  GoalTodoTransitionRuleDiagnostic,
+  GoalTodoTransitionTable,
+} from "./src/domains/goal/goal-todo-types.js";
+export {
+  GOAL_MUTATION_ID_PATTERN,
+  GOAL_MUTATION_PREPARATION_ENTRY_TYPE,
+  GOAL_MUTATION_PREPARATION_SCHEMA,
+  GOAL_MUTATION_RECEIPT_ENTRY_TYPE,
+  GOAL_MUTATION_RECEIPT_SCHEMA,
+  blockGoalMutationReceiptState,
+  canonicalGoalMutationJson,
+  cloneGoalMutationReceipt,
+  cloneGoalMutationReceiptState,
+  createGoalMutationPreparation,
+  createGoalMutationReceipt,
+  createGoalMutationReceiptState,
+  evaluateGoalMutationCas,
+  finalizeGoalMutationReceiptRestore,
+  hashGoalMutationRequest,
+  indexGoalMutationPreparation,
+  indexGoalMutationReceipt,
+  indexGoalMutationReceiptEntry,
+  isCanonicalGoalMutationId,
+  isCanonicalGoalMutationRequestHash,
+  markGoalMutationInDoubt,
+  normalizeGoalMutationPreparation,
+  normalizeGoalMutationReceipt,
+  restoreGoalMutationReceiptsFromBranch,
+} from "./src/domains/goal/mutation-cas.js";
+export { GoalDelegationRecoveryGuardSchema, GoalMutationGuardProperties, GoalMutationGuardSchema, GoalTodoCanonicalReferenceProperties, GoalTodoCanonicalReferenceSchema, GoalTodoClaimHashSchema, parseOptionalGoalMutationGuard, parseRequiredGoalDelegationRecoveryGuard } from "./src/runtime/goal-runtime/schemas.js";
+export { GOAL_MUTATION_TOOL_NAMES, isGoalMutationToolName } from "./src/runtime/goal-runtime/mutation-tools.js";
+export type { GoalMutationToolName } from "./src/runtime/goal-runtime/mutation-tools.js";
+export { buildGoalMutationCanonicalRequest, executeGoalMutationCas } from "./src/runtime/goal-runtime/mutation-cas.js";
+export type { GoalMutationCanonicalRequestInput, GoalMutationCanonicalRequestResult } from "./src/runtime/goal-runtime/mutation-cas.js";
+export { GOAL_HANDOFF_EFFECT_FLAGS, buildGoalHandoffCanonicalPayload, executeGoalHandoffCas } from "./src/runtime/goal-runtime/handoff.js";
+export type { GoalHandoffCanonicalPayload, GoalHandoffCasExecution, GoalHandoffCasExecutionInput, GoalHandoffCasPreflight } from "./src/runtime/goal-runtime/handoff.js";
 export { importChainRunTodos, importFactoryRunTodos, importOrchestrationRunTodos } from "./src/domains/goal/goal-todo-imports.js";
 export type { GoalTodoImportResult } from "./src/domains/goal/goal-todo-imports.js";
 export { appendGoalRoomMessage, buildGoalRoomMessage, goalRoomBodyFreeViolations, isGoalRoomMessage, listGoalRoomMessages, validateGoalRoomMessageInput, validateGoalRoomMessageRecord } from "./src/domains/goal/goal-room.js";
@@ -461,16 +640,53 @@ export {
 } from "./src/domains/governance/safety.js";
 
 export {
+  OUTPUT_GATE_ISSUE_CODES,
   listOutputContracts,
   getOutputContractDefinitions,
+  getOutputContractFinalMarker,
   inferOutputContract,
   validateOutputContractId,
   validateOutputContract,
+  validateOutputContractIssues,
   validateChildOutput,
+  validateChildOutputIssues,
   applyChildGates,
 } from "./src/domains/delegation/output-contracts.js";
 
+export { createChildSessionPath } from "./src/domains/delegation/child-runner.js";
+
 export { buildChildEnv } from "./src/domains/governance/safety.js";
+
+export {
+  DEFAULT_CONTENT_READ_BUDGET_BYTES,
+  FILE_TOOL_PREFLIGHT_FIELDS,
+  FILE_TOOL_PREFLIGHT_REASON_CODES,
+  FILE_TOOL_PREFLIGHT_RETRY_POLICIES,
+  FILE_TOOL_PREFLIGHT_SAFE_NEXT_ACTIONS,
+  FILE_TOOL_PREFLIGHT_TOOLS,
+  FILE_TOOL_PREFLIGHT_VERDICTS,
+  createFileToolPreflightRuntimeState,
+  fileToolPreflightBodyLikeFieldViolations,
+  persistFileToolPreflightDecision,
+  preflightFileToolCall,
+  validateFileToolPreflightDecision,
+  validateFileToolPreflightLedgerEntry,
+} from "./src/domains/governance/file-tool-preflight.js";
+export type {
+  FileToolPreflightCall,
+  FileToolPreflightDecision,
+  FileToolPreflightField,
+  FileToolPreflightIo,
+  FileToolPreflightLedgerEntry,
+  FileToolPreflightPolicy,
+  FileToolPreflightReasonCode,
+  FileToolPreflightRecordResult,
+  FileToolPreflightRetryPolicy,
+  FileToolPreflightRuntimeState,
+  FileToolPreflightSafeNextAction,
+  FileToolPreflightTool,
+  FileToolPreflightVerdict,
+} from "./src/domains/governance/file-tool-preflight.js";
 
 export {
   validateSandboxWritePlanInputs,
@@ -506,6 +722,18 @@ export {
   classifyFactoryChronicleCompletion,
   writeChronicleSnapshot,
 } from "./src/domains/telemetry/chronicle.js";
+
+export {
+  TOOL_FAILURE_CLASSES,
+  TOOL_FAILURE_REASON_CODES,
+  TOOL_FAILURE_TAXONOMY_REVISION,
+  replayToolFailureAttempts,
+  replayToolFailureFixtures,
+  fileToolPreflightFingerprint,
+  toolFailureBodyLikeFieldViolations,
+  toolFailureIncidentKey,
+  validateToolFailureReplayFixture,
+} from "./src/domains/telemetry/tool-failures.js";
 
 export { buildCapabilityIndex, buildReuseScoutReport, writeCapabilityIndex, writeReuseScoutReport } from "./src/domains/delegation/capabilities.js";
 

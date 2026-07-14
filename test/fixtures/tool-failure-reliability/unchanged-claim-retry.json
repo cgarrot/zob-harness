@@ -1,0 +1,31 @@
+{
+  "schema": "zob.tool-failure-replay-fixture.v1",
+  "taxonomyRevision": 1,
+  "bodyStored": false,
+  "attempts": [
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "toolHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "inputHash": "3030303030303030303030303030303030303030303030303030303030303030",
+      "stateHash": "4040404040404040404040404040404040404040404040404040404040404040",
+      "failureClass": "state_progress",
+      "reasonCode": "claim_state_unchanged",
+      "stateRevision": 7,
+      "occurredAt": "2026-07-13T10:01:00.000Z",
+      "bodyStored": false
+    },
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "2323232323232323232323232323232323232323232323232323232323232323",
+      "toolHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "inputHash": "3030303030303030303030303030303030303030303030303030303030303030",
+      "stateHash": "4040404040404040404040404040404040404040404040404040404040404040",
+      "failureClass": "state_progress",
+      "reasonCode": "claim_state_unchanged",
+      "stateRevision": 7,
+      "occurredAt": "2026-07-13T10:01:01.000Z",
+      "bodyStored": false
+    }
+  ]
+}

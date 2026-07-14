@@ -2,6 +2,9 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 
 import { ProjectDnaReadinessParams, ProjectDnaPlanWorkflowParams, ProjectDnaQueryParams, ProjectDnaFederatedQueryParams, ProjectDnaWritebackProposalParams } from "./schemas-project-dna.js";
+import { CANONICAL_GOAL_TODO_ID_PATTERN, VISIBLE_GOAL_TODO_PATH_PATTERN } from "../domains/goal/goal-todos/reference.js";
+
+export { GoalMutationGuardProperties, GoalMutationGuardSchema, parseOptionalGoalMutationGuard } from "./goal-runtime/schemas.js";
 
 const AgentScopeSchema = StringEnum(["project", "user", "both"] as const, {
   description: "Which agent catalog to use. Default: project.",
@@ -22,9 +25,9 @@ const AgenticClaimValidationParams = Type.Object({
 const ChildGoalParams = Type.Object({
   enabled: Type.Optional(Type.Boolean({ description: "Enable parent-owned child goal guidance for long delegated tasks. Default true when child_goal is provided." })),
   objective: Type.String({ description: "Child goal objective to pursue inside the delegated task." }),
-  todo_id: Type.Optional(Type.String({ description: "Parent-owned /goal TODO id this child should work on. Prefer the canonical id from get_goal_todos; unique visible paths and legacy todo_<path> shorthands are resolved to the active canonical id when possible." })),
-  parent_todo_id: Type.Optional(Type.String({ description: "Parent TODO id for the delegated TODO, if any." })),
-  todo_path: Type.Optional(Type.String({ description: "Human-readable TODO tree path, e.g. 1.2. If todo_id is omitted, a unique active todo_path can be resolved to the canonical TODO id." })),
+  todo_id: Type.Optional(Type.String({ description: "Exact canonical active-goal TODO node ID. Paths and legacy todo_<path> shorthands are rejected without fallback.", pattern: CANONICAL_GOAL_TODO_ID_PATTERN.source })),
+  parent_todo_id: Type.Optional(Type.String({ description: "Exact canonical parent TODO node ID. When supplied it must be the resolved TODO's actual parent.", pattern: CANONICAL_GOAL_TODO_ID_PATTERN.source })),
+  todo_path: Type.Optional(Type.String({ description: "Exact visible dotted TODO path, e.g. 1.2. Canonical IDs and legacy shorthands are rejected; dual ID/path refs must resolve independently to the same node.", pattern: VISIBLE_GOAL_TODO_PATH_PATTERN.source })),
   delegation_depth: Type.Optional(Type.Integer({ description: "Parent-owned delegation depth for TODO-linked child work.", minimum: 0 })),
   request_id: Type.Optional(Type.String({ description: "Adaptive delegation request id when this child is dispatched from a governor decision." })),
   oracle_required: Type.Optional(Type.Boolean({ description: "Whether parent/oracle review is required before accepting the child goal. Default true." })),

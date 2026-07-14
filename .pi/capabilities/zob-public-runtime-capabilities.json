@@ -125,7 +125,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Primary parent-owned TODO transition path; child no_ship is review evidence, not delivery success/failure by itself."
+      "noShipNotes": "Primary parent-owned TODO transition path; child no_ship is review evidence, not delivery success/failure by itself. Transitions bind the strict canonical todo_id (or dual agreed todo_id+todo_path; reference_mismatch/invalid_todo_id are fail-closed and never retarget a failed todo_id through todo_path). Terminal accept/complete transitions require mandatory CAS/revision agreement, while normal transitions may use optional observe-first CAS; mutation_id is replay-idempotent and conflicting state fails closed. Claim attempts are tracked separately, so a recovered/re-delegated attempt is distinct from the original."
     },
     {
       "name": "complete_goal_todo",
@@ -221,7 +221,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Records oracle validation metadata for a returned delegated TODO claim; auto-accept requires exact claim_hash, PASS, recommended_action=accept_claim, no_ship=false, acceptable confidence, and no blocking issues."
+      "noShipNotes": "Records oracle validation metadata for a returned delegated TODO claim; auto-accept requires exact claim_hash, PASS, recommended_action=accept_claim, no_ship=false, acceptable confidence, and no blocking issues. Validation is attempt-separated and CAS/revision-gated: the validated claim_hash must match the exact returned attempt (a recovered/re-delegated attempt has a distinct claim_hash) and any mismatch or stale/ambiguous state fails closed."
     },
     {
       "name": "accept_goal_todo_claim",
@@ -260,6 +260,27 @@
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
       "noShipNotes": "Delegated TODO claim metadata only."
+    },
+    {
+      "name": "recover_goal_todo_delegation",
+      "family": "goal",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-goal-todo-tree/SKILL.md",
+        ".pi/skills/zob-delegation-routing/SKILL.md",
+        ".pi/skills/zob-oracle/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md"
+      ],
+      "noShipNotes": "Parent-owned recovery of a stuck delegated Goal TODO lane only; goal TODO metadata repair, not a source edit and not a completion. Requires a strict canonical todo_id (never path text -> invalid_todo_id) or dual agreed todo_id+todo_path (reference_mismatch on disagreement; a failed todo_id is never retargeted through todo_path). Allowed only for recoverable delegated lanes (failed/rejected/orphan) when no active child/run owns the leaf; active/running delegated work is blocked with split-before-parallel guidance and must not be double-delegated. Terminal recovery is CAS/revision-gated and fail-closed on stale/unknown state; observe-only inspection is permitted but never auto-corrects or shadows a blocked lane. mutation_id is replay-idempotent (returns the existing result) and a conflicting mutation_id against changed state is a CAS conflict, not a silent overwrite. The prior child's liveness is treated as unknown; recovery never auto-redelegates the same leaf and never completes the parent TODO or bypasses oracle/no_ship/evidence gates. Durable records stay hash-only/body-free (claim_hash/output_hash and artifact refs only); legacy unbound/stale events/claims/proposals remain readable but fail-closed until explicitly revalidated/recovered with no silent upgrade."
     },
     {
       "name": "import_factory_todos",
@@ -398,7 +419,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Proposal only; oracle record still required for completion evidence."
+      "noShipNotes": "Proposal only; oracle record still required for completion evidence. Completion is a terminal transition and is CAS/revision-gated with mandatory agreement; observe-only is not accepted for completion and stale/ambiguous state fails closed."
     },
     {
       "name": "record_goal_oracle",
@@ -418,7 +439,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Records oracle verdict metadata only."
+      "noShipNotes": "Records oracle verdict metadata only. Oracle records are terminal and CAS/revision-gated: the recorded claim_hash must match the exact validated attempt and stale/ambiguous state fails closed; observe-only is not accepted for an oracle record."
     },
     {
       "name": "update_goal",
@@ -719,7 +740,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, room-scoped with optional explicit roomId, mode defaults async, opt-in requireResponse tracks msgId-correlated replies with bounded timeout/reinjection metadata, normal/urgent/force are rate/loop guarded, force requires a hashed reason and role/topology guards, raw bodies transient and durable records hash-only."
+      "noShipNotes": "Agent-initiated visible ZPeer ask; local_socket only, room-scoped with optional explicit roomId, mode defaults async and waiting is delivery-only, opt-in requireResponse tracks msgId-correlated replies with bounded timeout/reinjection metadata, normal short-task responses are auto-captured only from an exact custom-message msgId, goal-bound responses wait for terminal goal state, ambiguous inbounds fail closed, normal/urgent/force are rate/loop guarded, force requires a hashed reason and role/topology guards, raw bodies transient and durable records hash-only."
     },
     {
       "name": "zpeer_reply",
@@ -739,7 +760,7 @@
       "docRefs": [
         ".pi/extensions/zob-harness/src/AGENTS.md"
       ],
-      "noShipNotes": "Explicit msgId-bound ZPeer reply path for active inbound messages; local_socket only, requires exact active msgId, wrong/expired/already-answered msgIds are blocked, raw reply body is transient and durable metadata stores outputHash/status only."
+      "noShipNotes": "Explicit msgId-bound ZPeer reply path for active inbound messages and fail-closed fallback when automatic binding is ambiguous; local_socket only, requires exact active msgId, wrong/expired/already-answered msgIds are blocked, raw reply body is transient and durable metadata stores outputHash/status only."
     },
     {
       "name": "zob_goal_room_send",

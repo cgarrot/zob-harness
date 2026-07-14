@@ -1,0 +1,19 @@
+{
+  "schema": "zob.tool-failure-replay-fixture.v1",
+  "taxonomyRevision": 1,
+  "bodyStored": false,
+  "attempts": [
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "toolHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "inputHash": "7070707070707070707070707070707070707070707070707070707070707070",
+      "stateHash": "8080808080808080808080808080808080808080808080808080808080808080",
+      "failureClass": "policy_enforcement",
+      "reasonCode": "policy_blocked",
+      "stateRevision": 5,
+      "occurredAt": "2026-07-13T10:03:00.000Z",
+      "bodyStored": false
+    }
+  ]
+}

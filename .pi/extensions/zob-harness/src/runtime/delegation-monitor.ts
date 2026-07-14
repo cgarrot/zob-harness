@@ -2,6 +2,8 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } fro
 import { relative, resolve, sep } from "node:path";
 
 import type { ChildResult, DelegationFailureKind } from "../types.js";
+import type { GoalTodoDelegationAttempt, GoalTodoDelegationLivenessProof, GoalTodoDelegationLivenessProofCode, GoalTodoDelegationLivenessProofSource } from "../domains/goal/goal-todo-types.js";
+import { sha256 } from "../core/utils/hashing.js";
 import { isRecord } from "../core/utils/records.js";
 
 export type DelegationRunSource = "delegate_agent" | "delegate_task";
@@ -42,6 +44,8 @@ export interface DelegationRunView {
   usage?: ChildResult["usage"];
   model?: string;
   background?: boolean;
+  /** Session-local authority marker. Restored ledger projections intentionally omit it. */
+  authoritativeCurrentRuntime?: true;
 }
 
 export interface DelegationMonitorState {
@@ -374,6 +378,106 @@ export function hasActiveDelegations(state: DelegationMonitorState): boolean {
   return state.runs.some((run) => run.status === "queued" || run.status === "running");
 }
 
+const TERMINAL_MONITOR_STATUSES = new Set<DelegationRunStatus>(["preflight_failed", "complete", "failed", "aborted"]);
+
+function buildDelegationLivenessProof(input: {
+  status: GoalTodoDelegationLivenessProof["status"];
+  source: GoalTodoDelegationLivenessProofSource;
+  code: GoalTodoDelegationLivenessProofCode;
+  attempt: GoalTodoDelegationAttempt;
+  proofAt: number;
+  monitorStatus?: DelegationRunStatus;
+}): GoalTodoDelegationLivenessProof {
+  const proofAt = Math.max(0, Math.trunc(input.proofAt));
+  const proofTimestampHash = sha256(String(proofAt));
+  const proofHash = sha256(JSON.stringify([
+    input.status,
+    input.source,
+    input.code,
+    input.attempt.attemptId,
+    input.attempt.runId,
+    input.attempt.status,
+    input.monitorStatus ?? "",
+    proofAt,
+    proofTimestampHash,
+    input.attempt.boundGoalRevision,
+    input.attempt.boundGraphRevision,
+    input.attempt.boundTodoRevision,
+  ]));
+  return {
+    schema: "zob.goal-todo-delegation-liveness-proof.v1",
+    status: input.status,
+    source: input.source,
+    code: input.code,
+    attemptId: input.attempt.attemptId,
+    runId: input.attempt.runId,
+    attemptStatus: input.attempt.status,
+    ...(input.monitorStatus ? { monitorStatus: input.monitorStatus } : {}),
+    proofAt,
+    proofTimestampHash,
+    proofHash,
+    bodyStored: false,
+  };
+}
+
+function durableAttemptProofCode(attempt: GoalTodoDelegationAttempt): GoalTodoDelegationLivenessProofCode | undefined {
+  if (attempt.finalizedAt === undefined) return undefined;
+  if (attempt.status === "failed_preflight" && attempt.failureHash) return "durable_preflight_terminal";
+  if ((attempt.status === "failed_runtime" || attempt.status === "cancelled") && attempt.failureHash) return "durable_child_terminal";
+  if ((attempt.status === "failed_output_gate_format" || attempt.status === "failed_output_gate_semantic") && (attempt.gateHash || attempt.outputHash)) return "durable_output_terminal";
+  if (attempt.status === "output_declared_incomplete" && attempt.outputHash) return "durable_output_terminal";
+  return undefined;
+}
+
+/**
+ * Pure, fail-closed liveness assessment for one exact durable TODO attempt.
+ * Missing controllers, PIDs, elapsed time, and restored active-looking monitor rows never prove inactivity.
+ */
+export function assessDelegationAttemptLiveness(
+  state: DelegationMonitorState,
+  attempt: GoalTodoDelegationAttempt,
+  expected: { attemptId: string; runId: string } = { attemptId: attempt.attemptId, runId: attempt.runId },
+): GoalTodoDelegationLivenessProof {
+  if (expected.attemptId !== attempt.attemptId) {
+    return buildDelegationLivenessProof({ status: "unknown", source: "none", code: "attempt_id_mismatch", attempt, proofAt: attempt.updatedAt });
+  }
+  if (expected.runId !== attempt.runId) {
+    return buildDelegationLivenessProof({ status: "unknown", source: "none", code: "run_id_mismatch", attempt, proofAt: attempt.updatedAt });
+  }
+
+  const monitorByAttemptId = attempt.attemptId !== attempt.runId
+    ? state.runs.find((run) => run.id === attempt.attemptId)
+    : undefined;
+  if (monitorByAttemptId) {
+    return buildDelegationLivenessProof({ status: "unknown", source: "current_monitor", code: "monitor_attempt_run_mismatch", attempt, monitorStatus: monitorByAttemptId.status, proofAt: monitorByAttemptId.endedAtMs ?? monitorByAttemptId.startedAtMs });
+  }
+
+  const monitor = state.runs.find((run) => run.id === attempt.runId);
+  const monitorActive = monitor?.status === "queued" || monitor?.status === "running";
+  if (monitor && monitorActive && monitor.authoritativeCurrentRuntime === true) {
+    return buildDelegationLivenessProof({ status: "active", source: "current_monitor", code: "monitor_active_exact", attempt, monitorStatus: monitor.status, proofAt: monitor.startedAtMs });
+  }
+  if (monitor && TERMINAL_MONITOR_STATUSES.has(monitor.status)) {
+    return buildDelegationLivenessProof({ status: "inactive", source: "current_monitor", code: "monitor_terminal_exact", attempt, monitorStatus: monitor.status, proofAt: monitor.endedAtMs ?? monitor.startedAtMs });
+  }
+
+  const durableCode = durableAttemptProofCode(attempt);
+  if (durableCode) {
+    return buildDelegationLivenessProof({ status: "inactive", source: "durable_attempt", code: durableCode, attempt, monitorStatus: monitor?.status, proofAt: attempt.finalizedAt ?? attempt.updatedAt });
+  }
+  if (monitor && monitorActive) {
+    return buildDelegationLivenessProof({ status: "unknown", source: "restored_monitor", code: "restored_nonterminal_without_controller", attempt, monitorStatus: monitor.status, proofAt: monitor.startedAtMs });
+  }
+  const terminalLooking = !["queued", "running", "claim_returned", "accepted", "rejected", "liveness_unknown"].includes(attempt.status);
+  return buildDelegationLivenessProof({
+    status: "unknown",
+    source: "none",
+    code: terminalLooking ? "terminal_proof_incomplete" : "nonterminal_without_authoritative_status",
+    attempt,
+    proofAt: attempt.finalizedAt ?? attempt.updatedAt,
+  });
+}
+
 export function listDelegationRuns(state: DelegationMonitorState, sort: DelegationSortMode = "active", nowMs = Date.now()): DelegationRunView[] {
   const runs = [...state.runs];
   runs.sort((a, b) => {
@@ -469,6 +573,7 @@ export function startDelegationRun(state: DelegationMonitorState, input: {
     outputPreview: "",
     stderrPreview: "",
     cwd: input.cwd,
+    authoritativeCurrentRuntime: true,
   };
   if (existingIndex >= 0) state.runs[existingIndex] = run;
   else state.runs.push(run);

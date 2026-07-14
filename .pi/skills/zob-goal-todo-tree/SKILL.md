@@ -246,6 +246,51 @@ Parent action after a split request:
 - mark the original parent TODO skipped/decomposed only after child TODOs are created;
 - never let the child directly split, dispatch, or complete the parent TODO.
 
+## Delegation recovery & reliability (strict/CAS model)
+
+When a delegated lane is stuck, use `recover_goal_todo_delegation` (parent-owned) plus the
+strict transition model. See `docs/GOAL_TODO_DELEGATION_RECOVERY.md` for the full contract.
+
+References (strict, fail-closed):
+
+- Prefer canonical `todo_id` from `get_goal_todos`. If only the visible path is known, set
+  `todo_path`; never put path text in `todo_id` (`invalid_todo_id`).
+- Dual `todo_id`+`todo_path` must agree (`reference_mismatch` on disagreement); a failed
+  `todo_id` is never retargeted through `todo_path`.
+
+Recoverable lanes (only when no active child/run owns the leaf):
+
+- delegated + `status=failed` — recoverable
+- delegated + `status=rejected` — recoverable
+- delegated + orphaned (no delegation metadata) — recoverable
+- delegated + `status=running` — **blocked**; split into subtodos for parallel work, never double-delegate
+
+CAS / idempotency:
+
+- Normal transitions (`resolve_goal_todo` auto/open/block/reopen): **optional observe-first CAS**.
+- Terminal transitions (**recovery**, oracle records, completion): **mandatory CAS** on the exact
+  observed `revision`; stale/ambiguous state fails closed.
+- `mutation_id` is replay-idempotent (same id returns the recorded result); a different
+  `mutation_id` against changed state is a CAS conflict, never a silent overwrite.
+- `observe` never auto-corrects or shadows a blocked lane.
+
+Attempts / liveness:
+
+- Claims and oracle validations are attempt-separated; a recovered attempt has a distinct
+  `claim_hash`. Auto-accept needs exact `claim_hash` + `PASS` + `recommended_action=accept_claim`
+  + `no_ship=false` + acceptable confidence + no blockers.
+- The prior child's liveness is **unknown** after failure/orphan; recovery never auto-redelegates
+  the same leaf, never completes the parent TODO, and never bypasses oracle/`no_ship`/evidence gates.
+
+Lineage / migration:
+
+- Durable records are hash-only/body-free (`claim_hash`, `output_hash`, `artifactRefs`).
+- Legacy unbound/stale events/claims/proposals stay readable but fail-closed until explicitly
+  `repropose`/`revalidate`/`recover` — no silent upgrade.
+
+Rollout gates (`docs/RELIABILITY_ROLLOUT.md`): promote only when `false_successes=0`,
+`safety_escapes=0`, `auto_reruns=0`, `session_collisions=0`.
+
 ## Completion gate checklist
 
 Before calling `propose_goal_completion`, verify:

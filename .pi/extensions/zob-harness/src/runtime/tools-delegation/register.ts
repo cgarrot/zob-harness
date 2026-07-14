@@ -49,6 +49,7 @@ import { renderHarnessWidget } from "../widget.js";
 import type { AgenticClaimValidationInput, ChildGoalInput, DelegateTaskAliasInput, DelegateTaskCanonicalInput } from "./types.js";
 import {
   appendLedgerFile,
+  bodyFreeDelegationLedgerEntry,
   asDelegationDetails,
   delegationLedgerMeta,
   delegationCallLabel,
@@ -65,6 +66,8 @@ import {
   resolveChildGoalTodoRef,
   linkChildGoalTodoDelegationIfReady,
   retargetTodoSplitRequestResult,
+  enforceChildGoalClaimCorrelation,
+  recordBoundTodoDelegationPreflightFailure,
   recordTodoClaimFromChildResult,
   shouldRunAgenticClaimValidation,
   formatTodoClaimValidationTask,
@@ -76,6 +79,14 @@ import {
   formatDelegationCatalogSummary,
   renderDelegationToolResultText,
 } from "./helpers.js";
+
+function durableErrorRefs(errors: string[] | undefined): string[] {
+  return (errors ?? []).map((error) => `sha256:${sha256(error)}`);
+}
+
+function durableGateReasonCodes(result: ChildResult): string[] {
+  return result.gateIssues?.map((issue) => issue.code) ?? durableErrorRefs(result.gateErrors);
+}
 
 export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeState): void {
   pi.registerTool({
@@ -142,8 +153,9 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       }
 
       const appendDelegationLedger = (entry: Record<string, unknown>): void => {
-        appendLedgerFile(ctx.cwd, entry);
-        pi.appendEntry("zob-delegation", entry);
+        const bodyFreeEntry = bodyFreeDelegationLedgerEntry(entry);
+        appendLedgerFile(ctx.cwd, bodyFreeEntry);
+        pi.appendEntry("zob-delegation", bodyFreeEntry);
       };
 
       const renderDelegationMonitor = (): void => {
@@ -165,7 +177,11 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
 
       const runOne = async (item: { agent: string; task: string; cwd?: string; thinking?: ChildThinkingLevel; child_goal?: ChildGoalInput }, monitor: { mode: DelegationRunMode; index?: number }, update?: (result: ChildResult) => void): Promise<ChildResult> => {
         const runId = newRunId("delegate");
-        const childGoalResolution = resolveChildGoalTodoRef(state, item.child_goal ?? params.child_goal);
+        const requestedChildGoal = item.child_goal ?? params.child_goal;
+        const childGoalOutputContract = requestedChildGoal?.todo_id !== undefined || requestedChildGoal?.todo_path !== undefined
+          ? "todo-child-result.v2"
+          : inferOutputContract(item.agent);
+        const childGoalResolution = resolveChildGoalTodoRef(state, requestedChildGoal, runId, childGoalOutputContract);
         const effectiveChildGoal = childGoalResolution.childGoal;
         const taskText = appendChildGoalToTask(item.task, effectiveChildGoal, state.runtimeGoal?.goalId, runId);
         const startedAtMs = Date.now();
@@ -173,6 +189,23 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         const requestedTools = parseToolList(params.tools);
         const effectiveThinking = item.thinking ?? params.thinking;
         const cwdResult = resolveChildCwd(ctx.cwd, item.cwd ?? params.cwd);
+        if (childGoalResolution.errors.length > 0) {
+          return {
+            agent: item.agent,
+            task: taskText,
+            exitCode: 1,
+            output: delegateTaskPreflightHelp(childGoalResolution.errors),
+            stderr: "",
+            ledgerRunId: runId,
+            contractErrors: childGoalResolution.errors,
+            gatePassed: false,
+            gateErrors: childGoalResolution.errors,
+            preflightDiagnostics: childGoalResolution.diagnostics,
+            failureKind: "preflight",
+            usage: usageEmpty(),
+            cwd: cwdResult.cwd,
+          };
+        }
         startDelegationRun(state.delegations, {
           id: runId,
           parentToolCallId: toolCallId,
@@ -200,6 +233,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             usage: usageEmpty(),
             cwd: cwdResult.cwd,
           };
+          recordBoundTodoDelegationPreflightFailure(pi, state, effectiveChildGoal, { runId, agent: item.agent, failureKind: "config", errors: ["unknown_agent"] });
           const endedAtMs = Date.now();
           const endedAt = new Date(endedAtMs).toISOString();
           appendDelegationLedger({
@@ -228,7 +262,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             outputContract: inferOutputContract(item.agent),
             status: "unknown_agent",
             gatePassed: false,
-            gateErrors: ["unknown agent"],
+            gateErrors: ["unknown_agent"],
             failureKind: result.failureKind,
             usage: result.usage,
             latencyMs: endedAtMs - startedAtMs,
@@ -248,7 +282,6 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             model: params.model,
             cwd: cwdResult.cwd,
           });
-          recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
           return result;
         }
@@ -283,6 +316,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             usage: usageEmpty(),
             cwd: cwdResult.cwd,
           };
+          recordBoundTodoDelegationPreflightFailure(pi, state, effectiveChildGoal, { runId, agent: agent.name, failureKind: result.failureKind === "config" ? "config" : "preflight", errors: preflightErrors });
           const endedAtMs = Date.now();
           const endedAt = new Date(endedAtMs).toISOString();
           appendDelegationLedger({
@@ -310,7 +344,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             outputContract: inferOutputContract(agent.name),
             status: "failed_preflight",
             gatePassed: false,
-            gateErrors: preflightErrors,
+            gateErrors: durableErrorRefs(preflightErrors),
             failureKind: result.failureKind,
             usage: result.usage,
             latencyMs: endedAtMs - startedAtMs,
@@ -330,14 +364,13 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
             model: params.model ?? agent.model,
             cwd: cwdResult.cwd,
           });
-          recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
           renderDelegationMonitor();
           return result;
         }
 
         linkChildGoalTodoDelegationIfReady(pi, state, effectiveChildGoal, runId, agent.name);
         renderDelegationMonitor();
-        const outputContract = inferOutputContract(agent.name);
+        const outputContract = childGoalOutputContract;
         appendDelegationLedger({
           event: "start",
           runId,
@@ -378,8 +411,9 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
         result.contractErrors = [];
-        applyChildGates(result, { repoRoot: ctx.cwd });
+        applyChildGates(result, { repoRoot: ctx.cwd, expectedTodoId: effectiveChildGoal?.binding?.expected_claim.todo_id });
         retargetTodoSplitRequestResult(result, effectiveChildGoal, ctx.cwd);
+        enforceChildGoalClaimCorrelation(state, effectiveChildGoal, result, runId);
         result.failureKind = classifyChildFailure(result);
         const outputHash = result.output ? sha256(result.output) : undefined;
         const claimRecord = recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result, { runId, outputHash });
@@ -463,7 +497,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           status,
           stopCondition: result.stopCondition,
           gatePassed: result.gatePassed,
-          gateErrors: result.gateErrors ?? [],
+          gateErrors: durableGateReasonCodes(result),
           failureKind: result.failureKind,
           assistantTurnSeen,
           outputCaptured: Boolean(outputHash),
@@ -607,14 +641,17 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
       const agents = discoverAgents(ctx.cwd, scope);
       const agent = agents.find((candidate) => candidate.name.toLowerCase() === params.agent.toLowerCase());
       const runId = newRunId("task");
-      const childGoalResolution = resolveChildGoalTodoRef(state, params.child_goal);
+      const requestedOutputContract = params.output_contract
+        ?? (params.child_goal?.todo_id !== undefined || params.child_goal?.todo_path !== undefined ? "todo-child-result.v2" : inferOutputContract(params.agent));
+      const childGoalResolution = resolveChildGoalTodoRef(state, params.child_goal, runId, requestedOutputContract);
       const effectiveChildGoal = childGoalResolution.childGoal;
       const startedAtMs = Date.now();
       const startedAt = new Date(startedAtMs).toISOString();
       const cwdResult = resolveChildCwd(ctx.cwd, params.cwd);
       const appendDelegationLedger = (entry: Record<string, unknown>): void => {
-        appendLedgerFile(ctx.cwd, entry);
-        pi.appendEntry("zob-delegation", entry);
+        const bodyFreeEntry = bodyFreeDelegationLedgerEntry(entry);
+        appendLedgerFile(ctx.cwd, bodyFreeEntry);
+        pi.appendEntry("zob-delegation", bodyFreeEntry);
       };
       const renderDelegationMonitor = (): void => {
         if (ctx.hasUI) renderHarnessWidget(pi, state, ctx);
@@ -640,6 +677,24 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         monitorTicker = undefined;
         renderDelegationMonitor();
       };
+      if (childGoalResolution.errors.length > 0) {
+        const result: ChildResult = {
+          agent: params.agent,
+          task: params.task,
+          exitCode: 1,
+          output: delegateTaskPreflightHelp(childGoalResolution.errors),
+          stderr: "",
+          ledgerRunId: runId,
+          contractErrors: childGoalResolution.errors,
+          gatePassed: false,
+          gateErrors: childGoalResolution.errors,
+          preflightDiagnostics: childGoalResolution.diagnostics,
+          failureKind: "preflight",
+          usage: usageEmpty(),
+          cwd: cwdResult.cwd,
+        };
+        return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
+      }
       startDelegationRun(state.delegations, {
         id: runId,
         parentToolCallId: toolCallId,
@@ -669,6 +724,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           usage: usageEmpty(),
           cwd: cwdResult.cwd,
         };
+        recordBoundTodoDelegationPreflightFailure(pi, state, effectiveChildGoal, { runId, agent: params.agent, failureKind: "config", errors: ["unknown_agent"] });
         const endedAtMs = Date.now();
         const endedAt = new Date(endedAtMs).toISOString();
         appendDelegationLedger({
@@ -697,7 +753,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           outputContract: params.output_contract ?? inferOutputContract(params.agent),
           status: "unknown_agent",
           gatePassed: false,
-          gateErrors: ["unknown agent"],
+          gateErrors: ["unknown_agent"],
           failureKind: result.failureKind,
           usage: result.usage,
           latencyMs: endedAtMs - startedAtMs,
@@ -717,18 +773,16 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           model: params.model,
           cwd: cwdResult.cwd,
         });
-        recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
         return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
       }
 
       updateDelegationRun(state.delegations, runId, { agent: agent.name, cwd: cwdResult.cwd });
-      const requestedOutputContract = params.output_contract ?? inferOutputContract(agent.name);
       const effectiveTools = params.required_tools?.length ? params.required_tools : agent.tools ?? [];
 
       const structuredTask = [
         `ORIGINAL_USER_ASK: ${params.original_user_ask ?? state.activeGoal?.originalUserAsk ?? "Not set"}`,
-        params.output_contract ? `OUTPUT_CONTRACT: ${params.output_contract}` : undefined,
+        params.output_contract || effectiveChildGoal?.binding ? `OUTPUT_CONTRACT: ${requestedOutputContract}` : undefined,
         params.allowed_paths?.length ? `ALLOWED_PATHS: ${params.allowed_paths.join(", ")}` : undefined,
         params.forbidden_paths?.length ? `FORBIDDEN_PATHS: ${params.forbidden_paths.join(", ")}` : undefined,
         ...childGoalGuidance(effectiveChildGoal, state.runtimeGoal?.goalId, runId),
@@ -777,6 +831,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           usage: usageEmpty(),
           cwd: cwdResult.cwd,
         };
+        recordBoundTodoDelegationPreflightFailure(pi, state, effectiveChildGoal, { runId, agent: agent.name, failureKind: result.failureKind === "config" ? "config" : "preflight", errors: preflightErrors });
         const endedAtMs = Date.now();
         const endedAt = new Date(endedAtMs).toISOString();
         appendDelegationLedger({
@@ -804,7 +859,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           outputContract: params.output_contract ?? inferOutputContract(agent.name),
           status: "failed_preflight",
           gatePassed: false,
-          gateErrors: preflightErrors,
+          gateErrors: durableErrorRefs(preflightErrors),
           failureKind: result.failureKind,
           usage: result.usage,
           latencyMs: endedAtMs - startedAtMs,
@@ -824,7 +879,6 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           model: params.model ?? agent.model,
           cwd: cwdResult.cwd,
         });
-        recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result);
         stopMonitorTicker();
         return { content: [{ type: "text", text: formatChildResultText(result) }], details: { mode: "single", results: [result], agents: agents.map((candidate) => candidate.name) } };
       }
@@ -873,8 +927,9 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
         result.ledgerRunId = runId;
         result.outputContract = outputContract;
         result.contractErrors = [];
-        applyChildGates(result, { repoRoot: ctx.cwd });
+        applyChildGates(result, { repoRoot: ctx.cwd, expectedTodoId: effectiveChildGoal?.binding?.expected_claim.todo_id });
         retargetTodoSplitRequestResult(result, effectiveChildGoal, ctx.cwd);
+        enforceChildGoalClaimCorrelation(state, effectiveChildGoal, result, runId);
         result.failureKind = classifyChildFailure(result);
         const outputHash = result.output ? sha256(result.output) : undefined;
         const claimRecord = recordTodoClaimFromChildResult(pi, state, effectiveChildGoal, result, { runId, outputHash });
@@ -959,7 +1014,7 @@ export function registerDelegationTools(pi: ExtensionAPI, state: HarnessRuntimeS
           status,
           stopCondition: result.stopCondition,
           gatePassed: result.gatePassed,
-          gateErrors: result.gateErrors ?? [],
+          gateErrors: durableGateReasonCodes(result),
           failureKind: result.failureKind,
           assistantTurnSeen,
           outputCaptured: Boolean(outputHash),

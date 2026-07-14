@@ -20,11 +20,12 @@ import { formatInteractiveAutonomyPromptHint, formatMissionReadinessForUi, score
 import { classifyIntent } from "../domains/intent/intent-classifier.js";
 import { formatGoalTodoPromptHint } from "../domains/goal/goal-todos.js";
 import { resolveRuleProfile } from "../domains/governance/rules.js";
-import { loadDamageRules } from "../domains/governance/safety.js";
+import { buildDamageControlBlockMetadata, loadDamageRules, persistDamageControlBlockFailClosed, type DamageControlReasonCode } from "../domains/governance/safety.js";
+import { persistFileToolPreflightDecision, preflightFileToolCall, type FileToolPreflightDecision } from "../domains/governance/file-tool-preflight.js";
 import { loadTeamDefinition, validateTeamDefinition } from "../domains/topology/teams.js";
 import { loadZagentManifest, loadZteamManifest, loadZteamModePack, readZagentPrompt, resolveZagentRuntimeRoomBindings, resolveZteamScopedMode } from "../domains/coms/zagents.js";
 import type { AssistantLikeMessage } from "../types.js";
-import { blockedFeedback } from "../core/utils/formatting.js";
+import { blockedFeedback, fileToolPreflightFeedback } from "../core/utils/formatting.js";
 import { sha256 } from "../core/utils/hashing.js";
 import { buildZcommitPlan, recordZcommitTouchedFile, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitCommandResult, type ZcommitOwnedPathRef, type ZcommitPlan } from "../domains/git/git-ops.js";
 import { pathMatches } from "../core/utils/paths.js";
@@ -41,6 +42,7 @@ import { redactPlanTodosBlockForDisplay } from "../domains/plan/plan-todos.js";
 import { applyMode, renderHarnessWidget } from "./widget.js";
 import { createStopRestoreCandidate, markStopRestoreAssistantMessage, markStopRestoreToolVisible } from "./stop-restore.js";
 import { recordZpeerRuntimeEvent } from "./zpeer-events.js";
+import { bindActiveZpeerInboundToGoal, bindZpeerInboundFromMessage, claimZpeerInboundResponse, finalizeZpeerInboundResponseState, releaseZpeerInboundResponseClaim, selectZpeerAutoReply } from "./zpeer-auto-reply.js";
 
 function safelyUpdateZobLivePeer(repoRoot: string, action: "register" | "touch" | "unregister"): void {
   try {
@@ -95,23 +97,6 @@ function recordZpeerInbound(state: HarnessRuntimeState, envelope: ZobLiveEnvelop
   return inbound;
 }
 
-function markZpeerInboundTurnStart(state: HarnessRuntimeState, prompt: string): void {
-  const byMsgId = state.zobLive.inboundByMsgId;
-  const queue = state.zobLive.inboundQueue ?? [];
-  if (!byMsgId || queue.length === 0 || !prompt.trim()) return;
-  const taskHash = sha256(prompt);
-  const msgId = queue.find((candidate) => {
-    const inbound = byMsgId[candidate];
-    return inbound && !inbound.responseSent && !inbound.turnStartedAt && inbound.envelope.taskHash === taskHash;
-  });
-  if (!msgId) return;
-  const inbound = byMsgId[msgId];
-  const now = new Date().toISOString();
-  inbound.turnStartedAt = now;
-  inbound.injectedAt ??= now;
-  state.zobLive.activeInboundMsgId = msgId;
-}
-
 function activeZpeerInboundForResponse(state: HarnessRuntimeState): ZobInboundZpeerMessage | undefined {
   const activeMsgId = state.zobLive.activeInboundMsgId;
   if (activeMsgId && state.zobLive.inboundByMsgId?.[activeMsgId]) return state.zobLive.inboundByMsgId[activeMsgId];
@@ -124,33 +109,33 @@ function clearZpeerInboundWatchdog(inbound: ZobInboundZpeerMessage | undefined):
 }
 
 function finishZpeerInboundResponse(state: HarnessRuntimeState, msgId: string, responseSent: boolean): void {
-  const inbound = state.zobLive.inboundByMsgId?.[msgId];
-  clearZpeerInboundWatchdog(inbound);
-  if (inbound) {
-    inbound.responseSent = responseSent;
-    if (inbound.requireResponse && responseSent) inbound.requiredResponseStatus = "replied";
-  }
-  if (state.zobLive.inbound?.envelope.msgId === msgId) state.zobLive.inbound = { ...state.zobLive.inbound, responseSent };
-  state.zobLive.activeInboundMsgId = undefined;
-  state.zobLive.inboundQueue = (state.zobLive.inboundQueue ?? []).filter((candidate) => candidate !== msgId);
+  finalizeZpeerInboundResponseState(state, msgId, { responseSent, remove: responseSent });
 }
 
 function boundedRequiredResponseTimeoutMs(envelope: ZobLiveEnvelope): number {
   return Math.max(1_000, Math.min(30 * 60 * 1000, Math.floor(envelope.responseTimeoutMs ?? 10 * 60 * 1000)));
 }
 
-function scheduleZpeerRequiredResponseWatchdog(pi: ExtensionAPI, state: HarnessRuntimeState, inbound: ZobInboundZpeerMessage): void {
+export function scheduleZpeerRequiredResponseWatchdog(pi: ExtensionAPI, state: HarnessRuntimeState, inbound: ZobInboundZpeerMessage): void {
   if (inbound.requireResponse !== true || inbound.responseSent) return;
   clearZpeerInboundWatchdog(inbound);
   const timeoutMs = boundedRequiredResponseTimeoutMs(inbound.envelope);
   const maxReinjects = Math.max(0, Math.min(3, Math.floor(inbound.maxReinjects ?? 1)));
-  const deadlineMs = inbound.responseRequiredBy ? Date.parse(inbound.responseRequiredBy) : Date.now() + timeoutMs;
+  const deadlineMs = inbound.watchdogRetryAt
+    ? Date.parse(inbound.watchdogRetryAt)
+    : inbound.responseRequiredBy
+      ? Date.parse(inbound.responseRequiredBy)
+      : Date.now() + timeoutMs;
   const remainingMs = Number.isFinite(deadlineMs) ? Math.max(25, deadlineMs - Date.now()) : timeoutMs;
   const reminderSliceMs = Math.max(25, Math.floor(timeoutMs / Math.max(1, maxReinjects + 1)));
   const dueMs = Math.min(remainingMs, reminderSliceMs);
-  const timer = setTimeout(() => {
+  const timer = setTimeout(async () => {
     const current = state.zobLive.inboundByMsgId?.[inbound.envelope.msgId];
     if (!current || current.responseSent || current.requiredResponseStatus === "replied" || current.requiredResponseStatus === "cancelled") return;
+    if (current.responseInFlight) {
+      scheduleZpeerRequiredResponseWatchdog(pi, state, current);
+      return;
+    }
     const reinjectCount = current.reinjectCount ?? 0;
     const roomId = current.envelope.runId?.startsWith("zpeer:") ? current.envelope.runId.slice("zpeer:".length) : undefined;
     if (reinjectCount < maxReinjects) {
@@ -180,13 +165,35 @@ function scheduleZpeerRequiredResponseWatchdog(pi: ExtensionAPI, state: HarnessR
       scheduleZpeerRequiredResponseWatchdog(pi, state, current);
       return;
     }
-    current.requiredResponseStatus = "expired";
-    setZpeerLastEvent(state, { kind: "required_response_expired", roomId, fromAlias: current.envelope.sender, toAlias: current.envelope.receiver, status: "required_response_expired", msgId: current.envelope.msgId, taskHash: current.envelope.taskHash, priority: current.priority, interruptMode: current.interruptMode });
-    pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-required-response-watchdog.v1", action: "expire", status: "required_response_expired", msgId: current.envelope.msgId, roomIdHash: roomId ? sha256(roomId) : undefined, senderAliasHash: current.envelope.sender ? sha256(current.envelope.sender) : undefined, receiverAliasHash: current.envelope.receiver ? sha256(current.envelope.receiver) : undefined, taskHash: current.envelope.taskHash, reinjectCount: current.reinjectCount ?? 0, maxReinjects, responseRequiredBy: current.responseRequiredBy, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
-    if (current.envelope.replyEndpoint) {
-      void sendZobLocalEnvelope(current.envelope.replyEndpoint, buildZobLiveErrorEnvelope(current.envelope, "required ZPeer response expired", "zpeer_required_response_expired"), { timeoutMs: 5_000 }).catch(() => undefined);
+    if (!claimZpeerInboundResponse(state, current.envelope.msgId, "watchdog")) return;
+    const expire = () => {
+      current.watchdogRetryAt = undefined;
+      current.requiredResponseStatus = "expired";
+      setZpeerLastEvent(state, { kind: "required_response_expired", roomId, fromAlias: current.envelope.sender, toAlias: current.envelope.receiver, status: "required_response_expired", msgId: current.envelope.msgId, taskHash: current.envelope.taskHash, priority: current.priority, interruptMode: current.interruptMode });
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-required-response-watchdog.v1", action: "expire", status: "required_response_expired", msgId: current.envelope.msgId, roomIdHash: roomId ? sha256(roomId) : undefined, senderAliasHash: current.envelope.sender ? sha256(current.envelope.sender) : undefined, receiverAliasHash: current.envelope.receiver ? sha256(current.envelope.receiver) : undefined, taskHash: current.envelope.taskHash, reinjectCount: current.reinjectCount ?? 0, maxReinjects, responseRequiredBy: current.responseRequiredBy, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      finishZpeerInboundResponse(state, current.envelope.msgId, false);
+    };
+    if (!current.envelope.replyEndpoint) {
+      expire();
+      return;
     }
-    finishZpeerInboundResponse(state, current.envelope.msgId, false);
+    try {
+      const ack = await sendZobLocalEnvelope(current.envelope.replyEndpoint, buildZobLiveErrorEnvelope(current.envelope, "required ZPeer response expired", "zpeer_required_response_expired"), { timeoutMs: 5_000 });
+      if (ack.type !== "ack") throw new Error(`expected ack, got ${ack.type}`);
+      current.watchdogTransportFailures = 0;
+      expire();
+    } catch (error) {
+      releaseZpeerInboundResponseClaim(state, current.envelope.msgId);
+      current.watchdogTransportFailures = (current.watchdogTransportFailures ?? 0) + 1;
+      const reason = error instanceof Error ? error.message : String(error);
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-required-response-watchdog.v1", action: "expire_transport_error", status: "error", msgId: current.envelope.msgId, taskHash: current.envelope.taskHash, reasonHash: sha256(reason), attempt: current.watchdogTransportFailures, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+      if (current.watchdogTransportFailures >= 3) {
+        expire();
+        return;
+      }
+      current.watchdogRetryAt = new Date(Date.now() + 250).toISOString();
+      scheduleZpeerRequiredResponseWatchdog(pi, state, current);
+    }
   }, dueMs);
   timer.unref?.();
   inbound.watchdogTimer = timer;
@@ -233,6 +240,13 @@ function handleInboundZpeerPrompt(pi: ExtensionAPI, state: HarnessRuntimeState, 
   if (interruptStatus === "force_blocked") return interruptStatus;
   const inbound = recordZpeerInbound(state, envelope, repoRoot);
   scheduleZpeerRequiredResponseWatchdog(pi, state, inbound);
+  const inboundMessage = {
+    customType: "zob-coms-inbound",
+    content: envelope.transientPrompt ?? "",
+    display: false,
+    details: { kind: "zob-coms-inbound", msgId: envelope.msgId, runId: envelope.runId, sender: envelope.sender, receiver: envelope.receiver, taskHash: envelope.taskHash, priority: inbound.priority, interruptMode: inbound.interruptMode, interruptStatus, requireResponse: inbound.requireResponse || undefined, responseRequiredBy: inbound.responseRequiredBy, maxReinjects: inbound.maxReinjects, bodyStored: false, localOnly: true, networkEnabled: false },
+  };
+  if (ctx.isIdle()) bindZpeerInboundFromMessage(state, inboundMessage);
   const deliverAs = priority === "normal" ? "followUp" : "steer";
   void pi.sendMessage({
     customType: "zob-zpeer-event",
@@ -240,12 +254,7 @@ function handleInboundZpeerPrompt(pi: ExtensionAPI, state: HarnessRuntimeState, 
     display: true,
     details: { kind: "inbound", roomId, fromAlias: envelope.sender, toAlias: envelope.receiver, status: interruptStatus ?? "prompt_received", msgId: envelope.msgId, taskHash: envelope.taskHash, priority, interruptMode, interruptStatus, bodyStored: false, localOnly: true, networkEnabled: false },
   }, { triggerTurn: false, deliverAs: "nextTurn" });
-  void pi.sendMessage({
-    customType: "zob-coms-inbound",
-    content: envelope.transientPrompt ?? "",
-    display: false,
-    details: { kind: "zob-coms-inbound", msgId: envelope.msgId, runId: envelope.runId, sender: envelope.sender, receiver: envelope.receiver, taskHash: envelope.taskHash, priority: inbound.priority, interruptMode: inbound.interruptMode, interruptStatus, requireResponse: inbound.requireResponse || undefined, responseRequiredBy: inbound.responseRequiredBy, maxReinjects: inbound.maxReinjects, bodyStored: false, localOnly: true, networkEnabled: false },
-  }, { triggerTurn: true, deliverAs });
+  void pi.sendMessage(inboundMessage, { triggerTurn: true, deliverAs });
   return interruptStatus;
 }
 
@@ -632,8 +641,17 @@ function buildZpeerAwarenessPrompt(state: HarnessRuntimeState, repoRoot: string)
   const activePeerAliases = (activeSummary?.onlineAliases ?? []).filter((alias) => alias !== activeSelfAlias).slice(0, 8).map((alias) => `@${alias}`);
   const activeUnavailable = (activeSummary?.stale ?? 0) + (activeSummary?.offline ?? 0);
   const activeDuplicateLine = activeSummary && activeSummary.duplicateAliases.length > 0 ? `\n- duplicate live aliases: ${activeSummary.duplicateAliases.map((alias) => `@${alias}`).join(", ")}` : "";
-  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- If the user explicitly asks for a reply, status, or confirmation, use requireResponse=true with mode=\"await\" or mode=\"long\"; status=waiting is delivery-only, not evidence that the peer is working or done.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
+  return `\n\nZPEER AWARENESS (transient, rebuilt each turn)\n- active room: ${activeSummary?.roomId ?? "default"}\n- memberships: ${memberships}\n- self: @${activeSelfAlias}\n- online peers: ${activePeerAliases.join(", ") || "none"}\n- unavailable peers: ${activeUnavailable} (stale=${activeSummary?.stale ?? 0}, offline=${activeSummary?.offline ?? 0})${activeDuplicateLine}\n- rooms:\n${roomLines.join("\n") || "  - none"}\n- Use zpeer_ask with explicit roomId when targeting a non-active room.\n- posture: local_socket-only, room-scoped, hash-only durable ledgers, bodyStored=false, networkEnabled=false\n- For non-trivial review/debug/planning peer coordination, agents may use zpeer_ask with mode=\"async\" so the request is visible, governed, and non-blocking; /zpeer remains the interactive command path.\n- If the user explicitly asks for a reply, status, or confirmation, use requireResponse=true with mode=\"await\" or mode=\"long\"; status=waiting is delivery-only, not evidence that the peer is working or done.\n- Normal inbound replies are auto-captured only for one exact msgId; when several inbound messages are eligible, use zpeer_reply with the intended active msgId instead of guessing.\n- A runtime-goal-bound inbound replies after goal completion; blocked/paused/failed terminal goals return a correlated blocker, never silent success.\n- Passive wait rule: if the only remaining action is waiting for ZPeer/coms replies, stop the turn and remain idle; do not poll, call tools, or continue just to wait.\n- Use ZPeer only when useful or user-requested; avoid spam, duplicate asks, and reply loops; do not use it for hidden free chat or to bypass topology/safety gates.\n- Raw ZPeer bodies are transient; durable records must remain hash-only/bodyStored=false.\n- last ZPeer event: ${formatZpeerLastEvent(state.zobLive.lastEvent)}`;
 }
+
+export const FILE_TOOL_RELIABILITY_PROMPT = [
+  "ZOB NATIVE FILE-TOOL RELIABILITY",
+  "- Use active context search or find before read when a path is uncertain; pass one explicit path and never concatenate or auto-correct paths.",
+  "- Give grep one explicit file-or-directory root. For code punctuation or exact identifiers, prefer literal=true instead of guessing regex escaping.",
+  "- Before edit, reread the current file and provide exact, nonempty oldText that occurs exactly once; never fuzzy-match or select an occurrence automatically.",
+  "- Avoid guessed read offsets. Read from the start or use an offset already grounded in current file evidence.",
+  "- Native read/edit/grep/find remain authoritative: preflight supplies diagnostics only and never rewrites inputs, retries calls, or re-registers tools.",
+].join("\n");
 
 const SAME_AGENT_MODE_INTENT_PROMPT = [
   "ZOB SAME-AGENT AUTO-MODE INTENT",
@@ -649,12 +667,6 @@ const SAME_AGENT_MODE_INTENT_PROMPT = [
   "- Prefer implement for code/file edits, oracle for validation/review/no-ship, factory for reusable repeatable workflows/factories.",
   "- Do not emit an intent for ordinary discussion or when the current mode already fits.",
 ].join("\n");
-
-function latestAssistantText(event: unknown): string {
-  const messages = isRecord(event) && Array.isArray(event.messages) ? event.messages : [];
-  const assistantMessages = messages.filter((message): message is AssistantLikeMessage => isRecord(message) && message.role === "assistant");
-  return textFromMessage(assistantMessages.at(-1));
-}
 
 function stripModeIntentFromMessage<T extends { content?: unknown }>(message: T): T {
   const content = message.content;
@@ -1052,16 +1064,29 @@ async function compactionAuth(ctx: ExtensionContext): Promise<{ apiKey?: string;
 }
 
 async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntimeState, event: unknown): Promise<void> {
-  const activeInbound = activeZpeerInboundForResponse(state);
-  const inbound = activeInbound ?? state.zobLive.inbound;
-  if (!inbound || inbound.responseSent || !inbound.envelope.replyEndpoint) return;
-  // ZOB-COMS-GUARDS: a late reply after expiry is now permitted (the watchdog
-  // already stopped reinjecting; sender-side pendingReplies resolves to no-op).
-  // Dropping this early-out recovers nudge/reply paths (e.g. a late oracle
-  // review) without weakening the real anti-abuse (reinject cap + sender expire).
-  if (state.zobLive.inboundByMsgId && !activeInbound) return;
-  const responseText = latestAssistantText(event);
-  if (!responseText.trim()) return;
+  const decision = selectZpeerAutoReply(state, event);
+  if (decision.kind === "none" || decision.kind === "defer") return;
+  const inbound = claimZpeerInboundResponse(state, decision.msgId, "auto");
+  if (!inbound) return;
+  if (!inbound.envelope.replyEndpoint) {
+    releaseZpeerInboundResponseClaim(state, decision.msgId);
+    return;
+  }
+  const roomId = inbound.envelope.runId?.startsWith("zpeer:") ? inbound.envelope.runId.slice("zpeer:".length) : undefined;
+
+  try {
+  if (decision.kind === "error") {
+    const errorEnvelope = buildZobLiveErrorEnvelope(inbound.envelope, decision.errorMessage, decision.errorCode);
+    const ack = await sendZobLocalEnvelope(inbound.envelope.replyEndpoint, errorEnvelope, { timeoutMs: 5_000 });
+    if (ack.type !== "ack") throw new Error(`expected ack, got ${ack.type}`);
+    finishZpeerInboundResponse(state, inbound.envelope.msgId, true);
+    setZpeerLastEvent(state, { kind: "error", roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "error", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash });
+    pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-auto-reply.v1", action: "terminal_error", status: "error", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, errorHash: errorEnvelope.errorHash, errorCode: decision.errorCode, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+    void pi.sendMessage({ customType: "zob-zpeer-event", content: "ZPeer task blocker sent (durable records remain hash-only)", display: true, details: { kind: "error", roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "error", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, errorHash: errorEnvelope.errorHash, bodyStored: false, localOnly: true, networkEnabled: false } }, { triggerTurn: false, deliverAs: "nextTurn" });
+    return;
+  }
+
+  const responseText = decision.responseText;
   const policy = readZobComsV2Policy(inbound.repoRoot);
   let responseCapture: ReturnType<typeof writeZobComsRedactedCapture>;
   try {
@@ -1084,24 +1109,21 @@ async function sendInboundZobLiveResponse(pi: ExtensionAPI, state: HarnessRuntim
   const artifactRefs = responseCapture ? [...(inbound.envelope.artifactRefs ?? []), responseCapture.artifactRef] : inbound.envelope.artifactRefs;
   const artifactHashes = responseCapture ? [...(inbound.envelope.artifactHashes ?? []), responseCapture.artifactHash] : inbound.envelope.artifactHashes;
   const responseEnvelope = { ...buildZobLiveResponseEnvelope(inbound.envelope, responseText, artifactRefs, artifactHashes), replyToMsgId: inbound.envelope.msgId, responseHash: sha256(responseText) };
-  await sendZobLocalEnvelope(inbound.envelope.replyEndpoint, responseEnvelope, { timeoutMs: 5_000 });
+  const ack = await sendZobLocalEnvelope(inbound.envelope.replyEndpoint, responseEnvelope, { timeoutMs: 5_000 });
+  if (ack.type !== "ack") throw new Error(`expected ack, got ${ack.type}`);
   finishZpeerInboundResponse(state, inbound.envelope.msgId, true);
-  setZpeerLastEvent(state, {
-    kind: "response_sent",
-    roomId: inbound.envelope.runId?.startsWith("zpeer:") ? inbound.envelope.runId.slice("zpeer:".length) : undefined,
-    fromAlias: inbound.envelope.receiver,
-    toAlias: inbound.envelope.sender,
-    status: "response_sent",
-    msgId: inbound.envelope.msgId,
-    taskHash: inbound.envelope.taskHash,
-    outputHash: responseEnvelope.outputHash,
-  });
+  setZpeerLastEvent(state, { kind: "response_sent", roomId: roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash });
+  pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-auto-reply.v1", action: "reply", status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
   void pi.sendMessage({
     customType: "zob-zpeer-event",
     content: "ZPeer response sent (transient response delivered over local socket; durable records remain hash-only)",
     display: true,
-    details: { kind: "response_sent", roomId: state.zobLive.lastEvent?.roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash, priority: activeInbound?.priority, interruptMode: activeInbound?.interruptMode, bodyStored: false, localOnly: true, networkEnabled: false },
+    details: { kind: "response_sent", roomId: roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash: responseEnvelope.outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode, bodyStored: false, localOnly: true, networkEnabled: false },
   }, { triggerTurn: false, deliverAs: "nextTurn" });
+  } catch (error) {
+    releaseZpeerInboundResponseClaim(state, decision.msgId);
+    throw error;
+  }
 }
 
 export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeState): void {
@@ -1268,6 +1290,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
 
   pi.on("message_start", async (event, ctx) => {
     if (!isRecord(event.message)) return undefined;
+    bindZpeerInboundFromMessage(state, event.message);
     if (event.message.role === "user") {
       const text = textFromMessage(event.message as AssistantLikeMessage);
       const stopRestoreCandidate = createStopRestoreCandidate({
@@ -1300,7 +1323,14 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     if (state.activeMode === "vanilla") return { action: "continue" as const };
 
     let violation: string | undefined;
+    let reasonCode: DamageControlReasonCode | undefined;
+    let ruleIdentity: string | undefined;
     let attempted = JSON.stringify(event.input);
+    const setViolation = (reason: string, code: DamageControlReasonCode, identity: string): void => {
+      violation = reason;
+      reasonCode = code;
+      ruleIdentity = identity;
+    };
 
     const pathInputs: string[] = [];
     if (isToolCallEventType("read", event) || isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
@@ -1312,14 +1342,22 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
 
     for (const inputPath of pathInputs) {
       for (const protectedPattern of state.currentRules.zeroAccessPaths) {
-        if (pathMatches(inputPath, protectedPattern, ctx.cwd)) violation = `zero-access path: ${protectedPattern}`;
+        if (pathMatches(inputPath, protectedPattern, ctx.cwd)) {
+          setViolation(`zero-access path: ${protectedPattern}`, "zero_access", `zero-access:${protectedPattern}`);
+        }
       }
       if ((event.toolName === "write" || event.toolName === "edit") && state.activeMode === "explore" && !violation) {
-        violation = "explore mode is read-only; switch to /zmode implement and use edit/write for file updates";
+        setViolation(
+          "explore mode is read-only; switch to /zmode implement and use edit/write for file updates",
+          "mode_blocked",
+          "mode:explore:file-write",
+        );
       }
       if ((event.toolName === "write" || event.toolName === "edit") && !violation) {
         for (const readOnly of state.currentRules.readOnlyPaths) {
-          if (pathMatches(inputPath, readOnly, ctx.cwd)) violation = `read-only path: ${readOnly}`;
+          if (pathMatches(inputPath, readOnly, ctx.cwd)) {
+            setViolation(`read-only path: ${readOnly}`, "read_only", `read-only:${readOnly}`);
+          }
         }
       }
     }
@@ -1328,7 +1366,11 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
       const command = event.input.command;
       attempted = command;
       if (state.activeMode === "explore" && bashLooksLikeFileMutation(command)) {
-        violation = "explore mode is read-only; do not mutate files through bash/python/perl/node patch scripts";
+        setViolation(
+          "explore mode is read-only; do not mutate files through bash/python/perl/node patch scripts",
+          "mode_blocked",
+          "mode:explore:bash-mutation",
+        );
       }
       for (const rule of state.currentRules.bashToolPatterns) {
         if (violation) break;
@@ -1336,27 +1378,104 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
           if (rule.ask && ctx.hasUI) {
             const ok = await ctx.ui.confirm("ZOB damage-control", `${rule.reason}\n\n${command}\n\nAllow?`, { timeout: 30000 });
             if (ok) return;
+            setViolation(rule.reason, "approval_denied", `bash-pattern:${rule.pattern}:approval`);
+          } else {
+            setViolation(rule.reason, "destructive_command", `bash-pattern:${rule.pattern}`);
           }
-          violation = rule.reason;
           break;
         }
       }
       if (!violation) {
         for (const protectedPattern of state.currentRules.zeroAccessPaths) {
-          if (command.includes(protectedPattern)) violation = `bash references zero-access path: ${protectedPattern}`;
+          if (command.includes(protectedPattern)) {
+            setViolation(`bash references zero-access path: ${protectedPattern}`, "zero_access", `zero-access:${protectedPattern}`);
+          }
         }
       }
       if (!violation) {
         for (const noDelete of state.currentRules.noDeletePaths) {
-          if (command.includes(noDelete) && /\b(rm|mv)\b/.test(command)) violation = `delete/move protected path: ${noDelete}`;
+          if (command.includes(noDelete) && /\b(rm|mv)\b/.test(command)) {
+            setViolation(`delete/move protected path: ${noDelete}`, "protected_delete", `protected-delete:${noDelete}`);
+          }
         }
       }
     }
 
     if (violation) {
-      pi.appendEntry("zob-damage-control", { tool: event.toolName, input: event.input, violation, timestamp: Date.now() });
+      const stableReasonCode = reasonCode ?? "destructive_command";
+      try {
+        const metadata = buildDamageControlBlockMetadata({
+          toolName: event.toolName,
+          currentMode: state.activeMode,
+          reasonCode: stableReasonCode,
+          ruleIdentity: ruleIdentity ?? `fallback:${stableReasonCode}`,
+          attemptedInput: event.input,
+        });
+        persistDamageControlBlockFailClosed(metadata, (customType, data) => pi.appendEntry(customType, data));
+      } catch {
+        // Damage-control telemetry is best-effort; the policy decision remains fail-closed below.
+      }
       ctx.ui.notify(`Blocked ${event.toolName}: ${violation}`, "warning");
-      return { block: true, reason: blockedFeedback(event.toolName, violation, attempted) };
+      const safeNextAction = stableReasonCode === "mode_blocked"
+        ? "switch_to_implement_or_use_a_read_only_tool"
+        : stableReasonCode === "zero_access"
+          ? "skip_access_or_request_a_specific_non_secret_value"
+          : stableReasonCode === "read_only"
+            ? "choose_a_writable_non_protected_target"
+            : "request_explicit_approval_with_risk_and_rollback";
+      return {
+        block: true,
+        reason: blockedFeedback(event.toolName, violation, attempted, {
+          executionPerformed: false,
+          currentMode: state.activeMode,
+          reasonCode: stableReasonCode,
+          retryPolicy: "do_not_retry_same_call",
+          safeNextAction,
+        }),
+      };
+    }
+
+    let fileToolPreflight: FileToolPreflightDecision | undefined;
+    const fileToolPreflightPolicy = { zeroAccessPaths: state.currentRules.zeroAccessPaths, policyRoot: ctx.cwd };
+    if (isToolCallEventType("read", event)) {
+      fileToolPreflight = preflightFileToolCall({ toolName: "read", cwd: ctx.cwd, input: event.input }, undefined, fileToolPreflightPolicy);
+    } else if (isToolCallEventType("edit", event)) {
+      fileToolPreflight = preflightFileToolCall({ toolName: "edit", cwd: ctx.cwd, input: event.input }, undefined, fileToolPreflightPolicy);
+    } else if (isToolCallEventType("grep", event)) {
+      fileToolPreflight = preflightFileToolCall({ toolName: "grep", cwd: ctx.cwd, input: event.input }, undefined, fileToolPreflightPolicy);
+    } else if (isToolCallEventType("find", event)) {
+      fileToolPreflight = preflightFileToolCall({ toolName: "find", cwd: ctx.cwd, input: event.input }, undefined, fileToolPreflightPolicy);
+    }
+
+    if (fileToolPreflight && fileToolPreflight.verdict !== "pass") {
+      const recorded = persistFileToolPreflightDecision(
+        fileToolPreflight,
+        state.fileToolPreflight,
+        (customType, data) => pi.appendEntry(customType, data),
+      );
+      if (fileToolPreflight.verdict === "block" || !recorded.telemetryRecorded) {
+        const reason = fileToolPreflightFeedback({
+          executionPerformed: false,
+          toolName: fileToolPreflight.toolName,
+          reasonCode: fileToolPreflight.reasonCode,
+          field: fileToolPreflight.field,
+          pathHash: fileToolPreflight.pathHash,
+          inputHash: fileToolPreflight.inputHash,
+          snapshotHash: fileToolPreflight.snapshotHash,
+          fingerprintHash: fileToolPreflight.fingerprintHash,
+          retryPolicy: fileToolPreflight.retryPolicy,
+          safeNextActions: recorded.telemetryRecorded
+            ? fileToolPreflight.safeNextActions
+            : [...fileToolPreflight.safeNextActions, "restore_preflight_telemetry_then_retry"],
+          telemetryRecorded: recorded.telemetryRecorded,
+          deduplicated: recorded.deduplicated,
+          attemptCount: recorded.attemptCount,
+          unchangedRetryCount: recorded.unchangedRetryCount,
+        });
+        ctx.ui.notify(`Blocked ${fileToolPreflight.toolName}: ${fileToolPreflight.reasonCode}`, "warning");
+        return { block: true, reason };
+      }
+      ctx.ui.notify(`Observed ${fileToolPreflight.toolName}: ${fileToolPreflight.reasonCode}; native input unchanged`, "warning");
     }
 
     if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
@@ -1508,7 +1627,6 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    markZpeerInboundTurnStart(state, event.prompt);
     const goalHint = state.activeGoal
       ? `\n\nZOB GOAL GATE\n- ORIGINAL_USER_ASK: ${state.activeGoal.originalUserAsk}\n- ACTIVE_GOAL: ${state.activeGoal.activeGoal}\n- EXPECTED_OUTPUT: ${state.activeGoal.expectedOutput}\n- CONSTRAINTS: ${state.activeGoal.constraints}\n- VALIDATION_EVIDENCE: ${state.activeGoal.validationEvidence}`
       : "\n\nZOB GOAL GATE\n- No active goal set. If the request is broad or multi-step, use /goal_gate first or restate ORIGINAL_USER_ASK / ACTIVE_GOAL explicitly before delegating.";
@@ -1526,7 +1644,7 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     if (state.activeMode === "vanilla") {
       return { systemPrompt: `${event.systemPrompt}\n\n${MODE_PROMPTS.vanilla}` };
     }
-    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${EXTERNAL_PACKAGE_TOOLS_CONTRACT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}${activeSearchBackendHint}`;
+    const contractHint = `\n\nZOB HARNESS OPERATING CONTRACT\n- Prefer Explore -> Plan -> Implement -> Oracle for non-trivial work.\n- Use the six-part contract for delegated work: TASK / EXPECTED OUTCOME / REQUIRED TOOLS / MUST DO / MUST NOT DO / CONTEXT.\n- Do not claim completion without concrete evidence.\n- If output may truncate, prioritize verdict, blockers, and next steps over exhaustive listings.\n\n${SAME_AGENT_MODE_INTENT_PROMPT}\n\n${ZOB_TOOL_ROUTING_CONTRACT}\n\n${ZOB_COMPACTION_CONTINUITY_CONTRACT}\n\n${EXTERNAL_PACKAGE_TOOLS_CONTRACT}\n\n${FILE_TOOL_RELIABILITY_PROMPT}\n\n${MODE_PROMPTS[state.activeMode]}${goalHint}${runtimeGoalHint}${rulesHint}${autonomyHint}${zagentHint}${zpeerHint}${activeSearchBackendHint}`;
     return { systemPrompt: `${event.systemPrompt}${contractHint}` };
   });
 
@@ -1548,7 +1666,8 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
     renderHarnessWidget(pi, state, ctx);
   });
 
-  pi.on("tool_execution_end", async (_event, ctx) => {
+  pi.on("tool_execution_end", async (event, ctx) => {
+    if (event.toolName === "create_goal" && state.runtimeGoal) bindActiveZpeerInboundToGoal(state, state.runtimeGoal.goalId);
     await startOrRefreshZobLiveRuntime(pi, state, ctx);
     renderHarnessWidget(pi, state, ctx);
   });
@@ -1561,8 +1680,10 @@ export function registerHarnessEvents(pi: ExtensionAPI, state: HarnessRuntimeSta
   pi.on("agent_end", async (event) => {
     try {
       await sendInboundZobLiveResponse(pi, state, event);
-    } catch {
-      // Response capture is best-effort until the full live await path is enabled.
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const inbound = activeZpeerInboundForResponse(state);
+      pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-auto-reply.v1", action: "reply_error", status: "error", reasonHash: sha256(reason), msgId: inbound?.envelope.msgId, taskHash: inbound?.envelope.taskHash, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
     }
   });
 

@@ -18,6 +18,7 @@ import { resolveRuleProfile } from "../../domains/governance/rules.js";
 import type { HarnessRuntimeState } from "../state.js";
 import { applyMode, renderHarnessWidget } from "../widget.js";
 import { recordZpeerRuntimeEvent } from "../zpeer-events.js";
+import { claimZpeerInboundResponse, finalizeZpeerInboundResponseState, releaseZpeerInboundResponseClaim } from "../zpeer-auto-reply.js";
 
 function zpeerCommandProfileId(ctx: ExtensionCommandContext): string {
   const sessionIdentity = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
@@ -1550,7 +1551,7 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
         const responseText = parts.slice(2).join(" ").trim();
         const outputHash = responseText ? sha256(responseText) : undefined;
         const inbound = msgId ? state.zobLive.inboundByMsgId?.[msgId] : undefined;
-        const block = !msgId ? "msgId is required" : !responseText ? "response text is required" : !inbound ? "no active inbound ZPeer message for msgId" : inbound.responseSent || inbound.requiredResponseStatus === "replied" ? "ZPeer msgId already answered" : inbound.requiredResponseStatus === "expired" ? "ZPeer msgId required response already expired" : !inbound.envelope.replyEndpoint ? "ZPeer inbound msgId has no reply endpoint" : undefined;
+        const block = !msgId ? "msgId is required" : !responseText ? "response text is required" : !inbound ? "no active inbound ZPeer message for msgId" : inbound.responseSent || inbound.requiredResponseStatus === "replied" ? "ZPeer msgId already answered" : inbound.responseInFlight ? "ZPeer msgId response already in flight" : inbound.requiredResponseStatus === "expired" ? "ZPeer msgId required response already expired" : !inbound.envelope.replyEndpoint ? "ZPeer inbound msgId has no reply endpoint" : undefined;
         if (block) {
           pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "reply_blocked", status: "blocked", reasonHash: sha256(block), msgId, outputHash, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
           ctx.ui.notify(`/zpeer reply blocked: ${block}`, "warning");
@@ -1560,24 +1561,25 @@ export function registerZliveCommands(pi: ExtensionAPI, state: HarnessRuntimeSta
           ctx.ui.notify("/zpeer reply blocked: invalid reply state", "warning");
           return;
         }
+        if (!claimZpeerInboundResponse(state, inbound.envelope.msgId, "command")) {
+          const reason = "ZPeer msgId response already in flight";
+          pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "reply_blocked", status: "blocked", reasonHash: sha256(reason), msgId, outputHash, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
+          ctx.ui.notify(`/zpeer reply blocked: ${reason}`, "warning");
+          return;
+        }
         const replyEndpoint = inbound.envelope.replyEndpoint;
         try {
           const responseEnvelope = { ...buildZobLiveResponseEnvelope(inbound.envelope, responseText, inbound.envelope.artifactRefs, inbound.envelope.artifactHashes), replyToMsgId: inbound.envelope.msgId, responseHash: outputHash };
           const ack = await sendZobLocalEnvelope(replyEndpoint, responseEnvelope, { timeoutMs: 5_000 });
           if (ack.type !== "ack") throw new Error(`expected ack, got ${ack.type}`);
-          if (inbound.watchdogTimer) clearTimeout(inbound.watchdogTimer);
-          inbound.responseSent = true;
-          inbound.requiredResponseStatus = "replied";
-          if (state.zobLive.inboundByMsgId) delete state.zobLive.inboundByMsgId[inbound.envelope.msgId];
-          if (state.zobLive.inbound?.envelope.msgId === inbound.envelope.msgId) state.zobLive.inbound = { ...state.zobLive.inbound, responseSent: true };
-          state.zobLive.activeInboundMsgId = undefined;
-          state.zobLive.inboundQueue = (state.zobLive.inboundQueue ?? []).filter((candidate) => candidate !== inbound.envelope.msgId);
+          finalizeZpeerInboundResponseState(state, inbound.envelope.msgId, { responseSent: true, remove: true });
           const roomId = inbound.envelope.runId?.startsWith("zpeer:") ? inbound.envelope.runId.slice("zpeer:".length) : undefined;
           emitZpeerEvent({ kind: "response_sent", roomId, fromAlias: inbound.envelope.receiver, toAlias: inbound.envelope.sender, status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode });
           pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "reply", status: "response_sent", msgId: inbound.envelope.msgId, taskHash: inbound.envelope.taskHash, outputHash, priority: inbound.priority, interruptMode: inbound.interruptMode, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
           renderHarnessWidget(pi, state, ctx);
           ctx.ui.notify(`zpeer reply sent msgId=${inbound.envelope.msgId} outputHash=${outputHash}`, "info");
         } catch (error) {
+          releaseZpeerInboundResponseClaim(state, inbound.envelope.msgId);
           const reason = error instanceof Error ? error.message : String(error);
           pi.appendEntry("zob-zpeer", { schema: "zob.zpeer-command.v1", action: "reply_error", status: "error", reasonHash: sha256(reason), msgId, outputHash, localOnly: true, networkEnabled: false, bodyStored: false, promptBodiesStored: false, outputBodiesStored: false, generatedAt: new Date().toISOString() });
           ctx.ui.notify(`/zpeer reply error: ${reason}`, "warning");

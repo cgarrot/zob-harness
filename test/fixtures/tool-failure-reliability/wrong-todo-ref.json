@@ -1,0 +1,19 @@
+{
+  "schema": "zob.tool-failure-replay-fixture.v1",
+  "taxonomyRevision": 1,
+  "bodyStored": false,
+  "attempts": [
+    {
+      "schema": "zob.tool-failure-attempt.v1",
+      "attemptHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "toolHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inputHash": "1010101010101010101010101010101010101010101010101010101010101010",
+      "stateHash": "2010201020102010201020102010201020102010201020102010201020102010",
+      "failureClass": "reference_resolution",
+      "reasonCode": "todo_ref_not_found",
+      "stateRevision": 3,
+      "occurredAt": "2026-07-13T10:00:00.000Z",
+      "bodyStored": false
+    }
+  ]
+}
