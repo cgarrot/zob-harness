@@ -2,6 +2,16 @@
 
 This repo is a project-local Pi harness, not an application product. Optimize for agentic engineering: reusable workflows, specialist delegation, safety gates, and verified outputs.
 
+## Repository ownership
+
+This repository is the canonical home for the complete ZOB system: generic runtime mechanics plus the consolidated Wheel AgentOps specification, policy pack, schemas, install manual, factory definitions, decisions, enhancements, and user-facing terminal manual under `docs/zob/`.
+
+- Generic runtime code remains project-neutral and must not hard-code Wheel paths, labels, models, workflows, or completion policy.
+- Wheel-specific behavior lives in a bounded pack/configuration layer inside this repository rather than in the generic runtime core.
+- `jointhewheel` owns application-specific adapters, story/Fleet signals, branch protection, CI/CD/Guard integration, and source-coupled tests.
+- `jointhewheel-docs-tools` is no longer the durable home for ZOB documentation or policy. Any preserved copy there is migration evidence only until separately removed.
+- The consolidated suite remains design-only unless implementation, validation, installation, activation, and per-action authority are independently evidenced.
+
 ## Operating loop
 
 For non-trivial work use: Explore -> Plan -> Implement -> Oracle.
@@ -32,6 +42,7 @@ Use this six-part contract for specialist agents:
 - Never commit unless explicitly asked or governed autocommit is explicitly policy-authorized for the current task.
 - Commit/push/tag operations must go through governed `/zcommit` or the agent-executable `zob_zcommit_run` tool when the user explicitly asks the agent to commit/push; direct `git commit`, `git push`, `git tag`, force push, `git add .`, and `git add -A` are blocked.
 - Avoid touching generated/vendor folders: `node_modules`, `dist`, `build`.
+- Never use real family-member names; use safe pseudonyms in all examples, prompts, transcripts and documentation.
 
 ## Pi harness specifics
 

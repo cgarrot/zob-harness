@@ -1,0 +1,15 @@
+{
+  "schema": "zob.story-gate.v1",
+  "storyId": "H31",
+  "gateId": "H31:G4",
+  "gateType": "build",
+  "required": true,
+  "dependencyRefs": ["H31:G3"],
+  "entryCriteria": [{"criterionId": "entry-1", "description": "Reconciled executable blueprint is current.", "evidenceType": "gate-evidence"}],
+  "taskRefs": [{"taskId": "H31:G4:T2", "taskRef": "execution/tasks/H31-G4-T2.json", "taskHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+  "exitCriteria": [{"criterionId": "exit-1", "description": "All required build tasks and integration validation are accepted.", "required": true}],
+  "evidenceRequirements": ["source-binding", "validation-output", "integration-owner-acceptance"],
+  "reviewPolicy": {"risk": "medium", "independentReview": true, "reviewRole": "internal-review"},
+  "humanGateRefs": [],
+  "invalidationRules": ["accepted source hash changes", "dependency gate reopens", "required validation becomes stale"]
+}

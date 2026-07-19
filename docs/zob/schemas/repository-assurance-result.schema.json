@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:repository-assurance-result:v1",
+  "title": "Wheel ZOB Final Repository Assurance Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "assuranceId", "candidateId", "candidateRevision", "candidateHash", "repositoryId", "stagingSha", "developSha", "round", "laneResults", "modelIndependence", "topDownDocs", "bottomUpCoverage", "findings", "synthesizer", "verdict", "noShip", "assuranceCheck", "resultHash", "completedAt", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.repository-assurance-result.v1"},
+    "assuranceId": {"type": "string", "minLength": 8},
+    "candidateId": {"type": "string"},
+    "candidateRevision": {"type": "integer", "minimum": 1, "maximum": 3},
+    "candidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "repositoryId": {"type": "string"},
+    "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "developSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "round": {"type": "integer", "minimum": 1, "maximum": 3},
+    "laneResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source-integration", "product-reachability", "security-privacy", "reliability-performance", "data-control-plane", "qa-test-truth", "supply-chain-ci", "operations-rollout", "top-down-docs", "bottom-up-coverage"],
+      "properties": {
+        "source-integration": {"$ref": "#/$defs/lane"},
+        "product-reachability": {"$ref": "#/$defs/lane"},
+        "security-privacy": {"$ref": "#/$defs/lane"},
+        "reliability-performance": {"$ref": "#/$defs/lane"},
+        "data-control-plane": {"$ref": "#/$defs/lane"},
+        "qa-test-truth": {"$ref": "#/$defs/lane"},
+        "supply-chain-ci": {"$ref": "#/$defs/lane"},
+        "operations-rollout": {"$ref": "#/$defs/lane"},
+        "top-down-docs": {"$ref": "#/$defs/lane"},
+        "bottom-up-coverage": {"$ref": "#/$defs/lane"}
+      }
+    },
+    "modelIndependence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligibleFamilyCount", "usedFamilyCount", "familySetHash", "degraded"],
+      "properties": {
+        "eligibleFamilyCount": {"type": "integer", "minimum": 1},
+        "usedFamilyCount": {"type": "integer", "minimum": 1},
+        "familySetHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "degraded": {"type": "boolean"},
+        "degradationReasonHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      },
+      "anyOf": [
+        {"properties": {"eligibleFamilyCount": {"maximum": 2}}},
+        {"properties": {"eligibleFamilyCount": {"minimum": 3}, "usedFamilyCount": {"minimum": 3}}}
+      ]
+    },
+    "topDownDocs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestHash", "assignedCount", "current", "evidenceBound", "stale", "pending", "duplicateAssignments"],
+      "properties": {
+        "manifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "assignedCount": {"type": "integer", "minimum": 0},
+        "current": {"type": "integer", "minimum": 0},
+        "evidenceBound": {"type": "integer", "minimum": 0},
+        "stale": {"type": "integer", "minimum": 0},
+        "pending": {"type": "integer", "minimum": 0},
+        "duplicateAssignments": {"type": "integer", "minimum": 0}
+      }
+    },
+    "bottomUpCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inventoryId", "inventoryHash", "status", "total", "disposed", "missingDocumentation", "unknownOrUnresolved", "duplicateElementIds"],
+      "properties": {
+        "inventoryId": {"type": "string"},
+        "inventoryHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "status": {"enum": ["complete-clean", "complete-blocked", "incomplete", "invalid"]},
+        "total": {"type": "integer", "minimum": 1},
+        "disposed": {"type": "integer", "minimum": 0},
+        "missingDocumentation": {"type": "integer", "minimum": 0},
+        "unknownOrUnresolved": {"type": "integer", "minimum": 0},
+        "duplicateElementIds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "findings": {"type": "object", "additionalProperties": false, "required": ["total", "blocking", "artifactHash"], "properties": {"total": {"type": "integer", "minimum": 0}, "blocking": {"type": "integer", "minimum": 0}, "artifactHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "repairRoundIds": {"type": "array", "maxItems": 2, "items": {"type": "string"}},
+    "synthesizer": {"type": "object", "additionalProperties": false, "required": ["assignmentId", "policyHash", "outputHash", "fixedControl"], "properties": {"assignmentId": {"type": "string"}, "policyHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "outputHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "fixedControl": {"const": true}}},
+    "verdict": {"enum": ["pass", "blocked", "needs-human", "invalid"]},
+    "noShip": {"type": "boolean"},
+    "assuranceCheck": {"type": "object", "additionalProperties": false, "required": ["checkId", "issuerType", "headSha", "conclusion"], "properties": {"checkId": {"type": "string"}, "issuerType": {"const": "reviewer-app"}, "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "conclusion": {"enum": ["success", "failure", "neutral"]}}},
+    "resultHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "completedAt": {"type": "string", "format": "date-time"},
+    "bodyStored": {"const": false}
+  },
+  "$defs": {
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assignmentId", "familyOpaqueId", "result", "artifactHash", "evidenceRefs"],
+      "properties": {
+        "assignmentId": {"type": "string"},
+        "familyOpaqueId": {"type": "string"},
+        "result": {"enum": ["pass", "blocked", "invalid"]},
+        "artifactHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "evidenceRefs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"modelIndependence": {"properties": {"eligibleFamilyCount": {"maximum": 2}}}}, "required": ["modelIndependence"]},
+      "then": {"properties": {"modelIndependence": {"properties": {"degraded": {"const": true}}, "required": ["degradationReasonHash"]}}}
+    },
+    {
+      "if": {"properties": {"verdict": {"enum": ["blocked", "needs-human", "invalid"]}}, "required": ["verdict"]},
+      "then": {"properties": {"noShip": {"const": true}}}
+    },
+    {
+      "if": {"properties": {"verdict": {"const": "pass"}}, "required": ["verdict"]},
+      "then": {
+        "properties": {
+          "noShip": {"const": false},
+          "topDownDocs": {"properties": {"stale": {"const": 0}, "pending": {"const": 0}, "duplicateAssignments": {"const": 0}}},
+          "bottomUpCoverage": {"properties": {"status": {"const": "complete-clean"}, "missingDocumentation": {"const": 0}, "unknownOrUnresolved": {"const": 0}, "duplicateElementIds": {"const": 0}}},
+          "findings": {"properties": {"blocking": {"const": 0}}},
+          "laneResults": {"properties": {"source-integration": {"properties": {"result": {"const": "pass"}}}, "product-reachability": {"properties": {"result": {"const": "pass"}}}, "security-privacy": {"properties": {"result": {"const": "pass"}}}, "reliability-performance": {"properties": {"result": {"const": "pass"}}}, "data-control-plane": {"properties": {"result": {"const": "pass"}}}, "qa-test-truth": {"properties": {"result": {"const": "pass"}}}, "supply-chain-ci": {"properties": {"result": {"const": "pass"}}}, "operations-rollout": {"properties": {"result": {"const": "pass"}}}, "top-down-docs": {"properties": {"result": {"const": "pass"}}}, "bottom-up-coverage": {"properties": {"result": {"const": "pass"}}}}},
+          "assuranceCheck": {"properties": {"conclusion": {"const": "success"}}}
+        }
+      }
+    }
+  ]
+}

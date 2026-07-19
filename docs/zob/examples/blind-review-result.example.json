@@ -1,0 +1,21 @@
+{
+  "schema": "zob.blind-review-result.v1",
+  "reviewId": "review-demo-001",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "prNumber": 4001,
+  "headSha": "1111111111111111111111111111111111111111",
+  "baseRef": "develop-staging",
+  "baseShaAtAdmission": "2222222222222222222222222222222222222222",
+  "round": 1,
+  "riskClass": "medium",
+  "requiredLaneTypes": ["general-control", "evidence-domain"],
+  "lanes": [
+    {"laneId": "lane-A", "laneType": "general-control", "assignmentId": "assign-REV1", "control": true, "freshSourceReportHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "finalReportHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "complete"},
+    {"laneId": "lane-B", "laneType": "evidence-domain", "assignmentId": "assign-REV2", "control": true, "freshSourceReportHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "finalReportHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "status": "complete"}
+  ],
+  "adjudication": {"assignmentId": "assign-ADJ1", "reportHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "requiredCoverageSatisfied": true},
+  "verdict": "pass",
+  "findings": [],
+  "binding": {"prCloseEvidenceHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "policyHash": "9999999999999999999999999999999999999999999999999999999999999999", "githubCheckRef": "github-check:review-demo-001"},
+  "bodyStored": false
+}

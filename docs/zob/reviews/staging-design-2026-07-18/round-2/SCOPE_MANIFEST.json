@@ -1,0 +1,507 @@
+{
+  "schema": "zob.doc-audit-scope.v2",
+  "reviewMode": "full",
+  "round": 2,
+  "generatedAt": "2026-07-18T16:13:07Z",
+  "scopeSource": "explicit repository inventory after round-1 parent repair",
+  "lineCountSemantics": "utf8-splitlines-logical-lines",
+  "included": [
+    "AGENTS.md",
+    "README.md",
+    "docs/zob/**/*.{md,json,py}"
+  ],
+  "excluded": [
+    "docs/zob/reviews/**",
+    "transcripts/**",
+    "investors/**",
+    "needs-human/**",
+    "superseded/**",
+    "__pycache__/**"
+  ],
+  "priorAuditRef": "docs/zob/reviews/staging-design-2026-07-18/round-1/PARENT_FINDINGS.md",
+  "priorScopeRef": "docs/zob/reviews/staging-design-2026-07-18/round-1/SCOPE_MANIFEST.json",
+  "priorScopeSha256": "eaf88ea5e4f68337b8e3b50e9330a3b80df54895fea12536e9fbf97fc7f046e1",
+  "parentFindingsSha256": "ed174f6d8a635a244d5af64b69aeead4d3730dbd3bf856b35514465d608773b5",
+  "repairedFindingIds": [
+    "STG-R1-001",
+    "STG-R1-002",
+    "STG-R1-003",
+    "STG-R1-004",
+    "STG-R1-005",
+    "STG-R1-006",
+    "STG-R1-007",
+    "STG-R1-008",
+    "STG-R1-009",
+    "STG-R1-010",
+    "STG-R1-011",
+    "STG-R1-012",
+    "STG-R1-013"
+  ],
+  "fileCount": 66,
+  "lineCount": 6068,
+  "byteCount": 348528,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "lane": "core-factories",
+      "lineCount": 44,
+      "byteCount": 3066,
+      "sha256": "67a4a303a0c4e2e40b3fb832c40c4874134265e1619bc5b8d2ddca22000c6bed"
+    },
+    {
+      "path": "README.md",
+      "lane": "core-factories",
+      "lineCount": 14,
+      "byteCount": 872,
+      "sha256": "bb4fb11253157eddc0fa38b2f75cc9eb5b73d7b38582eb2712ff7c60e36ef6e6"
+    },
+    {
+      "path": "docs/zob/01-SYSTEM_OVERVIEW.md",
+      "lane": "core-factories",
+      "lineCount": 133,
+      "byteCount": 6364,
+      "sha256": "01e45567e87098fe6476cb9f56fa9948a4ceb099817e8d205f8345c37aba629f"
+    },
+    {
+      "path": "docs/zob/02-ARCHITECTURE_AND_OWNERSHIP.md",
+      "lane": "core-factories",
+      "lineCount": 163,
+      "byteCount": 6524,
+      "sha256": "83fa72f372f512a97d61597d4465c0b07be2149741639976b2042a17b1a3dd3b"
+    },
+    {
+      "path": "docs/zob/03-STORY_TO_PR_CLOSE_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 195,
+      "byteCount": 8623,
+      "sha256": "c48fbf14854181e94851881bb878c4ddf1906b91ff243cb9798d597190a9a4e5"
+    },
+    {
+      "path": "docs/zob/04-BLIND_REVIEW_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 199,
+      "byteCount": 7636,
+      "sha256": "77d255cc23460e27f54714c453f54f4b7d5cbdba5ce19d4d6434040b726f895d"
+    },
+    {
+      "path": "docs/zob/05-PR_SHIP_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 149,
+      "byteCount": 7517,
+      "sha256": "358fe78da15608a76ae9c827996fffbadef4581f391ac9c0601999165da0f9e2"
+    },
+    {
+      "path": "docs/zob/06-MISSION_CONTROL_TUI.md",
+      "lane": "runtime-governance",
+      "lineCount": 201,
+      "byteCount": 8752,
+      "sha256": "8a46b029c87209ca30f96a09397d87df40ab51fcff1d228954ce1b22a272f619"
+    },
+    {
+      "path": "docs/zob/07-PERSISTENCE_AND_RECOVERY.md",
+      "lane": "runtime-governance",
+      "lineCount": 182,
+      "byteCount": 6910,
+      "sha256": "64cecd1b1a3c165e3c1f7fb48a5edc8b1b886e91d03c2c21838c761c5b81313c"
+    },
+    {
+      "path": "docs/zob/08-PERMISSIONS_ACKS_AND_GITHUB_APPS.md",
+      "lane": "runtime-governance",
+      "lineCount": 177,
+      "byteCount": 8248,
+      "sha256": "fd83c760c502aabd0501b44eec9dfb1d523dc6e317a875575c4ba9eb0b76495b"
+    },
+    {
+      "path": "docs/zob/09-MODEL_AND_PROMPT_EXPERIMENTS.md",
+      "lane": "runtime-governance",
+      "lineCount": 213,
+      "byteCount": 8226,
+      "sha256": "932d68d17c754a2c4fd6c6378c9ab0897db1942f120b123775afadf8f62b8485"
+    },
+    {
+      "path": "docs/zob/10-EXECUTION_PROFILES_AND_SKILLS.md",
+      "lane": "runtime-governance",
+      "lineCount": 190,
+      "byteCount": 7729,
+      "sha256": "0fcce486195bb7b6b11efacafcb3456ab25153501c30ead54239779f899c77e6"
+    },
+    {
+      "path": "docs/zob/11-EVIDENCE_AND_GITHUB_CHECKS.md",
+      "lane": "runtime-governance",
+      "lineCount": 169,
+      "byteCount": 10158,
+      "sha256": "937208a0169c202fc1bcf77457e687f750db6493beb2ceb0f7574cf689ddbd38"
+    },
+    {
+      "path": "docs/zob/12-INSTALLATION.md",
+      "lane": "operations-decisions",
+      "lineCount": 187,
+      "byteCount": 7008,
+      "sha256": "396783ab33e56ec82102280528d2ab2083de9b95010b44b0e5826c56e9e3d5c7"
+    },
+    {
+      "path": "docs/zob/13-OPERATIONS_RUNBOOK.md",
+      "lane": "operations-decisions",
+      "lineCount": 173,
+      "byteCount": 7701,
+      "sha256": "3f47fa348278560b51cc7aad7f28043d49e9bb2b83c9a43ed6d3e56e92b74afa"
+    },
+    {
+      "path": "docs/zob/14-VALIDATION_AND_PILOTS.md",
+      "lane": "operations-decisions",
+      "lineCount": 215,
+      "byteCount": 9476,
+      "sha256": "f49992664e67f015b99a03498099bfc25cdb780d9224e4f2ee59512b36921ad9"
+    },
+    {
+      "path": "docs/zob/15-UPGRADE_AND_ROLLBACK.md",
+      "lane": "operations-decisions",
+      "lineCount": 126,
+      "byteCount": 5995,
+      "sha256": "95da074f7ba0723f8d7cdbc131b220283e132d39a82002b5e781c25ad6d02aa5"
+    },
+    {
+      "path": "docs/zob/16-DECISIONS.md",
+      "lane": "operations-decisions",
+      "lineCount": 178,
+      "byteCount": 19924,
+      "sha256": "c9dfd224a8a0acc8f21f34108eb51ce53d66573418e884d80246e0b809360cc6"
+    },
+    {
+      "path": "docs/zob/17-STAGING_ASSURANCE_AND_PROMOTION_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 284,
+      "byteCount": 15971,
+      "sha256": "afe46f76e02e8dc38fda690a4be404ac73ae6dfac5fff71043ed5759b9a17661"
+    },
+    {
+      "path": "docs/zob/ENHANCEMENTS.md",
+      "lane": "operations-decisions",
+      "lineCount": 350,
+      "byteCount": 20742,
+      "sha256": "51ea577287936085a8877c9ff1b52fb7655559282593550681082e3ece7c16c8"
+    },
+    {
+      "path": "docs/zob/README.md",
+      "lane": "core-factories",
+      "lineCount": 71,
+      "byteCount": 3801,
+      "sha256": "8333c8d3b28e2d7e66839d3329c1ab9bc234ad227ffed79a5a54922fc161d3e0"
+    },
+    {
+      "path": "docs/zob/SOURCE_EVIDENCE.md",
+      "lane": "core-factories",
+      "lineCount": 145,
+      "byteCount": 6906,
+      "sha256": "54e19de34e12568657c6cac922eac1bcd2b86bcaec37a5cf8d39972cbb8f3e24"
+    },
+    {
+      "path": "docs/zob/examples/README.md",
+      "lane": "schemas-examples-validation",
+      "lineCount": 29,
+      "byteCount": 2393,
+      "sha256": "fe5057070206c9b3f7e219102c3b7fbc8e53da3e7a2ea4b30012ecb235798c45"
+    },
+    {
+      "path": "docs/zob/examples/ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 16,
+      "byteCount": 1001,
+      "sha256": "6c2b87a7fb3702c402155eb26258e3d02ae0777d5124b40ad0c1088655e18823"
+    },
+    {
+      "path": "docs/zob/examples/assurance-repair-round.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 40,
+      "byteCount": 1714,
+      "sha256": "d5beafcc2cdfc4bfae98b1b342eb2ef167ddd926c128c3215ddbfa9f06036bf5"
+    },
+    {
+      "path": "docs/zob/examples/blind-review-result.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 21,
+      "byteCount": 1504,
+      "sha256": "ecc66f9a076a8d0b03fc9f82891be46160cb23ff63510be1673548a5e1b7cd48"
+    },
+    {
+      "path": "docs/zob/examples/checkpoint.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 19,
+      "byteCount": 1368,
+      "sha256": "a8cc942776ed0803cb1cfb14d4292ba1c3ed0a7b4edd356ae1f5a01dc1a91140"
+    },
+    {
+      "path": "docs/zob/examples/evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 15,
+      "byteCount": 1485,
+      "sha256": "662c4a54a2e7211201d478bd6b976cbb1381909a0550624f48152f689f46ab91"
+    },
+    {
+      "path": "docs/zob/examples/execution-profile.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 19,
+      "byteCount": 1244,
+      "sha256": "7a4c5842b040fc449e3fc8c47f8e612a92c1dc22cc92390d7741805d5cd87503"
+    },
+    {
+      "path": "docs/zob/examples/gate.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 15,
+      "byteCount": 952,
+      "sha256": "830d83762563b6085c83c663dad49eb65e77479ec428a19dca74496ac8a6bdbc"
+    },
+    {
+      "path": "docs/zob/examples/merge-authorization.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 26,
+      "byteCount": 1245,
+      "sha256": "42f114b7f8c6eaa94d2c1c88e324bc4efb2dfcd53d162a6a35b65907801fecd6"
+    },
+    {
+      "path": "docs/zob/examples/mission-event.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 908,
+      "sha256": "95f69f9a18bd79191b7c8bd163b49a9820b7ea84a2eb4940d3961c67fd3a7fbe"
+    },
+    {
+      "path": "docs/zob/examples/mission.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 16,
+      "byteCount": 1330,
+      "sha256": "08b4865feb64db07c9816784769df0e8ad4bd72b219353766fdbe2c5f99fc441"
+    },
+    {
+      "path": "docs/zob/examples/model-attempt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 25,
+      "byteCount": 1198,
+      "sha256": "d8cc5f02cb145b46f2bc9a3b4a010a49c33887f8377367417afabb6b9f8c1212"
+    },
+    {
+      "path": "docs/zob/examples/pr-close-evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 1862,
+      "sha256": "0b3ca2d931afa24418d7a42081679807b3de3ddb93370ab6de4554677fd0dc1e"
+    },
+    {
+      "path": "docs/zob/examples/promotion-authorization.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 58,
+      "byteCount": 2530,
+      "sha256": "ecc2889e5410a707547f695bc665994e539c2d3e35452a8de749c8cc655b6187"
+    },
+    {
+      "path": "docs/zob/examples/promotion-merge-ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 27,
+      "byteCount": 1231,
+      "sha256": "e89679f50f1c5e4e99f607834916ccdb3fe18664ac9ddee15c1a272d33b9ef42"
+    },
+    {
+      "path": "docs/zob/examples/promotion-merge-evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 62,
+      "byteCount": 2464,
+      "sha256": "c876c553d93b6c97870cf28d231eb905a4e402e546d42b854abcd5ae470e4511"
+    },
+    {
+      "path": "docs/zob/examples/promotion-window-ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 25,
+      "byteCount": 1186,
+      "sha256": "0822a8c069f814fb499607bc9437ffe6a8e492a23b065b7d4d621396b8bb2396"
+    },
+    {
+      "path": "docs/zob/examples/repository-assurance-result.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 71,
+      "byteCount": 4448,
+      "sha256": "88bca249dd9294775353d896ce04ce110bf3e7f7060d95574d20ef53acc8fa4d"
+    },
+    {
+      "path": "docs/zob/examples/source-doc-coverage.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 61,
+      "byteCount": 2663,
+      "sha256": "97b0688778f6d9ad89c610a5cda1cedeaab7c5233350b0d497c49566386b01fe"
+    },
+    {
+      "path": "docs/zob/examples/staging-candidate.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 45,
+      "byteCount": 3576,
+      "sha256": "cb2d8fff68eff1bd1567b6eab1cd4f7acd6eda5ecdf14a3b362f83b2aba06828"
+    },
+    {
+      "path": "docs/zob/examples/story-execution.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 2195,
+      "sha256": "1086a7fd6a756a8ca09d6e1f87384b515900c207c70c3e5c46e41235c61dff28"
+    },
+    {
+      "path": "docs/zob/examples/task.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 2244,
+      "sha256": "fe79e31a58332e78e67c9c56e52461e1ad83cf57036b114e5c2fc6e31374c689"
+    },
+    {
+      "path": "docs/zob/schemas/README.md",
+      "lane": "schemas-examples-validation",
+      "lineCount": 40,
+      "byteCount": 3304,
+      "sha256": "6cf2eb8369dbc0131c087b3cc77686f8af8fdcb4c2af8a12dfec9f10c633a881"
+    },
+    {
+      "path": "docs/zob/schemas/ack-receipt.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 36,
+      "byteCount": 3267,
+      "sha256": "c2bb418a7ce8e3c58334701badcd4002fed961d8a7d20c7240db2d3c72c4ca35"
+    },
+    {
+      "path": "docs/zob/schemas/assurance-repair-round.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 56,
+      "byteCount": 3688,
+      "sha256": "2b122ba994149586fffe714cf7131742e3e7a3e8855d493640bb6731174b85e3"
+    },
+    {
+      "path": "docs/zob/schemas/blind-review-result.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 50,
+      "byteCount": 5227,
+      "sha256": "1e702300ceba1f66f00073d2701849303ee4c7869e94c05c0d6f159b492cbc74"
+    },
+    {
+      "path": "docs/zob/schemas/checkpoint.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 3171,
+      "sha256": "ac6759a23663849694f99e71386fe5ab5fc2e3606384d4ca631ac536c60d8044"
+    },
+    {
+      "path": "docs/zob/schemas/evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 35,
+      "byteCount": 4004,
+      "sha256": "ff2a4c4cff6272f5bca56166a94d9001a8b17476eed1fa61aa89bde72f3c89ec"
+    },
+    {
+      "path": "docs/zob/schemas/execution-profile.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 38,
+      "byteCount": 3622,
+      "sha256": "11b78556d529fcaca77a16c7975ba0988b62c27810da21b763dfef8793402c41"
+    },
+    {
+      "path": "docs/zob/schemas/gate.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 2166,
+      "sha256": "278f14bb941756ec7b6287720bf04aa6b1f05f820613d4d2ba0ee73012bba04a"
+    },
+    {
+      "path": "docs/zob/schemas/merge-authorization.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 21,
+      "byteCount": 2559,
+      "sha256": "85cad0baf209944650cfdaff035244daa726bf839a7b5a47974796eabd994b2c"
+    },
+    {
+      "path": "docs/zob/schemas/mission-event.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 36,
+      "byteCount": 1762,
+      "sha256": "c62a313c6545981055b011ac1da8731f1b47c2569c1d1faee89e279181c4aa3c"
+    },
+    {
+      "path": "docs/zob/schemas/mission.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 51,
+      "byteCount": 3574,
+      "sha256": "c86976180dcbf062ddcf7f2bd668b62216d69fee1a461a5d8b3f3efccdf08d6e"
+    },
+    {
+      "path": "docs/zob/schemas/model-attempt.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 28,
+      "byteCount": 3431,
+      "sha256": "0aa51172fe117031be7c1d9b22a83a0245b36868c3f376550716ff7bd8baa2ba"
+    },
+    {
+      "path": "docs/zob/schemas/pr-close-evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 23,
+      "byteCount": 3168,
+      "sha256": "94b4687a8d59a0d6c7ec6681364a8c8d8f57253320f514f0a181118bf5748f90"
+    },
+    {
+      "path": "docs/zob/schemas/promotion-authorization.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 55,
+      "byteCount": 4915,
+      "sha256": "233f5a3e28a60ebe51080610fd3bd3d653ae96e05e8881c07859e6aa4b8e8888"
+    },
+    {
+      "path": "docs/zob/schemas/promotion-merge-evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 104,
+      "byteCount": 5431,
+      "sha256": "79714936817743f7715c60438d1d919cf199f555a31e39c424879a8dbbd80b22"
+    },
+    {
+      "path": "docs/zob/schemas/repository-assurance-result.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 127,
+      "byteCount": 7979,
+      "sha256": "856c376d758a95a0a58af7bd886afd1f51e226f4ab8ab6a16c8e0cacc6c6ebf8"
+    },
+    {
+      "path": "docs/zob/schemas/source-doc-coverage.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 65,
+      "byteCount": 4769,
+      "sha256": "980c6544c11fa29681a64636f9637456158f38a51ad6d53c5b3aac282cc1a080"
+    },
+    {
+      "path": "docs/zob/schemas/staging-candidate.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 113,
+      "byteCount": 6557,
+      "sha256": "114bfaa4804a561c6d862d062d33e0ffdef336bcfdc606c3539c9d9cbc1c4976"
+    },
+    {
+      "path": "docs/zob/schemas/story-execution.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 27,
+      "byteCount": 4814,
+      "sha256": "e02769809a81d2b80656ab4d8d43038a9fd157130542d31010d1aba076ab7b3b"
+    },
+    {
+      "path": "docs/zob/schemas/task.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 30,
+      "byteCount": 4994,
+      "sha256": "23958e31956736ecbcc21ca1cdac56998e15090bd2e7b27915e08544b19ae044"
+    },
+    {
+      "path": "docs/zob/validation/validate_contracts.py",
+      "lane": "schemas-examples-validation",
+      "lineCount": 432,
+      "byteCount": 27177,
+      "sha256": "b84587d1d7daa2fa841933365d11b739be36b02805355e91d12e85ab499c75b9"
+    },
+    {
+      "path": "docs/zob/validation/validate_documentation.py",
+      "lane": "schemas-examples-validation",
+      "lineCount": 215,
+      "byteCount": 10059,
+      "sha256": "581cb7bf40e0dffffa74b9dfddc36f7accd1bff43a182b3bd1fcf0ef21d852cc"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "sessionDir": ".pi/sessions",
   "extensions": [
-    "extensions/zob-switch/index.ts",
-    "extensions/zob-harness/index.ts"
+    "!extensions/zob-switch/index.ts",
+    "!extensions/zob-harness/index.ts"
   ],
   "prompts": [
     "prompts"

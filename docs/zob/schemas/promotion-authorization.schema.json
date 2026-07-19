@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:promotion-authorization:v1",
+  "title": "Wheel ZOB Exact-Head Develop Promotion Authorization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "authorizationId", "actor", "repositoryId", "windowId", "candidateId", "candidateRevision", "candidateHash", "promotionPrNumber", "stagingBranch", "stagingSha", "developBranch", "developSha", "assurance", "checks", "windowReceiptHash", "promotionMergeReceiptHash", "mergeMethod", "mergeCommitPolicy", "includedPrNumbers", "deploymentImpact", "policyVersions", "createdAt", "expiresAt", "status", "authorizationHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.promotion-authorization.v1"},
+    "authorizationId": {"type": "string", "minLength": 8},
+    "actor": {"type": "object", "additionalProperties": false, "required": ["actorId", "authenticatedBy"], "properties": {"actorId": {"type": "string"}, "authenticatedBy": {"enum": ["local-session", "github-user", "signed-receipt"]}}},
+    "repositoryId": {"type": "string"},
+    "windowId": {"type": "string", "minLength": 8},
+    "candidateId": {"type": "string", "minLength": 8},
+    "candidateRevision": {"type": "integer", "minimum": 1, "maximum": 3},
+    "candidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "promotionPrNumber": {"type": "integer", "minimum": 1},
+    "stagingBranch": {"const": "develop-staging"},
+    "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "developBranch": {"const": "develop"},
+    "developSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "assurance": {"type": "object", "additionalProperties": false, "required": ["assuranceId", "round", "resultHash", "checkId", "verdict", "noShip"], "properties": {"assuranceId": {"type": "string"}, "round": {"type": "integer", "minimum": 1, "maximum": 3}, "resultHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "checkId": {"type": "string"}, "verdict": {"const": "pass"}, "noShip": {"const": false}}},
+    "checks": {"type": "object", "additionalProperties": false, "required": ["stagingIntegrationCheckId", "repositoryAssuranceCheckId", "humanGatesCheckId", "promotionPrCheckSetHash", "promotionAuthorizationCheckId", "promotionGateCheckId"], "properties": {"stagingIntegrationCheckId": {"type": "string"}, "repositoryAssuranceCheckId": {"type": "string"}, "humanGatesCheckId": {"type": "string"}, "promotionPrCheckSetHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "promotionAuthorizationCheckId": {"type": "string"}, "promotionGateCheckId": {"type": "string"}}},
+    "windowReceiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "promotionMergeReceiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "mergeMethod": {"const": "merge-commit"},
+    "mergeCommitPolicy": {"type": "object", "additionalProperties": false, "required": ["auditedStagingMustBeParent", "resultTreeMustMatchStaging", "adminBypassAllowed"], "properties": {"auditedStagingMustBeParent": {"const": true}, "resultTreeMustMatchStaging": {"const": true}, "adminBypassAllowed": {"const": false}}},
+    "includedPrNumbers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+    "deploymentImpact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analysisHash", "classification", "expectedWorkflowRefs", "matchedPathFilters", "environmentRefs", "acknowledgementReceiptHash", "manualDispatchAuthorized"],
+      "properties": {
+        "analysisHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "classification": {"enum": ["automatic-cd-expected", "no-deploying-path", "unknown-blocked"]},
+        "expectedWorkflowRefs": {"type": "array", "items": {"type": "string"}},
+        "matchedPathFilters": {"type": "array", "items": {"type": "string"}},
+        "environmentRefs": {"type": "array", "items": {"type": "string"}},
+        "acknowledgementReceiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "manualDispatchAuthorized": {"const": false}
+      }
+    },
+    "policyVersions": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "expiresAt": {"type": "string", "format": "date-time"},
+    "consumedAt": {"type": "string", "format": "date-time"},
+    "revokedAt": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["active", "consumed", "revoked", "expired", "invalid"]},
+    "authorizationHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "active"}}, "required": ["status"]}, "then": {"properties": {"deploymentImpact": {"properties": {"classification": {"enum": ["automatic-cd-expected", "no-deploying-path"]}}}}}}
+  ]
+}

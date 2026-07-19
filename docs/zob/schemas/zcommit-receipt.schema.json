@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/zcommit-receipt.schema.json",
+  "title": "ZOB Governed Zcommit Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "receiptHash",
+    "action",
+    "status",
+    "repositoryRootHash",
+    "baseHeadSha",
+    "committedHeadSha",
+    "treeHash",
+    "branchHash",
+    "eligiblePathHashes",
+    "handoffCandidateHash",
+    "handoffAuthorityHash",
+    "handoffExpectedBaseSha",
+    "userRequested",
+    "validationOk",
+    "actualGitCommitRun",
+    "actualGitPushRun",
+    "generatedAt",
+    "bodyStored"
+  ],
+  "properties": {
+    "schema": { "const": "zob.zcommit-receipt.v1" },
+    "receiptHash": { "$ref": "#/$defs/sha256" },
+    "action": { "const": "commit" },
+    "status": { "const": "ok" },
+    "repositoryRootHash": { "$ref": "#/$defs/sha256" },
+    "baseHeadSha": { "$ref": "#/$defs/gitObject" },
+    "committedHeadSha": { "$ref": "#/$defs/gitObject" },
+    "treeHash": { "$ref": "#/$defs/gitObject" },
+    "branchHash": { "$ref": "#/$defs/sha256" },
+    "eligiblePathHashes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/sha256" }
+    },
+    "handoffCandidateHash": { "$ref": "#/$defs/sha256" },
+    "handoffAuthorityHash": { "$ref": "#/$defs/sha256" },
+    "handoffExpectedBaseSha": { "$ref": "#/$defs/gitObject" },
+    "userRequested": { "const": true },
+    "validationOk": { "const": true },
+    "actualGitCommitRun": { "const": true },
+    "actualGitPushRun": { "const": false },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "bodyStored": { "const": false }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" }
+  }
+}

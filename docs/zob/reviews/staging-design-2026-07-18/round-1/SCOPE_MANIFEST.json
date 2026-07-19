@@ -1,0 +1,487 @@
+{
+  "schema": "zob.doc-audit-scope.v2",
+  "reviewMode": "full",
+  "generatedAt": "2026-07-18T19:20:00Z",
+  "scopeSource": "explicit repository inventory",
+  "included": [
+    "AGENTS.md",
+    "README.md",
+    "docs/zob/**/*.{md,json,py}"
+  ],
+  "excluded": [
+    "docs/zob/reviews/**",
+    "transcripts/**",
+    "investors/**",
+    "needs-human/**",
+    "superseded/**",
+    "__pycache__/**"
+  ],
+  "priorAuditRef": "docs/zob/reviews/DOC_AUDIT.md",
+  "fileCount": 66,
+  "lineCount": 5768,
+  "byteCount": 316746,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "lane": "core-factories",
+      "lineCount": 44,
+      "byteCount": 3066,
+      "sha256": "67a4a303a0c4e2e40b3fb832c40c4874134265e1619bc5b8d2ddca22000c6bed"
+    },
+    {
+      "path": "README.md",
+      "lane": "core-factories",
+      "lineCount": 14,
+      "byteCount": 872,
+      "sha256": "bb4fb11253157eddc0fa38b2f75cc9eb5b73d7b38582eb2712ff7c60e36ef6e6"
+    },
+    {
+      "path": "docs/zob/01-SYSTEM_OVERVIEW.md",
+      "lane": "core-factories",
+      "lineCount": 133,
+      "byteCount": 6292,
+      "sha256": "7711619ae1e41143f401f9fae8bee2164bff11d24ac14b0eef4d57dc25504808"
+    },
+    {
+      "path": "docs/zob/02-ARCHITECTURE_AND_OWNERSHIP.md",
+      "lane": "core-factories",
+      "lineCount": 163,
+      "byteCount": 6524,
+      "sha256": "83fa72f372f512a97d61597d4465c0b07be2149741639976b2042a17b1a3dd3b"
+    },
+    {
+      "path": "docs/zob/03-STORY_TO_PR_CLOSE_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 195,
+      "byteCount": 8611,
+      "sha256": "f866f1292f4e255054a3aa73efca5d9173f2a3907de0cab8f1f90da33ce1d216"
+    },
+    {
+      "path": "docs/zob/04-BLIND_REVIEW_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 199,
+      "byteCount": 7605,
+      "sha256": "65df47a8f0d99899e47522b4365f97f4e774e8486144b9eec885f49ce320af0a"
+    },
+    {
+      "path": "docs/zob/05-PR_SHIP_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 148,
+      "byteCount": 6830,
+      "sha256": "c995daaf881d74f8743eb35c939cfbe3976447738a43feb6340ebd4091f0f788"
+    },
+    {
+      "path": "docs/zob/06-MISSION_CONTROL_TUI.md",
+      "lane": "runtime-governance",
+      "lineCount": 200,
+      "byteCount": 8482,
+      "sha256": "bd86d3450c0953b44918ca43a4bed26f4654bff6696482bb2f687e816f6d634e"
+    },
+    {
+      "path": "docs/zob/07-PERSISTENCE_AND_RECOVERY.md",
+      "lane": "runtime-governance",
+      "lineCount": 182,
+      "byteCount": 6816,
+      "sha256": "c175f107a95d2cea109b2070db0a79d479790a6aa3cf683f9af8a50671e78b81"
+    },
+    {
+      "path": "docs/zob/08-PERMISSIONS_ACKS_AND_GITHUB_APPS.md",
+      "lane": "runtime-governance",
+      "lineCount": 176,
+      "byteCount": 7743,
+      "sha256": "820f7bb9b56985ac8a7e52f68c4be5d484ad7fd627d9762aaad569038453be6f"
+    },
+    {
+      "path": "docs/zob/09-MODEL_AND_PROMPT_EXPERIMENTS.md",
+      "lane": "runtime-governance",
+      "lineCount": 213,
+      "byteCount": 8087,
+      "sha256": "19532fefd22593c773e1edeeb5e5e0feeb13d34eb90bbbc4d38b5f39012e0d3d"
+    },
+    {
+      "path": "docs/zob/10-EXECUTION_PROFILES_AND_SKILLS.md",
+      "lane": "runtime-governance",
+      "lineCount": 190,
+      "byteCount": 7729,
+      "sha256": "0fcce486195bb7b6b11efacafcb3456ab25153501c30ead54239779f899c77e6"
+    },
+    {
+      "path": "docs/zob/11-EVIDENCE_AND_GITHUB_CHECKS.md",
+      "lane": "runtime-governance",
+      "lineCount": 163,
+      "byteCount": 8790,
+      "sha256": "1bcdaecddd468e2455023aaf81a5c19bdfcf6884543a527d1f3f9d7b3d05d79b"
+    },
+    {
+      "path": "docs/zob/12-INSTALLATION.md",
+      "lane": "operations-decisions",
+      "lineCount": 186,
+      "byteCount": 6754,
+      "sha256": "8ad07f2d607f791ab55efa723761a3c104d8008198414b419ef475f617ff9093"
+    },
+    {
+      "path": "docs/zob/13-OPERATIONS_RUNBOOK.md",
+      "lane": "operations-decisions",
+      "lineCount": 173,
+      "byteCount": 7290,
+      "sha256": "ecc2e5ab225e80e52beedc92fad8fd97acb0809ee014c7a7883fe322a6162704"
+    },
+    {
+      "path": "docs/zob/14-VALIDATION_AND_PILOTS.md",
+      "lane": "operations-decisions",
+      "lineCount": 213,
+      "byteCount": 8881,
+      "sha256": "6e7c7d8ceba3d620f1daf86abb3785ae10491f8613e0cf0a709620c6bd32fdaf"
+    },
+    {
+      "path": "docs/zob/15-UPGRADE_AND_ROLLBACK.md",
+      "lane": "operations-decisions",
+      "lineCount": 125,
+      "byteCount": 5801,
+      "sha256": "5f545d4323f7e5a36302c20c5ee50d4da85059b74d5b939e90016ff04c38bdcf"
+    },
+    {
+      "path": "docs/zob/16-DECISIONS.md",
+      "lane": "operations-decisions",
+      "lineCount": 178,
+      "byteCount": 19381,
+      "sha256": "ff899e5e626c9bd99c392fe73abae74a139f70468e4e9ef68cfc2d95941e02aa"
+    },
+    {
+      "path": "docs/zob/17-STAGING_ASSURANCE_AND_PROMOTION_FACTORY.md",
+      "lane": "core-factories",
+      "lineCount": 280,
+      "byteCount": 13713,
+      "sha256": "bfbce7905e1fc2494ece75eb24e8b43766b0a5dc0f86e59626e52e28e0d6fde3"
+    },
+    {
+      "path": "docs/zob/ENHANCEMENTS.md",
+      "lane": "operations-decisions",
+      "lineCount": 350,
+      "byteCount": 20425,
+      "sha256": "3ddbbf70260d8e08ad96a423b3c2c0ad9c8a86582e7d5f0d7b10136bb8772063"
+    },
+    {
+      "path": "docs/zob/README.md",
+      "lane": "core-factories",
+      "lineCount": 71,
+      "byteCount": 3801,
+      "sha256": "8333c8d3b28e2d7e66839d3329c1ab9bc234ad227ffed79a5a54922fc161d3e0"
+    },
+    {
+      "path": "docs/zob/SOURCE_EVIDENCE.md",
+      "lane": "core-factories",
+      "lineCount": 145,
+      "byteCount": 6906,
+      "sha256": "54e19de34e12568657c6cac922eac1bcd2b86bcaec37a5cf8d39972cbb8f3e24"
+    },
+    {
+      "path": "docs/zob/examples/README.md",
+      "lane": "schemas-examples-validation",
+      "lineCount": 29,
+      "byteCount": 2081,
+      "sha256": "650282f4f42df857432b4bb54fb95ab6b906531f5cbe7495b6f80e2705a9060e"
+    },
+    {
+      "path": "docs/zob/examples/ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 16,
+      "byteCount": 1001,
+      "sha256": "6c2b87a7fb3702c402155eb26258e3d02ae0777d5124b40ad0c1088655e18823"
+    },
+    {
+      "path": "docs/zob/examples/assurance-repair-round.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 35,
+      "byteCount": 1439,
+      "sha256": "36babacb3347d15b0681ccbd671d1d6cde419b840f86fcd05e8db564c4e9f18d"
+    },
+    {
+      "path": "docs/zob/examples/blind-review-result.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 21,
+      "byteCount": 1504,
+      "sha256": "ecc66f9a076a8d0b03fc9f82891be46160cb23ff63510be1673548a5e1b7cd48"
+    },
+    {
+      "path": "docs/zob/examples/checkpoint.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 19,
+      "byteCount": 1368,
+      "sha256": "a8cc942776ed0803cb1cfb14d4292ba1c3ed0a7b4edd356ae1f5a01dc1a91140"
+    },
+    {
+      "path": "docs/zob/examples/evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 15,
+      "byteCount": 1485,
+      "sha256": "662c4a54a2e7211201d478bd6b976cbb1381909a0550624f48152f689f46ab91"
+    },
+    {
+      "path": "docs/zob/examples/execution-profile.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 19,
+      "byteCount": 1223,
+      "sha256": "c048b594c25cafcd545880dad71d647584c386d98fbc8eff3f2de97dbf0c97c9"
+    },
+    {
+      "path": "docs/zob/examples/gate.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 15,
+      "byteCount": 952,
+      "sha256": "830d83762563b6085c83c663dad49eb65e77479ec428a19dca74496ac8a6bdbc"
+    },
+    {
+      "path": "docs/zob/examples/merge-authorization.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 1171,
+      "sha256": "08f1a52a78acd6479f09d8dbb9da766201339727109223e6d618c4b5d3dd2959"
+    },
+    {
+      "path": "docs/zob/examples/mission-event.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 908,
+      "sha256": "95f69f9a18bd79191b7c8bd163b49a9820b7ea84a2eb4940d3961c67fd3a7fbe"
+    },
+    {
+      "path": "docs/zob/examples/mission.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 16,
+      "byteCount": 1330,
+      "sha256": "08b4865feb64db07c9816784769df0e8ad4bd72b219353766fdbe2c5f99fc441"
+    },
+    {
+      "path": "docs/zob/examples/model-attempt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 25,
+      "byteCount": 1198,
+      "sha256": "d8cc5f02cb145b46f2bc9a3b4a010a49c33887f8377367417afabb6b9f8c1212"
+    },
+    {
+      "path": "docs/zob/examples/pr-close-evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 1862,
+      "sha256": "0b3ca2d931afa24418d7a42081679807b3de3ddb93370ab6de4554677fd0dc1e"
+    },
+    {
+      "path": "docs/zob/examples/promotion-authorization.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 54,
+      "byteCount": 2323,
+      "sha256": "59e17e4ad42486bfd3b99fde2db5e2376c0b306b0bbaa3d37e29cce0f770b51c"
+    },
+    {
+      "path": "docs/zob/examples/promotion-merge-ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 23,
+      "byteCount": 1016,
+      "sha256": "01a10f44e92d5b98db23e559c5d5ef2e7801c7a28361fc6d33bdf8f16f79ad95"
+    },
+    {
+      "path": "docs/zob/examples/promotion-merge-evidence.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 52,
+      "byteCount": 2055,
+      "sha256": "c9dc543595a04c6526007698a5678d9efcc99209c34a1eb221e438851af3e929"
+    },
+    {
+      "path": "docs/zob/examples/promotion-window-ack-receipt.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 21,
+      "byteCount": 923,
+      "sha256": "8d2a02da56175e5055aa4de842e0a5b86cca1bec392a5b850b7891f54e700044"
+    },
+    {
+      "path": "docs/zob/examples/repository-assurance-result.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 69,
+      "byteCount": 4331,
+      "sha256": "4a0b03850bc3a433e3e16228f81c913a2411f52bd4784111e10d1dd8f8c2b335"
+    },
+    {
+      "path": "docs/zob/examples/source-doc-coverage.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 61,
+      "byteCount": 2663,
+      "sha256": "97b0688778f6d9ad89c610a5cda1cedeaab7c5233350b0d497c49566386b01fe"
+    },
+    {
+      "path": "docs/zob/examples/staging-candidate.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 61,
+      "byteCount": 2336,
+      "sha256": "9703cf8bcf1ff4217ba123028fa5f8afc5788d87b593ab7b5f9407453ef64e62"
+    },
+    {
+      "path": "docs/zob/examples/story-execution.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 2195,
+      "sha256": "1086a7fd6a756a8ca09d6e1f87384b515900c207c70c3e5c46e41235c61dff28"
+    },
+    {
+      "path": "docs/zob/examples/task.example.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 2244,
+      "sha256": "fe79e31a58332e78e67c9c56e52461e1ad83cf57036b114e5c2fc6e31374c689"
+    },
+    {
+      "path": "docs/zob/schemas/README.md",
+      "lane": "schemas-examples-validation",
+      "lineCount": 38,
+      "byteCount": 2548,
+      "sha256": "62ae3bbaae47789fbd68e1319bf8d90bae2fea690756f1089bfe435f5f11ba06"
+    },
+    {
+      "path": "docs/zob/schemas/ack-receipt.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 26,
+      "byteCount": 2437,
+      "sha256": "7d64e3bc7776ce5733daf297d5ddbfcf31a49e67a81412d99f22216d9d2cb0e6"
+    },
+    {
+      "path": "docs/zob/schemas/assurance-repair-round.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 51,
+      "byteCount": 3183,
+      "sha256": "0627d166e11ac468141850949083b08b118815090dbcb51a3a642c470653549a"
+    },
+    {
+      "path": "docs/zob/schemas/blind-review-result.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 50,
+      "byteCount": 5227,
+      "sha256": "1e702300ceba1f66f00073d2701849303ee4c7869e94c05c0d6f159b492cbc74"
+    },
+    {
+      "path": "docs/zob/schemas/checkpoint.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 22,
+      "byteCount": 3171,
+      "sha256": "ac6759a23663849694f99e71386fe5ab5fc2e3606384d4ca631ac536c60d8044"
+    },
+    {
+      "path": "docs/zob/schemas/evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 3424,
+      "sha256": "4d19883dcf345bd30c420160b8b331837c9b1809cfd076f87d5951da526fdc0d"
+    },
+    {
+      "path": "docs/zob/schemas/execution-profile.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 38,
+      "byteCount": 3601,
+      "sha256": "250ae1c16a5f459eabdfc6e792a06684fab65c5e30c8ece408e7b0590fc20fe9"
+    },
+    {
+      "path": "docs/zob/schemas/gate.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 24,
+      "byteCount": 2166,
+      "sha256": "278f14bb941756ec7b6287720bf04aa6b1f05f820613d4d2ba0ee73012bba04a"
+    },
+    {
+      "path": "docs/zob/schemas/merge-authorization.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 19,
+      "byteCount": 2414,
+      "sha256": "04da805daa1fab1e1e0ebe6dc1073c206214efba14d58bd83aa0dc43836308d3"
+    },
+    {
+      "path": "docs/zob/schemas/mission-event.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 36,
+      "byteCount": 1762,
+      "sha256": "c62a313c6545981055b011ac1da8731f1b47c2569c1d1faee89e279181c4aa3c"
+    },
+    {
+      "path": "docs/zob/schemas/mission.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 44,
+      "byteCount": 3263,
+      "sha256": "a3b178b5dfc7152e23f18c6158b57b7edc4b810406a6f081b20f8112b7af804f"
+    },
+    {
+      "path": "docs/zob/schemas/model-attempt.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 28,
+      "byteCount": 3431,
+      "sha256": "0aa51172fe117031be7c1d9b22a83a0245b36868c3f376550716ff7bd8baa2ba"
+    },
+    {
+      "path": "docs/zob/schemas/pr-close-evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 23,
+      "byteCount": 3168,
+      "sha256": "94b4687a8d59a0d6c7ec6681364a8c8d8f57253320f514f0a181118bf5748f90"
+    },
+    {
+      "path": "docs/zob/schemas/promotion-authorization.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 48,
+      "byteCount": 4357,
+      "sha256": "645c78b7cb412fc0d15c63e66856383a6a5819430c0fdb25ef4f0dfdd463462e"
+    },
+    {
+      "path": "docs/zob/schemas/promotion-merge-evidence.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 85,
+      "byteCount": 4392,
+      "sha256": "492cf0beb0fba03f1265a5e4e8c16a22012cca4963fe9fe4905df61026a6a0ab"
+    },
+    {
+      "path": "docs/zob/schemas/repository-assurance-result.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 117,
+      "byteCount": 7317,
+      "sha256": "13568dd3436d1318e047f5ead48928dd7e76ab1f0efef2b82f3a689c61b0263b"
+    },
+    {
+      "path": "docs/zob/schemas/source-doc-coverage.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 65,
+      "byteCount": 4769,
+      "sha256": "980c6544c11fa29681a64636f9637456158f38a51ad6d53c5b3aac282cc1a080"
+    },
+    {
+      "path": "docs/zob/schemas/staging-candidate.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 76,
+      "byteCount": 3958,
+      "sha256": "31cdb558be52855da9513976a46e49b2ca22613db79bf799136d0f51acde21cf"
+    },
+    {
+      "path": "docs/zob/schemas/story-execution.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 27,
+      "byteCount": 4814,
+      "sha256": "e02769809a81d2b80656ab4d8d43038a9fd157130542d31010d1aba076ab7b3b"
+    },
+    {
+      "path": "docs/zob/schemas/task.schema.json",
+      "lane": "schemas-examples-validation",
+      "lineCount": 30,
+      "byteCount": 4994,
+      "sha256": "23958e31956736ecbcc21ca1cdac56998e15090bd2e7b27915e08544b19ae044"
+    },
+    {
+      "path": "docs/zob/validation/validate_contracts.py",
+      "lane": "schemas-examples-validation",
+      "lineCount": 274,
+      "byteCount": 14693,
+      "sha256": "61d1b2a31824c29fa39fe2b78e83dfcce23f3ea83efb66b04609203e2f70bb27"
+    },
+    {
+      "path": "docs/zob/validation/validate_documentation.py",
+      "lane": "schemas-examples-validation",
+      "lineCount": 215,
+      "byteCount": 9650,
+      "sha256": "26dcd47cc2b0da7387fdaa6750d8b933a188945736297bb44e65100244206638"
+    }
+  ]
+}

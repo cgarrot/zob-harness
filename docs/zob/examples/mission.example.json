@@ -1,0 +1,16 @@
+{
+  "schema": "zob.mission.v1",
+  "missionId": "mission-demo-001",
+  "factoryType": "story-pr-close",
+  "status": "active",
+  "createdAt": "2026-07-18T10:00:00Z",
+  "runtimeVersion": "0.17.0-rc.1",
+  "wheelPackVersion": "wheel-zob-pack-v1.0.0-rc.1",
+  "repositories": [{"repositoryId": "join-the-wheel/jointhewheel", "remoteRef": "origin", "baseRef": "develop-staging", "expectedBaseSha": "1111111111111111111111111111111111111111"}],
+  "storyRefs": [{"storyId": "H31", "manifestRef": "docs/operations/kanban/stories/H31/EXECUTION_MANIFEST.json", "manifestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+  "policyRefs": {"executionProfiles": "1.0.0", "taxonomy": "1.0.0", "permissions": "1.0.0", "modelPolicy": "baseline-1", "promptCatalog": "1.0.0", "checkpointPolicy": "1.0.0"},
+  "concurrency": {"global": 4, "perStory": 2, "perRole": {"development": 2, "qa": 1, "documentation": 1}},
+  "budget": {"maxCostUsd": 30, "maxDurationMs": 28800000, "maxAttempts": 40},
+  "completion": {"requiredState": "all stories exact-head PR-close pass and fleet:needs-review projected", "forbiddenActions": ["formal-review", "ready", "staging-merge", "repository-assurance", "promotion", "merge", "deploy", "publish", "provider-activation", "workflow-dispatch", "post-deploy-confirmation"]},
+  "bodyStored": false
+}

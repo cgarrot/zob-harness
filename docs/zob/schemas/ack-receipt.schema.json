@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:ack-receipt:v1",
+  "title": "Wheel ZOB Authenticated ACK Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "receiptId", "ackType", "actor", "source", "scope", "decision", "createdAt", "expiresAt", "policyVersion", "receiptHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.ack-receipt.v1"},
+    "receiptId": {"type": "string", "minLength": 8},
+    "ackType": {"enum": ["process-change", "trust-decision", "destructive-change", "spend", "human-override", "cross-machine-takeover", "factory-activation", "merge-batch", "promotion-window", "promotion-merge", "deployment-impact"]},
+    "actor": {"type": "object", "additionalProperties": false, "required": ["actorId", "authenticatedBy"], "properties": {"actorId": {"type": "string"}, "authenticatedBy": {"enum": ["local-session", "github-user", "signed-receipt"]}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["sourceType", "sourceId"], "properties": {"sourceType": {"enum": ["mission-control", "github", "local-cli"]}, "sourceId": {"type": "string"}}},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["repositoryId"], "properties": {"repositoryId": {"type": "string"}, "missionId": {"type": "string"}, "storyId": {"type": "string"}, "taskId": {"type": "string"}, "prNumber": {"type": "integer", "minimum": 1}, "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "developSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "windowId": {"type": "string"}, "candidateId": {"type": "string"}, "candidateRevision": {"type": "integer", "minimum": 1, "maximum": 3}, "candidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "assuranceId": {"type": "string"}, "promotionId": {"type": "string"}, "processDiffHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "ruleIds": {"type": "array", "items": {"type": "string"}}}},
+    "decision": {"enum": ["approved", "rejected", "answered", "revoked"]},
+    "answerHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reasonHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "expiresAt": {"type": "string", "format": "date-time"},
+    "revokedAt": {"type": "string", "format": "date-time"},
+    "supersedesReceiptId": {"type": "string"},
+    "policyVersion": {"type": "string"},
+    "receiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"ackType": {"const": "promotion-window"}}, "required": ["ackType"]},
+      "then": {"properties": {"scope": {"required": ["windowId", "candidateId", "candidateRevision", "candidateHash", "stagingSha", "developSha"], "properties": {"candidateRevision": {"const": 1}}}}}
+    },
+    {
+      "if": {"properties": {"ackType": {"const": "promotion-merge"}}, "required": ["ackType"]},
+      "then": {"properties": {"scope": {"required": ["windowId", "candidateId", "candidateRevision", "candidateHash", "prNumber", "stagingSha", "developSha", "assuranceId", "promotionId"]}}}
+    }
+  ]
+}

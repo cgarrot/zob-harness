@@ -1,0 +1,16 @@
+{
+  "schema": "zob.ack-receipt.v1",
+  "receiptId": "receipt-process-demo-001",
+  "ackType": "process-change",
+  "actor": {"actorId": "operator-demo", "authenticatedBy": "local-session"},
+  "source": {"sourceType": "mission-control", "sourceId": "mc-action-demo-001"},
+  "scope": {"repositoryId": "join-the-wheel/jointhewheel", "missionId": "mission-demo-001", "storyId": "H31", "prNumber": 4001, "headSha": "1111111111111111111111111111111111111111", "processDiffHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ruleIds": ["ready-guard-process-change"]},
+  "decision": "approved",
+  "answerHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reasonHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "createdAt": "2026-07-18T11:15:00Z",
+  "expiresAt": "2026-07-25T11:15:00Z",
+  "policyVersion": "ack-policy@1.0.0",
+  "receiptHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "bodyStored": false
+}

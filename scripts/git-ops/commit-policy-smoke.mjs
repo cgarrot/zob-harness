@@ -226,8 +226,8 @@ assertIncludes(goalTodos, "recordZcommitOwnedPaths(state.zcommit", "goal-todos.t
 assertIncludes(goalTodos, "changedPaths.length > 0 && !input.repoRoot", "goal-todos.ts must require explicit repoRoot when accepting child changed paths");
 assertNotIncludes(goalTodos, "input.repoRoot ?? process.cwd()", "goal-todos.ts must not fall back to process.cwd for child ownership adoption");
 assertIncludes(goalTodos, "parent_accepted_child_claim", "goal-todos.ts uses delegated claim ownership source only at acceptance");
-assertIncludes(goalRuntime, "resolveGoalTodo(pi, state, goalId, params.todo_id, { action: params.action as ResolveGoalTodoAction, evidenceRefs: params.evidence_refs, validationCommands: params.validation_commands, reason: params.reason, repoRoot: ctx.cwd }", "goal-runtime.ts resolve_goal_todo passes ctx.cwd as repoRoot");
-assertIncludes(goalRuntime, "recordGoalTodoClaimValidationResult(pi, state, goalId, params.todo_id", "goal-runtime.ts validates delegated claims through runtime path");
+assertIncludes(goalRuntime, "const node = resolveGoalTodo(pi, state, goalId, target.canonicalId", "goal-runtime.ts resolve_goal_todo resolves the canonical TODO target");
+assertIncludes(goalRuntime, "recordGoalTodoClaimValidationResult(pi, state, goalId, target.canonicalId", "goal-runtime.ts validates delegated claims through canonical runtime path");
 assertIncludes(goalRuntime, "repoRoot: ctx.cwd", "goal-runtime.ts auto/accept claim paths pass ctx.cwd repoRoot");
 assertIncludes(toolsDelegation, "captureZcommitChildDirtySnapshot", "tools-delegation.ts captures child dirty snapshot");
 assertIncludes(toolsDelegation, "diffZcommitChildDirtySnapshots", "tools-delegation.ts computes child dirty delta");

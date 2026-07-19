@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Machine-by-machine installation, validation, bounded handoff, and durable disabled-supervisor guide for Wheel ZOB.">
+  <title>Wheel ZOB Runtime — Machine Setup and Use</title>
+  <style>
+    :root {
+      --fig: #1c111b;
+      --fig-soft: #342235;
+      --green: #087b67;
+      --green-bright: #34b99e;
+      --paper: #fbfaf7;
+      --surface: #fffefa;
+      --soft: #f0f3ee;
+      --ink: #1b171a;
+      --muted: #625b61;
+      --line: #d8d3d5;
+      --danger: #a8202c;
+      --danger-bg: #fff0f1;
+      --warn: #855000;
+      --warn-bg: #fff7df;
+      --ok: #087b67;
+      --ok-bg: #e9f7f3;
+      --info: #2c5c95;
+      --info-bg: #edf5ff;
+      --code: #160e15;
+      --code-ink: #f4edf2;
+      --radius: 0.8rem;
+      --sidebar: 18rem;
+      --content: 76rem;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.65 var(--sans); }
+    a { color: var(--green); text-underline-offset: 0.16em; }
+    a:hover { color: #045343; }
+    :focus-visible { outline: 3px solid var(--green-bright); outline-offset: 3px; }
+    .skip { position: fixed; z-index: 100; top: 0.75rem; left: 0.75rem; padding: 0.65rem 0.9rem; background: var(--surface); border-radius: 0.5rem; transform: translateY(-160%); }
+    .skip:focus { transform: none; }
+    .layout { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    aside { position: sticky; top: 0; height: 100vh; overflow: auto; padding: 1.25rem; background: var(--fig); color: #f8f3f7; }
+    .brand { margin-bottom: 1rem; }
+    .brand strong { display: block; font-size: 1.08rem; }
+    .brand span { color: #c8bdc5; font: 0.75rem var(--mono); }
+    .state { margin: 1rem 0 1.3rem; padding: 0.75rem; border: 1px solid #5a3f55; border-radius: var(--radius); background: var(--fig-soft); font-size: 0.8rem; }
+    .state b { color: var(--green-bright); }
+    nav { display: grid; gap: 0.12rem; }
+    nav a { display: block; padding: 0.45rem 0.6rem; border-radius: 0.45rem; color: #e9e1e7; text-decoration: none; font-size: 0.84rem; }
+    nav a:hover { background: #51384e; color: white; }
+    .side-foot { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #51384e; color: #c8bdc5; font-size: 0.75rem; }
+    main { min-width: 0; }
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.75rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 94%, transparent); backdrop-filter: blur(10px); }
+    .topbar span { color: var(--muted); font-size: 0.82rem; }
+    .button { display: inline-flex; align-items: center; min-height: 2.35rem; padding: 0.4rem 0.7rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--surface); color: var(--ink); text-decoration: none; font-size: 0.8rem; font-weight: 700; }
+    .content { width: min(100%, var(--content)); margin: auto; padding: 2.5rem clamp(1rem, 4vw, 3.5rem) 6rem; }
+    section { margin: 4.5rem 0 0; }
+    section:first-child { margin-top: 0; }
+    h1, h2, h3, h4 { color: var(--fig); line-height: 1.18; letter-spacing: -0.025em; }
+    h1 { max-width: 20ch; margin: 0.25rem 0 1rem; font-size: clamp(2.35rem, 5vw, 4.8rem); }
+    h2 { margin: 0 0 0.8rem; font-size: clamp(1.65rem, 3vw, 2.4rem); }
+    h3 { margin-top: 2rem; font-size: 1.2rem; }
+    h4 { font-size: 1rem; }
+    p, li { max-width: 78ch; }
+    .eyebrow { margin: 0; color: var(--green); font: 700 0.76rem/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; }
+    .lede { max-width: 72ch; color: var(--muted); font-size: 1.1rem; }
+    .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 2rem 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .fact { padding: 1rem; border-right: 1px solid var(--line); }
+    .fact:last-child { border-right: 0; }
+    .fact b { display: block; color: var(--fig); font-size: 1.15rem; }
+    .fact span { color: var(--muted); font-size: 0.78rem; }
+    .callout { margin: 1.25rem 0; padding: 1rem 1.1rem; border-left: 0.3rem solid var(--info); border-radius: 0 var(--radius) var(--radius) 0; background: var(--info-bg); }
+    .callout strong { display: block; margin-bottom: 0.2rem; }
+    .callout.warn { border-color: var(--warn); background: var(--warn-bg); }
+    .callout.danger { border-color: var(--danger); background: var(--danger-bg); }
+    .callout.ok { border-color: var(--ok); background: var(--ok-bg); }
+    .callout p:last-child { margin-bottom: 0; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .card { padding: 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p:last-child { margin-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; background: var(--surface); font-size: 0.9rem; }
+    th, td { padding: 0.75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--soft); color: var(--fig); }
+    code { padding: 0.08em 0.25em; border-radius: 0.25rem; background: var(--soft); font: 0.88em var(--mono); overflow-wrap: anywhere; }
+    pre { position: relative; overflow: auto; margin: 0.85rem 0 1.4rem; padding: 1rem; border: 1px solid #493345; border-radius: var(--radius); background: var(--code); color: var(--code-ink); line-height: 1.55; }
+    pre code { padding: 0; background: transparent; color: inherit; font-size: 0.82rem; white-space: pre; overflow-wrap: normal; }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps > li { counter-increment: step; position: relative; margin: 1rem 0; padding: 0 0 1rem 3rem; border-bottom: 1px solid var(--line); }
+    .steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--fig); color: white; font: 700 0.82rem var(--mono); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; margin: 0.4rem 0; padding-left: 1.8rem; }
+    .checklist li::before { content: "□"; position: absolute; left: 0; color: var(--green); font-size: 1.2rem; line-height: 1.2; }
+    details { margin: 0.8rem 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    summary { cursor: pointer; padding: 0.9rem 1rem; color: var(--fig); font-weight: 750; }
+    details > div { padding: 0 1rem 1rem; }
+    .back { display: inline-block; margin-top: 1.5rem; font-size: 0.78rem; }
+    footer { margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      aside { position: relative; height: auto; }
+      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .fact:nth-child(2) { border-right: 0; }
+      .cards { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      nav, .facts { grid-template-columns: 1fr; }
+      .fact { border-right: 0; border-bottom: 1px solid var(--line); }
+      .topbar { position: static; }
+      table { display: block; overflow-x: auto; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --paper: #130e12; --surface: #1d161c; --soft: #2a2228; --ink: #f2ecef; --muted: #c4bac1; --line: #493d45; --fig: #f7f0f5; --danger-bg: #32171b; --warn-bg: #302715; --ok-bg: #102b25; --info-bg: #142638; --code: #090608; }
+      h1, h2, h3, h4 { color: var(--ink); }
+      .button { color: var(--ink); }
+      th { color: var(--ink); }
+      aside { background: #090608; }
+    }
+    @media print {
+      aside, .topbar, .skip, .back { display: none !important; }
+      .layout { display: block; }
+      .content { width: 100%; padding: 0; }
+      section { break-before: page; margin-top: 1rem; }
+      section:first-child { break-before: auto; }
+      pre { white-space: pre-wrap; break-inside: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to setup guide</a>
+  <div class="layout">
+    <aside aria-label="Setup manual navigation">
+      <div class="brand"><strong>Wheel ZOB Runtime</strong><span>Machine setup · bounded + disabled supervisor</span></div>
+      <div class="state"><b>Zero-effect validation and durable fake supervision available.</b><br>Provider-backed operational run/start, Wheel story commit, GitHub, merge, deployment, and production activation remain blocked.</div>
+      <nav>
+        <a href="#read-first">0 · Read first</a>
+        <a href="#roles">1 · Machine roles</a>
+        <a href="#versions">2 · Versions</a>
+        <a href="#prerequisites">3 · Prerequisites</a>
+        <a href="#operator">4 · Primary operator</a>
+        <a href="#first-use">5 · First use</a>
+        <a href="#workers">6 · Other machines</a>
+        <a href="#ci">7 · CI host</a>
+        <a href="#production">8 · Production boundary</a>
+        <a href="#parity">9 · Machine parity</a>
+        <a href="#update">10 · Update</a>
+        <a href="#rollback">11 · Rollback</a>
+        <a href="#troubleshooting">12 · Troubleshooting</a>
+        <a href="#checklists">13 · Checklists</a>
+        <a href="#references">14 · References</a>
+      </nav>
+      <div class="side-foot">Use the same reviewed commit and locked dependencies on every machine. Never copy credentials between hosts.</div>
+    </aside>
+
+    <main id="main">
+      <div class="topbar">
+        <span>Operator-readable HTML edition</span>
+        <a class="button" href="18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md">View Markdown source</a>
+      </div>
+      <div class="content">
+        <section id="read-first">
+          <p class="eyebrow">Installation and operations</p>
+          <h1>Wheel ZOB Runtime: machine-by-machine setup</h1>
+          <p class="lede">Use this guide to install and validate the Wheel ZOB pack on a primary workstation, additional trusted machines, and a non-interactive CI host while preserving the current provider-backed run/start no-ship boundary.</p>
+          <div class="facts" aria-label="Runtime facts">
+            <div class="fact"><b>Plan</b><span>Fleet validation and deterministic mission planning</span></div>
+            <div class="fact"><b>Run in Pi</b><span>Implemented command shapes; operational source-edit use is currently blocked</span></div>
+            <div class="fact"><b>0 effects</b><span>Validation, preview, simulation, and disabled/fake supervision only</span></div>
+            <div class="fact"><b>No daemon</b><span>Each trusted checkout operates independently</span></div>
+          </div>
+
+          <div class="callout danger">
+            <strong>Distribution blocker</strong>
+            <p>The implementation is currently in an uncommitted working tree. The current machine can validate, preview, and run disabled/deterministic-fake checks, but another machine cannot clone this exact runtime until the changes receive review and an explicitly authorized governed commit, push, or release tag.</p>
+          </div>
+
+          <h2>Current capability boundary</h2>
+          <div class="cards">
+            <article class="card">
+              <h3>What works now</h3>
+              <ul>
+                <li>Fleet v5 story validation</li>
+                <li>Deterministic public mission previews</li>
+                <li>Six functional model pools</li>
+                <li>Full in-memory factory simulation</li>
+                <li>Implemented Pi <code>/wheel-zob run</code> and <code>run-machine</code> shapes, operationally blocked pending source/workspace enforcement</li>
+                <li>Durable hash-chained disabled/fake scheduling, recovery, model-role, workspace/PR/CI, and PR-close validation</li>
+                <li>Terminal CLI, including <code>plan-machine</code> and <code>supervisor-plan|init|run-fake|status|validate|resolve-human</code></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>What does not work yet</h3>
+              <ul>
+                <li>No enforced active-workspace source equality or transition-time workspace/branch/HEAD reinspection</li>
+                <li>No machine-to-story worktree bridge or atomic pre-effect Wheel commit authority validation</li>
+                <li>No live <code>jointhewheel</code> Fleet adapter</li>
+                <li>No live model dispatch through role pools</li>
+                <li>No real application worktrees, branches, PRs, Checks, merges, or deployment</li>
+                <li>No production daemon or live shared supervisor</li>
+              </ul>
+            </article>
+          </div>
+          <a class="back" href="#main">Back to top</a>
+        </section>
+
+        <section id="roles">
+          <p class="eyebrow">1 · Topology</p>
+          <h2>Machine roles</h2>
+          <table>
+            <thead><tr><th>Machine</th><th>Purpose</th><th>Pi?</th><th>Provider authentication?</th><th>Live effects?</th></tr></thead>
+            <tbody>
+              <tr><td><code>operator-01</code></td><td>Primary interactive owner/operator workstation</td><td>Yes</td><td>Not needed for zero-effect checks; local approval required for any normal model use</td><td>No GitHub/deploy; provider calls are real effects</td></tr>
+              <tr><td><code>worker-01</code>, <code>worker-02</code></td><td>Additional trusted developer/operator workstations</td><td>Only for interactive use</td><td>Each user authenticates separately only after approval</td><td>No GitHub/deploy; provider calls are real effects</td></tr>
+              <tr><td><code>ci-01</code></td><td>Non-interactive typecheck, test, and contract validation</td><td>No global Pi</td><td>No</td><td>No</td></tr>
+              <tr><td>Staging/production</td><td>Future service or GitHub/CI integration</td><td>Do not install</td><td>Do not provision</td><td>Unavailable</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="versions">
+          <p class="eyebrow">2 · Reproducibility</p>
+          <h2>Version baseline</h2>
+          <table>
+            <thead><tr><th>Component</th><th>Required or pinned value</th></tr></thead>
+            <tbody>
+              <tr><td>Operating system</td><td>Supported macOS or Linux</td></tr>
+              <tr><td>Node.js</td><td><code>22.22.3</code> recommended; <code>&gt;=22.19.0</code> required by the lock graph</td></tr>
+              <tr><td>npm</td><td>The version bundled with selected Node 22</td></tr>
+              <tr><td>Dependencies</td><td>Exact <code>package-lock.json</code> versions installed with <code>npm ci</code></td></tr>
+              <tr><td>Project-local Pi</td><td><code>0.75.5</code>, compile/test compatibility only</td></tr>
+              <tr><td>Interactive Pi</td><td>Globally pinned <code>0.80.7</code> for GPT-5.6 Sol support</td></tr>
+              <tr><td>Fireconnect</td><td><code>v0.8.0</code>, audited commit <code>977855aa082bcb7a696b43bc34226d5ff11d0eb1</code></td></tr>
+              <tr><td>Python</td><td>Python 3 plus <code>jsonschema &gt;=4.25,&lt;5</code> for documentation validators</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn"><strong>Before package publication</strong><p>Update and re-lock Pi development dependencies and the peer range through a separately reviewed dependency change. The locked Pi 0.75.5 does not recognize current GPT-5.6 model routes.</p></div>
+        </section>
+
+        <section id="prerequisites">
+          <p class="eyebrow">3 · Every source machine</p>
+          <h2>Common prerequisites</h2>
+          <h3>Base tools</h3>
+          <p>Install Git, a Node version manager, Python 3, a C/C++ build toolchain, and—only when installing Fireconnect—<code>curl</code>.</p>
+          <h4>macOS</h4>
+          <pre><code>xcode-select --install</code></pre>
+          <h4>Debian or Ubuntu</h4>
+          <pre><code>sudo apt-get update
+sudo apt-get install -y git curl python3 python3-venv build-essential</code></pre>
+          <h3>Node</h3>
+          <pre><code>nvm install 22.22.3
+nvm use 22.22.3
+node --version
+npm --version</code></pre>
+          <p>Expected Node output: <code>v22.22.3</code>.</p>
+          <h3>Optional Python validator environment</h3>
+          <pre><code>python3 -m venv "$HOME/.venvs/wheel-zob-docs"
+source "$HOME/.venvs/wheel-zob-docs/bin/activate"
+python -m pip install --upgrade pip
+python -m pip install 'jsonschema&gt;=4.25,&lt;5'
+python -c 'import jsonschema; print(jsonschema.__version__)'</code></pre>
+        </section>
+
+        <section id="operator">
+          <p class="eyebrow">4 · operator-01</p>
+          <h2>Set up the primary workstation</h2>
+          <ol class="steps">
+            <li>
+              <h3>Install the trusted checkout</h3>
+              <pre><code>cd /path/to/zob-harness
+npm ci
+npm run doctor:wheel-zob</code></pre>
+              <p>Use <code>npm ci</code>, not <code>npm install</code>. A passing source doctor reports <code>valid=true</code> and <code>externalEffectsEnabled=false</code>. It does not require provider tools or inspect authentication.</p>
+            </li>
+            <li>
+              <h3>Optionally install Fireconnect for Fireworks use</h3>
+              <p>Skip this step for Wheel validation, planning, disabled initialization, deterministic-fake supervision, and simulation. Those operations do not call providers.</p>
+              <pre><code>export FIRECONNECT_COMMIT="977855aa082bcb7a696b43bc34226d5ff11d0eb1"
+git clone https://github.com/fw-ai/fireconnect.git "$HOME/.fireconnect/cli" &amp;&amp; \
+  git -C "$HOME/.fireconnect/cli" checkout --detach "$FIRECONNECT_COMMIT" &amp;&amp; \
+  test "$(git -C "$HOME/.fireconnect/cli" rev-parse HEAD)" = "$FIRECONNECT_COMMIT" &amp;&amp; \
+  bash "$HOME/.fireconnect/cli/install.sh" &amp;&amp; \
+  export PATH="$HOME/.local/bin:$PATH" &amp;&amp; \
+  fireconnect --version</code></pre>
+              <p>The command chain fails closed: the installer cannot run if clone, checkout, or immutable commit verification fails. Expected version: <code>v0.8.0</code>.</p>
+            </li>
+            <li>
+              <h3>Optionally authenticate Fireworks</h3>
+              <pre><code>fireconnect login
+fireconnect pi on
+fireconnect pi status</code></pre>
+              <p>Use the guided browser/key prompt. Never paste an API key into the repository or shared chat. Do not copy <code>~/.fireconnect/</code>, Pi auth files, or keychain data between machines.</p>
+              <pre><code>export WHEEL_ZOB_FIRECONNECT_BIN="$(type -P fireconnect)"
+npm run doctor:wheel-zob -- --providers</code></pre>
+              <p>To restore Fireconnect’s saved Pi configuration, run <code>fireconnect pi off</code>.</p>
+            </li>
+            <li>
+              <h3>Install interactive Pi and authenticate OpenAI Codex</h3>
+              <pre><code>npm install --global @earendil-works/pi-coding-agent@0.80.7
+export WHEEL_ZOB_PI_BIN="$(type -P pi)"
+"$WHEEL_ZOB_PI_BIN" --version
+cd /path/to/zob-harness
+"$WHEEL_ZOB_PI_BIN"</code></pre>
+              <p>Inside Pi, run <code>/login</code>, select <strong>ChatGPT Plus/Pro (Codex)</strong>, and complete OAuth. Then use <code>/model</code> to choose <code>openai-codex/gpt-5.6-sol</code> and set thinking to high.</p>
+              <pre><code>"$WHEEL_ZOB_PI_BIN" --provider openai-codex --model gpt-5.6-sol --thinking high</code></pre>
+            </li>
+            <li>
+              <h3>Run the interactive/provider-aware doctor</h3>
+              <pre><code>WHEEL_ZOB_PI_BIN="$(type -P pi)" \
+WHEEL_ZOB_FIRECONNECT_BIN="$(type -P fireconnect)" \
+npm run doctor:wheel-zob -- --interactive --providers</code></pre>
+              <p>The Pi path must be absolute and outside the repository. Authentication remains a separate explicit status/login check.</p>
+            </li>
+            <li>
+              <h3>Trust and load project extensions</h3>
+              <pre><code>cd /path/to/zob-harness
+WHEEL_ZOB_PI_BIN="$(type -P pi)"
+"$WHEEL_ZOB_PI_BIN"</code></pre>
+              <p>Review the checkout before approving project trust. Inside Pi, run:</p>
+              <pre><code>/reload
+/wheel-zob pools</code></pre>
+              <p>The manifest loads the ZOB switch, ZOB harness, and Wheel ZOB extension bridges.</p>
+            </li>
+            <li>
+              <h3>Run the full validation ladder</h3>
+              <pre><code>npm run doctor:wheel-zob
+npm run check -- --pretty false
+npm run validate:wheel-zob-model-registry
+npm run validate:wheel-zob-fleet-v5
+npm run smoke:wheel-zob-pack
+npm run smoke:wheel-zob-extension
+npm run wheel-zob -- simulate installation-check
+npm test</code></pre>
+              <pre><code>source "$HOME/.venvs/wheel-zob-docs/bin/activate"
+python3 docs/zob/validation/validate_contracts.py
+python3 docs/zob/validation/validate_documentation.py</code></pre>
+              <p><strong>Stop if any command fails.</strong></p>
+            </li>
+          </ol>
+        </section>
+
+        <section id="first-use">
+          <p class="eyebrow">5 · Safe operation</p>
+          <h2>First use: exact commands</h2>
+          <div class="cards">
+            <article class="card">
+              <h3>Inspect model pools</h3>
+              <pre><code>npm run wheel-zob -- pools</code></pre>
+              <pre><code>/wheel-zob pools</code></pre>
+              <p>Validates static routing. It does not call a provider.</p>
+            </article>
+            <article class="card">
+              <h3>Validate a Fleet story</h3>
+              <pre><code>npm run wheel-zob -- validate \
+  docs/zob/examples/story-execution.example.json</code></pre>
+              <pre><code>/wheel-zob validate docs/zob/examples/story-execution.example.json</code></pre>
+            </article>
+            <article class="card">
+              <h3>Preview a mission</h3>
+              <pre><code>npm run wheel-zob -- plan demo-mission \
+  docs/zob/examples/story-execution.example.json</code></pre>
+              <pre><code>/wheel-zob plan demo-mission docs/zob/examples/story-execution.example.json</code></pre>
+              <p>Public output contains commitments/hashes, not protected route identities. Dispatch remains disabled.</p>
+            </article>
+            <article class="card">
+              <h3>Simulate the lifecycle</h3>
+              <pre><code>npm run wheel-zob -- simulate demo-mission</code></pre>
+              <pre><code>/wheel-zob simulate demo-mission</code></pre>
+              <p>Expected stages: Story <code>needs-review</code>, Blind Review <code>clean</code>, Staging <code>complete</code>, Assurance <code>passed</code>, Promotion <code>complete</code>.</p>
+            </article>
+          </div>
+          <h3>Validate or preview a story set</h3>
+          <pre><code>/wheel-zob validate path/to/story.json
+/wheel-zob plan &lt;mission-id&gt; path/to/story.json [path/to/dependency.json ...]</code></pre>
+          <div class="callout danger"><strong>Provider-backed story run is operationally blocked</strong><p><code>/wheel-zob run</code> is implemented but queues a Pi model turn that can invoke the selected provider, incur spend, and edit the active checkout. Do not execute it for an operational story until active-workspace source equality and transition-time workspace/branch/HEAD reinspection are enforced and independently reviewed.</p></div>
+          <h3>Preview one explicit source-bound machine assignment</h3>
+          <pre><code>npm run wheel-zob -- plan-machine \
+  &lt;mission-id&gt; &lt;machine-id&gt; path/to/machine-bundle.json</code></pre>
+          <p>The preview validates source and bundle hashes, every machine/story assignment, every story manifest, dependencies, and cycles before selection. It starts no agent turn.</p>
+          <div class="callout danger"><strong>Provider-backed machine run is operationally blocked</strong><p><code>/wheel-zob run-machine</code> is implemented but queues one provider-backed turn in the active checkout. Do not execute it until source/workspace enforcement is implemented, negative-tested, and independently reviewed. Commit, push, GitHub mutation, merge, promotion, and deployment also remain unavailable.</p></div>
+          <h3>Run the durable activation-disabled supervisor</h3>
+          <pre><code>npm run wheel-zob -- supervisor-plan &lt;mission-id&gt; path/to/machine-bundle.json
+npm run wheel-zob -- supervisor-run-fake \
+  &lt;mission-id&gt; path/to/machine-bundle.json \
+  reports/wheel-zob/supervisor/&lt;mission-id&gt;
+npm run wheel-zob -- supervisor-status reports/wheel-zob/supervisor/&lt;mission-id&gt;
+npm run wheel-zob -- supervisor-validate reports/wheel-zob/supervisor/&lt;mission-id&gt;</code></pre>
+          <p>This persists a body-free journal/checkpoint and exercises development, QA, repair, blind review, fake workspace/PR/CI, and PR-close loops with zero provider, network, credential, repository, or GitHub effects. Restart with the exact same mission, bundle, and state directory. Human gates require an explicit hash-only receipt.</p>
+          <p>See <a href="20-FLEET_V5_DISABLED_SUPERVISOR_RUNBOOK.md">the durable disabled supervisor runbook</a> for stop, restart, ownership recovery, rollback posture, and the live-activation stop.</p>
+          <div class="callout ok"><strong>Required simulation posture</strong><p><code>activationEnabled=false</code>, <code>externalEffects=false</code>, <code>githubWrites=false</code>, <code>merge=false</code>, <code>workflowDispatch=false</code>, <code>deployment=false</code>, and <code>providerActivation=false</code>.</p></div>
+          <p>Inputs must be reviewed, sanitized, repo-relative JSON files. Absolute paths, traversal, sessions, environment/credential/key names, and symlink escapes are intentionally blocked.</p>
+        </section>
+
+        <section id="workers">
+          <p class="eyebrow">6 · worker-01 and peers</p>
+          <h2>Set up additional trusted machines</h2>
+          <div class="callout danger"><strong>Not available until release</strong><p>The required reviewed commit or tag does not exist for the current uncommitted runtime. Do not clone <code>origin/main</code> and assume it contains this implementation.</p></div>
+          <p>After a reviewed commit/tag exists:</p>
+          <pre><code>export ZOB_REPO_URL="https://github.com/cgarrot/zob-harness.git"
+export ZOB_REF="&lt;reviewed-commit-or-tag&gt;"
+git clone "$ZOB_REPO_URL" zob-harness
+cd zob-harness
+git fetch --tags --prune
+git checkout --detach "$ZOB_REF"
+git rev-parse HEAD
+npm ci
+npm run doctor:wheel-zob</code></pre>
+          <ul>
+            <li>Record the exact commit; every machine must report the same value.</li>
+            <li>CLI-only validation and simulation require no provider login.</li>
+            <li>Repeat provider authentication locally only when that user needs it.</li>
+            <li>Never transfer credentials from <code>operator-01</code>.</li>
+            <li>Run the full operator validation ladder.</li>
+          </ul>
+          <p>For interactive use, install Pi 0.80.7, launch its absolute path from repository root, approve trust after review, run <code>/reload</code>, then verify <code>/wheel-zob pools</code> and <code>/wheel-zob simulate worker-check</code>.</p>
+        </section>
+
+        <section id="ci">
+          <p class="eyebrow">7 · ci-01</p>
+          <h2>Configure the non-interactive validation host</h2>
+          <pre><code>export CI=true
+export GIT_TERMINAL_PROMPT=0
+node --version
+git rev-parse HEAD
+npm ci</code></pre>
+          <h3>Required CI commands</h3>
+          <pre><code>npm run doctor:wheel-zob:ci
+npm run check -- --pretty false
+npm run validate:wheel-zob-model-registry
+npm run validate:wheel-zob-fleet-v5
+npm run smoke:wheel-zob-pack
+npm run smoke:wheel-zob-extension
+npm run wheel-zob -- simulate ci-check
+npm test
+python3 -m pip install 'jsonschema&gt;=4.25,&lt;5'
+python3 docs/zob/validation/validate_contracts.py
+python3 docs/zob/validation/validate_documentation.py</code></pre>
+          <p>A release CI job is incomplete if contract or documentation validation is omitted.</p>
+          <div class="callout danger"><strong>CI must not receive live credentials</strong><p>Do not configure Fireconnect login, Pi OAuth, provider keys, GitHub App keys, merge credentials, deployment credentials, or production mutations.</p></div>
+        </section>
+
+        <section id="production">
+          <p class="eyebrow">8 · No-ship boundary</p>
+          <h2>Do not install a live staging or production runtime</h2>
+          <p>There is no approved procedure for using this pack as a live service.</p>
+          <ul>
+            <li>Do not create a <code>zobd</code> service.</li>
+            <li>Do not provision GitHub Apps.</li>
+            <li>Do not create or protect <code>develop-staging</code> because of this pack.</li>
+            <li>Do not enable automatic merges or deployment credentials.</li>
+            <li>Do not convert simulation transitions into real effects.</li>
+            <li>Do not share provider credentials with a service account.</li>
+          </ul>
+          <p>A future live phase requires application adapters, durable state/checkpoints, least-privilege credentials, branch/CI integration, rollback evidence, pilots, and a fresh independent oracle review.</p>
+        </section>
+
+        <section id="parity">
+          <p class="eyebrow">9 · Inventory</p>
+          <h2>Keep machines identical</h2>
+          <pre><code>node --version
+npm --version
+git rev-parse HEAD
+npm run doctor:wheel-zob</code></pre>
+          <p>On interactive operator machines:</p>
+          <pre><code>WHEEL_ZOB_PI_BIN="$(type -P pi)"
+"$WHEEL_ZOB_PI_BIN" --version
+WHEEL_ZOB_PI_BIN="$WHEEL_ZOB_PI_BIN" npm run doctor:wheel-zob -- --interactive</code></pre>
+          <p>Record Fireconnect version/status locally if used, without copying secrets. Machine parity means the same commit/tag, lock file, Node policy, doctor result, and validation results—not shared authentication files.</p>
+        </section>
+
+        <section id="update">
+          <p class="eyebrow">10 · Maintenance</p>
+          <h2>Update after a reviewed release</h2>
+          <p>Stop active Pi sessions. Check for local changes first:</p>
+          <pre><code>cd /path/to/zob-harness
+git status --short</code></pre>
+          <p>If this prints anything, stop and preserve/review the work. When clean:</p>
+          <pre><code>git fetch --tags --prune
+git checkout --detach &lt;new-reviewed-commit-or-tag&gt;
+npm ci
+npm run doctor:wheel-zob
+npm run check -- --pretty false
+npm run validate:wheel-zob-model-registry
+npm run validate:wheel-zob-fleet-v5
+npm run smoke:wheel-zob-pack
+npm run smoke:wheel-zob-extension
+npm run wheel-zob -- simulate upgrade-check
+npm test
+python3 docs/zob/validation/validate_contracts.py
+python3 docs/zob/validation/validate_documentation.py</code></pre>
+          <p>Restart Pi, then run <code>/reload</code>, <code>/wheel-zob pools</code>, and <code>/wheel-zob simulate upgrade-check</code>. Never use a moving branch as a durable installation.</p>
+        </section>
+
+        <section id="rollback">
+          <p class="eyebrow">11 · Recovery</p>
+          <h2>Rollback and local removal</h2>
+          <h3>Roll back source</h3>
+          <pre><code>cd /path/to/zob-harness
+git status --short</code></pre>
+          <p>If clean:</p>
+          <pre><code>git checkout --detach &lt;previous-reviewed-commit-or-tag&gt;
+npm ci
+npm run doctor:wheel-zob
+npm run check -- --pretty false
+npm run validate:wheel-zob-model-registry
+npm run validate:wheel-zob-fleet-v5
+npm run smoke:wheel-zob-pack
+npm run smoke:wheel-zob-extension
+npm run wheel-zob -- simulate rollback-check
+npm test
+python3 docs/zob/validation/validate_contracts.py
+python3 docs/zob/validation/validate_documentation.py</code></pre>
+          <h3>Remove local provider integration</h3>
+          <p>Run <code>fireconnect pi off</code> to restore Fireconnect’s snapshot. Inside Pi, use <code>/logout</code> and select only the OpenAI Codex credential you intend to remove.</p>
+          <p>Remove a checkout only after preserving required reports and confirming no worktree is active. This guide does not authorize broad destructive cleanup.</p>
+        </section>
+
+        <section id="troubleshooting">
+          <p class="eyebrow">12 · Diagnostics</p>
+          <h2>Troubleshooting</h2>
+          <details open><summary><code>/wheel-zob</code> is unknown</summary><div><ol><li>Confirm repository root.</li><li>Run <code>npm ci</code> and <code>npm run doctor:wheel-zob</code>.</li><li>Confirm <code>package.json</code> lists the Wheel extension bridge.</li><li>Confirm global Pi is 0.80.7 and launch that absolute executable from repository root.</li><li>Review and trust the project.</li><li>Run <code>/reload</code>.</li></ol></div></details>
+          <details><summary><code>fireconnect</code> is not found or inactive</summary><div><pre><code>export PATH="$HOME/.local/bin:$PATH"
+fireconnect --version
+fireconnect login
+fireconnect pi on
+fireconnect pi status</code></pre><p>Restart Pi after configuration changes. If installation is missing, rerun only the pinned, fail-closed §4 installer.</p></div></details>
+          <details><summary>OpenAI Codex is unavailable</summary><div><p>Inside Pi, run <code>/login</code>, choose ChatGPT Plus/Pro (Codex), complete OAuth, then use <code>/model</code> to select <code>openai-codex/gpt-5.6-sol</code>.</p></div></details>
+          <details><summary>Doctor fails on Node</summary><div><pre><code>nvm use 22.22.3
+node --version
+npm ci
+npm run doctor:wheel-zob</code></pre></div></details>
+          <details><summary>A story path is rejected</summary><div><p>The file must be a normal repo-relative file inside the trusted checkout. Absolute paths, traversal, private sessions, environment/credential/key names, and symlink escapes are blocked intentionally.</p></div></details>
+          <details><summary>Mission preview has no model identities</summary><div><p>Expected behavior. Public output stores route commitments/hashes rather than protected model identities.</p></div></details>
+          <details><summary>Simulation or fake supervision completes but GitHub does not change</summary><div><p>Expected behavior. The runtime has only disabled/deterministic-fake GitHub-effect brokers and all external effects remain false.</p></div></details>
+        </section>
+
+        <section id="checklists">
+          <p class="eyebrow">13 · Acceptance</p>
+          <h2>Per-machine readiness checklists</h2>
+          <div class="cards">
+            <article class="card"><h3>operator-01</h3><ul class="checklist"><li>Trusted source checkout</li><li>Node 22 selected</li><li><code>npm ci</code> passed</li><li>Source doctor valid</li><li>Local provider login only if needed</li><li>Project reviewed and trusted</li><li><code>/reload</code> completed</li><li><code>/wheel-zob pools</code> works</li><li>Full validations pass</li><li>No external effect enabled</li></ul></article>
+            <article class="card"><h3>Each worker</h3><ul class="checklist"><li>Same reviewed commit/tag</li><li>Independent <code>npm ci</code> and doctor pass</li><li>No copied credentials</li><li>Local login only if needed</li><li>Full validation ladder passes</li><li>No external effect enabled</li></ul></article>
+            <article class="card"><h3>ci-01</h3><ul class="checklist"><li>Detached reviewed commit</li><li>Node 22</li><li><code>npm ci</code></li><li>CI doctor valid</li><li>Tests and docs/contracts pass</li><li>No provider or production credentials</li><li>No live effects</li></ul></article>
+          </div>
+        </section>
+
+        <section id="references">
+          <p class="eyebrow">14 · Evidence</p>
+          <h2>Authoritative references</h2>
+          <ul>
+            <li><a href="18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md">Canonical Markdown setup manual</a></li>
+            <li><a href="WHEEL_ZOB_TERMINAL_MANUAL.html">Interactive Wheel ZOB terminal manual</a></li>
+            <li><a href="../../reports/wheel-runtime-evidence/runtime-map.md">Local runtime map</a></li>
+            <li><a href="../../reports/wheel-runtime-evidence/oracle-review.md">Independent bounded-runtime oracle review</a></li>
+            <li><a href="https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/packages.md">Pi package installation</a></li>
+            <li><a href="https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/extensions.md">Pi extension discovery, trust, and reload</a></li>
+            <li><a href="https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/providers.md">Pi provider login</a></li>
+            <li><a href="https://docs.fireworks.ai/ecosystem/fireconnect/pi">Fireconnect Pi integration</a></li>
+            <li><a href="https://github.com/fw-ai/fireconnect">Fireconnect source</a></li>
+          </ul>
+          <footer>
+            <p><strong>Truth boundary:</strong> this document authorizes only validation, preview, launch-plan preparation, simulation, and durable disabled/deterministic-fake supervision. Provider-backed operational run/start, application writes, Wheel story commit, GitHub mutation, merging, workflow dispatch, production activation, and deployment remain blocked.</p>
+          </footer>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    for (const pre of document.querySelectorAll('pre')) pre.tabIndex = 0;
+  </script>
+</body>
+</html>

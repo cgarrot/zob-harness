@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:evidence:v1",
+  "title": "Wheel ZOB Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidenceId", "evidenceType", "scope", "bindings", "issuer", "producedAt", "status", "artifacts", "validationResults", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.evidence.v1"},
+    "evidenceId": {"type": "string", "minLength": 8},
+    "evidenceType": {"enum": ["task", "gate", "pr-close", "blind-review", "human-gate", "staging-merge-gate", "staging-integration", "repository-assurance", "promotion-authorization", "promotion-gate", "post-promotion", "merge-authorization", "ship-gate", "post-merge"]},
+    "migrationReadOnly": {"const": true},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["missionId"], "properties": {"missionId": {"type": "string"}, "storyId": {"type": "string"}, "gateId": {"type": "string"}, "taskId": {"type": "string"}, "prNumber": {"type": "integer", "minimum": 1}, "stagingCandidateId": {"type": "string"}, "assuranceId": {"type": "string"}, "promotionId": {"type": "string"}}},
+    "bindings": {"type": "object", "additionalProperties": false, "required": ["repositoryId", "headSha", "manifestHash", "policyHash"], "properties": {"repositoryId": {"type": "string"}, "branchRef": {"type": "string"}, "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "baseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "mergeBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "manifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "policyHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "receiptHashes": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "issuer": {"type": "object", "additionalProperties": false, "required": ["type", "id", "schemaVersion"], "properties": {"type": {"enum": ["supervisor", "builder-app", "reviewer-app", "staging-merge-app", "promotion-app", "ship-app", "ci", "human"]}, "id": {"type": "string"}, "schemaVersion": {"type": "string"}}},
+    "producedAt": {"type": "string", "format": "date-time"},
+    "observedAt": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["current", "stale", "invalid", "superseded"]},
+    "invalidationReason": {"type": "string"},
+    "artifacts": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["artifactType", "ref", "hash"], "properties": {"artifactType": {"type": "string"}, "ref": {"type": "string"}, "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "validationResults": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["validationId", "commandRef", "exitCode", "result", "outputHash"], "properties": {"validationId": {"type": "string"}, "commandRef": {"type": "string"}, "exitCode": {"type": "integer"}, "result": {"enum": ["pass", "fail", "skipped", "unknown"]}, "outputHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "externalRef": {"type": "string"}}}},
+    "attemptChain": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["attemptId", "assignmentId", "outcome"], "properties": {"attemptId": {"type": "string"}, "assignmentId": {"type": "string"}, "outcome": {"type": "string"}, "claimHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"evidenceType": {"enum": ["merge-authorization", "ship-gate", "post-merge"]}}, "required": ["evidenceType"]},
+      "then": {"required": ["migrationReadOnly"], "properties": {"status": {"enum": ["stale", "invalid", "superseded"]}}}
+    },
+    {
+      "if": {"properties": {"issuer": {"properties": {"type": {"const": "ship-app"}}}}, "required": ["issuer"]},
+      "then": {"required": ["migrationReadOnly"], "properties": {"status": {"enum": ["stale", "invalid", "superseded"]}}}
+    }
+  ]
+}

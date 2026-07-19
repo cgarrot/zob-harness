@@ -1,0 +1,25 @@
+{
+  "schema": "zob.ack-receipt.v1",
+  "receiptId": "receipt-promotion-window-001",
+  "ackType": "promotion-window",
+  "actor": {"actorId": "operator-86mets", "authenticatedBy": "local-session"},
+  "source": {"sourceType": "mission-control", "sourceId": "mc-local-001"},
+  "scope": {
+    "repositoryId": "join-the-wheel/jointhewheel",
+    "windowId": "promotion-window-20260718-001",
+    "candidateId": "candidate-20260718-001",
+    "candidateRevision": 1,
+    "candidateHash": "2323232323232323232323232323232323232323232323232323232323232323",
+    "stagingSha": "9999999999999999999999999999999999999999",
+    "developSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "promotionId": "promotion-20260718-001",
+    "ruleIds": ["promotion-window-human-start", "freeze-unrelated-staging-merges", "allow-finding-bound-repair-descendants"]
+  },
+  "decision": "approved",
+  "reasonHash": "0101010101010101010101010101010101010101010101010101010101010101",
+  "createdAt": "2026-07-18T15:00:00Z",
+  "expiresAt": "2026-07-18T23:00:00Z",
+  "policyVersion": "promotion-window-1.0.0",
+  "receiptHash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "bodyStored": false
+}

@@ -1,0 +1,19 @@
+{
+  "schema": "zob.mission-checkpoint.v1",
+  "missionId": "mission-demo-001",
+  "checkpointId": "checkpoint-demo-042",
+  "sequence": 42,
+  "createdAt": "2026-07-18T12:10:00Z",
+  "reason": "gate-transition",
+  "eventHeadHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "previousCheckpointHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mission": {"factoryType": "story-pr-close", "status": "active"},
+  "stories": [{"storyId": "H31", "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "status": "build", "acceptedProgress": 0.55}],
+  "activeRuns": [{"attemptId": "H31:G4:T3:A1", "assignmentId": "assign-NEXT1", "status": "running", "machineIdHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}],
+  "workspaces": [{"workspaceId": "workspace-H31", "storyId": "H31", "branchRef": "feature/H31", "headSha": "1111111111111111111111111111111111111111", "status": "clean"}],
+  "externalTruth": {"githubObservedAt": "2026-07-18T12:09:45Z", "needsHumanObservedAt": "2026-07-18T12:09:30Z", "stateBranchHead": "2222222222222222222222222222222222222222"},
+  "humanReceipts": [],
+  "policyRefs": {"executionProfiles": "1.0.0", "modelPolicy": "baseline-1"},
+  "checkpointHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "bodyStored": false
+}

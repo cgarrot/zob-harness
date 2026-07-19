@@ -1,0 +1,19 @@
+{
+  "schema": "zob.execution-profile.v1",
+  "profileId": "security-trust",
+  "kind": "overlay",
+  "version": "1.0.0",
+  "description": "Adds trust-boundary evidence and independent security review.",
+  "selectors": {"storyTypes": [], "domains": ["auth", "security"], "surfaces": ["api", "database"], "riskAtLeast": "high", "signalPredicateRefs": ["signals.securityFlags.length>0"]},
+  "gatePatches": [
+    {"gateType": "blueprint", "operation": "add-evidence", "requirementRefs": ["threat-model", "data-custody-map"]},
+    {"gateType": "release", "operation": "add-review", "requirementRefs": ["independent-security-review"]}
+  ],
+  "taskTemplateRefs": ["tasks/security-sast", "tasks/security-auth-rls-crypto"],
+  "evidenceRequirements": ["sast-result", "security-boundary-tests", "plaintext-scan"],
+  "reviewAdditions": ["security-domain-control"],
+  "permissionAdditions": {"capabilityRefs": ["security-scanner-read"], "deniedCapabilities": ["secrets", "live-kms", "deploy", "merge"]},
+  "humanReceiptTypes": ["trust-decision"],
+  "deferredActions": ["deploy", "provider-activation", "workflow-dispatch"],
+  "compositionPolicy": {"mergeMode": "union-stricter-wins", "canStrengthenAutomatically": true, "requiresHumanToWeakenOrRemove": true}
+}

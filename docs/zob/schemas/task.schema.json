@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:task:v1",
+  "title": "Wheel ZOB Task Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "taskId", "revision", "storyId", "gateId", "title", "contractRef", "contractHash", "required", "origin", "lineage", "labels", "dependencies", "deliverables", "acceptanceCriteria", "execution", "permissions", "validation", "review", "completion"],
+  "properties": {
+    "schema": {"const": "zob.story-task.v1"},
+    "taskId": {"type": "string", "minLength": 3},
+    "revision": {"type": "integer", "minimum": 1},
+    "storyId": {"type": "string"},
+    "gateId": {"type": "string"},
+    "title": {"type": "string", "minLength": 1},
+    "contractRef": {"type": "string"},
+    "contractHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "required": {"type": "boolean"},
+    "origin": {"type": "object", "additionalProperties": false, "required": ["kind", "sourceRef", "sourceHash"], "properties": {"kind": {"enum": ["bundle", "reconciliation", "split", "repair", "ci", "review-feedback", "human"]}, "sourceRef": {"type": "string"}, "sourceHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "lineage": {"type": "object", "additionalProperties": false, "properties": {"parentTaskId": {"type": "string"}, "splitFrom": {"type": "string"}, "repairOf": {"type": "string"}, "reviewOf": {"type": "string"}, "supersedes": {"type": "array", "items": {"type": "string"}}}},
+    "labels": {"type": "object", "additionalProperties": false, "required": ["taxonomyVersion", "authored", "inherited", "inferred", "effective"], "properties": {"taxonomyVersion": {"type": "string"}, "authored": {"type": "object"}, "inherited": {"type": "object"}, "inferred": {"type": "array", "items": {"type": "object", "required": ["field", "value", "confidence", "sourceRef"], "properties": {"field": {"type": "string"}, "value": {"type": "string"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "sourceRef": {"type": "string"}}, "additionalProperties": false}}, "effective": {"type": "object"}}},
+    "dependencies": {"type": "array", "items": {"type": "object", "required": ["ref", "type"], "properties": {"ref": {"type": "string"}, "type": {"enum": ["hard", "soft", "artifact", "human", "external", "stack"]}, "conditionRef": {"type": "string"}}, "additionalProperties": false}},
+    "deliverables": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["kind", "pathOrArtifactRef", "required"], "properties": {"kind": {"type": "string"}, "pathOrArtifactRef": {"type": "string"}, "required": {"type": "boolean"}, "integrationPoint": {"type": "string"}}, "additionalProperties": false}},
+    "acceptanceCriteria": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["criterionId", "text", "verification", "required"], "properties": {"criterionId": {"type": "string"}, "text": {"type": "string"}, "verification": {"type": "string"}, "required": {"type": "boolean"}}, "additionalProperties": false}},
+    "execution": {"type": "object", "additionalProperties": false, "required": ["rolePool", "modelPool", "skillOwner", "supportSkills", "skillVersions", "workspaceMode", "maxAttempts"], "properties": {"rolePool": {"type": "string"}, "modelPool": {"type": "string"}, "skillOwner": {"type": "string"}, "supportSkills": {"type": "array", "items": {"type": "string"}}, "skillVersions": {"type": "object", "additionalProperties": {"type": "string"}}, "workspaceMode": {"enum": ["canonical", "sandbox", "read-only-review"]}, "maxAttempts": {"type": "integer", "minimum": 1}}},
+    "permissions": {"type": "object", "additionalProperties": false, "required": ["rolePolicyRef", "readPaths", "writePaths", "commands", "deniedCapabilities"], "properties": {"rolePolicyRef": {"type": "string"}, "readPaths": {"type": "array", "items": {"type": "string"}}, "writePaths": {"type": "array", "items": {"type": "string"}}, "commands": {"type": "array", "items": {"type": "string"}}, "deniedCapabilities": {"type": "array", "items": {"type": "string"}}}},
+    "validation": {"type": "array", "items": {"type": "object", "required": ["validationId", "commandRef", "evidenceType"], "properties": {"validationId": {"type": "string"}, "commandRef": {"type": "string"}, "evidenceType": {"type": "string"}, "timeoutMs": {"type": "integer", "minimum": 1}}, "additionalProperties": false}},
+    "review": {"type": "object", "additionalProperties": false, "required": ["risk", "independentRequired"], "properties": {"risk": {"enum": ["low", "medium", "high", "critical"]}, "independentRequired": {"type": "boolean"}, "reviewPool": {"type": "string"}}},
+    "completion": {"type": "object", "additionalProperties": false, "required": ["claimContract", "sourceBinding", "evidenceRequirements"], "properties": {"claimContract": {"type": "string"}, "sourceBinding": {"type": "string"}, "evidenceRequirements": {"type": "array", "items": {"type": "string"}}}}
+  }
+}

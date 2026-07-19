@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/fleet-v5-local-machine-launch-state.schema.json",
+  "title": "Wheel Fleet v5 Local Machine Launch State",
+  "oneOf": [
+    { "$ref": "#/$defs/claim" },
+    { "$ref": "#/$defs/event" },
+    { "$ref": "#/$defs/status" }
+  ],
+  "$defs": {
+    "safeId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "repoRef": { "type": "string", "minLength": 1, "pattern": "^(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$" },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "claimId", "launchId", "planHash", "machineId", "assignmentHash", "ownerIdHash", "sessionIdHash", "workspaceRootHash", "workspaceHeadSha", "workspaceBranch", "linkedWorktree", "cleanAtInitialClaim", "ownershipEpoch", "claimedAt", "updatedAt", "leaseExpiresAt", "status", "confirmationHash", "evidenceRefs", "evidenceHashes", "commitEnabled", "pushEnabled", "githubEffectsEnabled", "bodyStored"],
+      "properties": {
+        "schema": { "const": "wheel.zob.local-machine-launch-claim.v1" },
+        "claimId": { "$ref": "#/$defs/safeId" },
+        "launchId": { "$ref": "#/$defs/safeId" },
+        "planHash": { "$ref": "#/$defs/sha256" },
+        "machineId": { "$ref": "#/$defs/safeId" },
+        "assignmentHash": { "$ref": "#/$defs/sha256" },
+        "ownerIdHash": { "$ref": "#/$defs/sha256" },
+        "sessionIdHash": { "$ref": "#/$defs/sha256" },
+        "workspaceRootHash": { "$ref": "#/$defs/sha256" },
+        "workspaceHeadSha": { "$ref": "#/$defs/gitObject" },
+        "workspaceBranch": { "type": "string", "minLength": 1 },
+        "linkedWorktree": { "const": true },
+        "cleanAtInitialClaim": { "const": true },
+        "ownershipEpoch": { "type": "integer", "minimum": 1 },
+        "claimedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "leaseExpiresAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["claimed", "started", "running", "local-ready", "handoff-candidate", "blocked"] },
+        "confirmationHash": { "$ref": "#/$defs/sha256" },
+        "zagentPresenceReceiptHash": { "$ref": "#/$defs/sha256" },
+        "evidenceRefs": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/repoRef" } },
+        "evidenceHashes": { "type": "array", "items": { "$ref": "#/$defs/sha256" } },
+        "blockerHash": { "$ref": "#/$defs/sha256" },
+        "commitEnabled": { "const": false },
+        "pushEnabled": { "const": false },
+        "githubEffectsEnabled": { "const": false },
+        "bodyStored": { "const": false }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "launchId", "machineId", "sequence", "previousHash", "eventHash", "mutationId", "kind", "claim", "occurredAt", "bodyStored"],
+      "properties": {
+        "schema": { "const": "wheel.zob.local-machine-launch-event.v1" },
+        "launchId": { "$ref": "#/$defs/safeId" },
+        "machineId": { "$ref": "#/$defs/safeId" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "previousHash": { "$ref": "#/$defs/sha256" },
+        "eventHash": { "$ref": "#/$defs/sha256" },
+        "mutationId": { "$ref": "#/$defs/safeId" },
+        "kind": { "enum": ["machine-claimed", "machine-started", "machine-running", "machine-local-ready", "machine-blocked", "machine-recovered", "machine-handoff-candidate"] },
+        "claim": { "$ref": "#/$defs/claim" },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "bodyStored": { "const": false }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "launchId", "machineId", "valid", "issueCodes", "eventCount", "journalHeadHash", "checkpointCurrent", "recoveryRequired", "recoveryReasons", "ownershipLive", "recoveredExpiredOwnerCount", "processSpawned", "commitEnabled", "githubEffectsEnabled", "bodyStored"],
+      "properties": {
+        "schema": { "const": "wheel.zob.local-machine-launch-status.v1" },
+        "launchId": { "$ref": "#/$defs/safeId" },
+        "machineId": { "$ref": "#/$defs/safeId" },
+        "valid": { "type": "boolean" },
+        "issueCodes": { "type": "array", "items": { "type": "string" } },
+        "claim": { "$ref": "#/$defs/claim" },
+        "eventCount": { "type": "integer", "minimum": 0 },
+        "journalHeadHash": { "$ref": "#/$defs/sha256" },
+        "checkpointCurrent": { "type": "boolean" },
+        "recoveryRequired": { "type": "boolean" },
+        "recoveryReasons": { "type": "array", "items": { "type": "string" } },
+        "ownershipLive": { "type": "boolean" },
+        "recoveredExpiredOwnerCount": { "type": "integer", "minimum": 0 },
+        "processSpawned": { "const": false },
+        "commitEnabled": { "const": false },
+        "githubEffectsEnabled": { "const": false },
+        "bodyStored": { "const": false }
+      }
+    }
+  }
+}

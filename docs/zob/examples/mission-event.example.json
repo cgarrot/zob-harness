@@ -1,0 +1,22 @@
+{
+  "schema": "zob.mission-event.v1",
+  "eventId": "evt-01JDEMO00000000001",
+  "missionId": "mission-demo-001",
+  "sequence": 42,
+  "occurredAt": "2026-07-18T10:20:00Z",
+  "recordedAt": "2026-07-18T10:20:00Z",
+  "producerType": "supervisor",
+  "producerId": "zobd-local",
+  "eventType": "task.claim_returned",
+  "storyId": "H31",
+  "gateId": "H31:G4",
+  "taskId": "H31:G4:T2",
+  "attemptId": "H31:G4:T2:A1",
+  "correlationId": "corr-demo-42",
+  "causationId": "evt-01JDEMO00000000000",
+  "idempotencyKey": "claim:H31:G4:T2:A1:bbbbbbbb",
+  "payload": {"assignmentId": "assign-V8M4", "claimHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "changedPathCount": 2, "status": "claim-returned"},
+  "prevEventHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "eventHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "bodyStored": false
+}

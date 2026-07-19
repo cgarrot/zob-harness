@@ -1,0 +1,27 @@
+{
+  "schema": "zob.ack-receipt.v1",
+  "receiptId": "receipt-promotion-merge-001",
+  "ackType": "promotion-merge",
+  "actor": {"actorId": "operator-86mets", "authenticatedBy": "local-session"},
+  "source": {"sourceType": "mission-control", "sourceId": "mc-local-001"},
+  "scope": {
+    "repositoryId": "join-the-wheel/jointhewheel",
+    "windowId": "promotion-window-20260718-001",
+    "candidateId": "candidate-20260718-001",
+    "candidateRevision": 2,
+    "candidateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+    "prNumber": 4120,
+    "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "developSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "assuranceId": "assurance-20260718-round-2",
+    "promotionId": "promotion-20260718-001",
+    "ruleIds": ["merge-commit-only", "automatic-cd-impact-acknowledged", "manual-dispatch-forbidden"]
+  },
+  "decision": "approved",
+  "reasonHash": "0202020202020202020202020202020202020202020202020202020202020202",
+  "createdAt": "2026-07-18T18:10:00Z",
+  "expiresAt": "2026-07-18T18:40:00Z",
+  "policyVersion": "promotion-merge-1.0.0",
+  "receiptHash": "1717171717171717171717171717171717171717171717171717171717171717",
+  "bodyStored": false
+}

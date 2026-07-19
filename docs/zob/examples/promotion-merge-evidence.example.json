@@ -1,0 +1,62 @@
+{
+  "schema": "zob.promotion-merge-evidence.v1",
+  "evidenceId": "promotion-evidence-20260718-001",
+  "authorizationId": "promotion-auth-20260718-001",
+  "authorizationHash": "2020202020202020202020202020202020202020202020202020202020202020",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "windowId": "promotion-window-20260718-001",
+  "candidateId": "candidate-20260718-001",
+  "candidateRevision": 2,
+  "candidateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "promotionPrNumber": 4120,
+  "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "developBaseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "promotionMergeSha": "dddddddddddddddddddddddddddddddddddddddd",
+  "parents": {
+    "developParentSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "auditedStagingParentSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "auditedStagingIsParent": true
+  },
+  "mergeMethod": "merge-commit",
+  "treeProof": {
+    "promotionTreeHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "auditedStagingTreeHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "treesEqual": true
+  },
+  "promotionAppId": "wheel-promotion-app-test",
+  "promotionAuthorizationCheckId": "check-promotion-authorization-001",
+  "promotionGateCheckId": "check-promotion-gate-001",
+  "mergedAt": "2026-07-18T18:20:00Z",
+  "automaticCdRuns": [
+    {
+      "workflowRef": ".github/workflows/cd-dev.yml",
+      "runId": "run-987654",
+      "triggerEvent": "push",
+      "triggerSha": "dddddddddddddddddddddddddddddddddddddddd",
+      "environmentRef": "development",
+      "status": "in-progress",
+      "runUrl": "https://github.com/Join-The-Wheel/jointhewheel/actions/runs/987654"
+    }
+  ],
+  "manualDispatchPerformed": false,
+  "reconciliation": {
+    "inputMergeSha": "dddddddddddddddddddddddddddddddddddddddd",
+    "result": "pass",
+    "stagingAlignment": {
+      "expectedOldSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "newSha": "dddddddddddddddddddddddddddddddddddddddd",
+      "expectedHeadProtected": true,
+      "result": "fast-forwarded"
+    },
+    "alignedHeadIntegration": {
+      "headSha": "dddddddddddddddddddddddddddddddddddddddd",
+      "checkId": "check-staging-integration-aligned-001",
+      "trigger": "push",
+      "result": "pass"
+    },
+    "queueUnfrozen": true
+  },
+  "status": "complete",
+  "evidenceHash": "2121212121212121212121212121212121212121212121212121212121212121",
+  "bodyStored": false
+}

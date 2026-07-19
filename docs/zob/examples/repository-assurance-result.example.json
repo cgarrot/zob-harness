@@ -1,0 +1,71 @@
+{
+  "schema": "zob.repository-assurance-result.v1",
+  "assuranceId": "assurance-20260718-round-2",
+  "candidateId": "candidate-20260718-001",
+  "candidateRevision": 2,
+  "candidateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "developSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "round": 2,
+  "laneResults": {
+    "source-integration": {"assignmentId": "lane-01", "familyOpaqueId": "family-A", "result": "pass", "artifactHash": "0101010101010101010101010101010101010101010101010101010101010101", "evidenceRefs": ["reports/assurance/lane-01.json"]},
+    "product-reachability": {"assignmentId": "lane-02", "familyOpaqueId": "family-B", "result": "pass", "artifactHash": "0202020202020202020202020202020202020202020202020202020202020202", "evidenceRefs": ["reports/assurance/lane-02.json"]},
+    "security-privacy": {"assignmentId": "lane-03", "familyOpaqueId": "family-C", "result": "pass", "artifactHash": "0303030303030303030303030303030303030303030303030303030303030303", "evidenceRefs": ["reports/assurance/lane-03.json"]},
+    "reliability-performance": {"assignmentId": "lane-04", "familyOpaqueId": "family-A", "result": "pass", "artifactHash": "0404040404040404040404040404040404040404040404040404040404040404", "evidenceRefs": ["reports/assurance/lane-04.json"]},
+    "data-control-plane": {"assignmentId": "lane-05", "familyOpaqueId": "family-B", "result": "pass", "artifactHash": "0505050505050505050505050505050505050505050505050505050505050505", "evidenceRefs": ["reports/assurance/lane-05.json"]},
+    "qa-test-truth": {"assignmentId": "lane-06", "familyOpaqueId": "family-C", "result": "pass", "artifactHash": "0606060606060606060606060606060606060606060606060606060606060606", "evidenceRefs": ["reports/assurance/lane-06.json"]},
+    "supply-chain-ci": {"assignmentId": "lane-07", "familyOpaqueId": "family-A", "result": "pass", "artifactHash": "0707070707070707070707070707070707070707070707070707070707070707", "evidenceRefs": ["reports/assurance/lane-07.json"]},
+    "operations-rollout": {"assignmentId": "lane-08", "familyOpaqueId": "family-B", "result": "pass", "artifactHash": "0808080808080808080808080808080808080808080808080808080808080808", "evidenceRefs": ["reports/assurance/lane-08.json"]},
+    "top-down-docs": {"assignmentId": "lane-09", "familyOpaqueId": "family-C", "result": "pass", "artifactHash": "0909090909090909090909090909090909090909090909090909090909090909", "evidenceRefs": ["reports/assurance/lane-09.json"]},
+    "bottom-up-coverage": {"assignmentId": "lane-10", "familyOpaqueId": "family-A", "result": "pass", "artifactHash": "1010101010101010101010101010101010101010101010101010101010101010", "evidenceRefs": ["reports/assurance/lane-10.json"]}
+  },
+  "modelIndependence": {
+    "eligibleFamilyCount": 3,
+    "usedFamilyCount": 3,
+    "familySetHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "degraded": false
+  },
+  "topDownDocs": {
+    "manifestHash": "6666666666666666666666666666666666666666666666666666666666666666",
+    "assignedCount": 19,
+    "current": 18,
+    "evidenceBound": 1,
+    "stale": 0,
+    "pending": 0,
+    "duplicateAssignments": 0
+  },
+  "bottomUpCoverage": {
+    "inventoryId": "inventory-20260718-001",
+    "inventoryHash": "8888888888888888888888888888888888888888888888888888888888888888",
+    "status": "complete-clean",
+    "total": 3,
+    "disposed": 3,
+    "missingDocumentation": 0,
+    "unknownOrUnresolved": 0,
+    "duplicateElementIds": 0
+  },
+  "findings": {
+    "total": 0,
+    "blocking": 0,
+    "artifactHash": "1212121212121212121212121212121212121212121212121212121212121212"
+  },
+  "repairRoundIds": ["repair-round-20260718-001"],
+  "synthesizer": {
+    "assignmentId": "assurance-synth-001",
+    "policyHash": "1313131313131313131313131313131313131313131313131313131313131313",
+    "outputHash": "1414141414141414141414141414141414141414141414141414141414141414",
+    "fixedControl": true
+  },
+  "verdict": "pass",
+  "noShip": false,
+  "assuranceCheck": {
+    "checkId": "check-repository-assurance-001",
+    "issuerType": "reviewer-app",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "conclusion": "success"
+  },
+  "resultHash": "1515151515151515151515151515151515151515151515151515151515151515",
+  "completedAt": "2026-07-18T18:00:00Z",
+  "bodyStored": false
+}

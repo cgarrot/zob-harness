@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:checkpoint:v1",
+  "title": "Wheel ZOB Portable Mission Checkpoint v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "missionId", "checkpointId", "sequence", "createdAt", "reason", "eventHeadHash", "previousCheckpointHash", "mission", "stories", "activeRuns", "workspaces", "externalTruth", "humanReceipts", "policyRefs", "checkpointHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.mission-checkpoint.v1"},
+    "missionId": {"type": "string"}, "checkpointId": {"type": "string"}, "sequence": {"type": "integer", "minimum": 1},
+    "createdAt": {"type": "string", "format": "date-time"}, "reason": {"enum": ["mission-start", "periodic-change", "gate-transition", "human-wait", "human-answer", "pr-head", "factory-milestone", "shutdown", "completion", "takeover"]},
+    "eventHeadHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "previousCheckpointHash": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[a-f0-9]{64}$"}]},
+    "mission": {"type": "object", "required": ["factoryType", "status"], "properties": {"factoryType": {"type": "string"}, "status": {"type": "string"}}, "additionalProperties": false},
+    "stories": {"type": "array", "items": {"type": "object", "required": ["storyId", "manifestHash", "status", "acceptedProgress"], "properties": {"storyId": {"type": "string"}, "manifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "status": {"type": "string"}, "acceptedProgress": {"type": "number", "minimum": 0, "maximum": 1}}, "additionalProperties": false}},
+    "activeRuns": {"type": "array", "items": {"type": "object", "required": ["attemptId", "assignmentId", "status", "machineIdHash"], "properties": {"attemptId": {"type": "string"}, "assignmentId": {"type": "string"}, "status": {"type": "string"}, "machineIdHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, "additionalProperties": false}},
+    "workspaces": {"type": "array", "items": {"type": "object", "required": ["workspaceId", "storyId", "branchRef", "headSha", "status"], "properties": {"workspaceId": {"type": "string"}, "storyId": {"type": "string"}, "branchRef": {"type": "string"}, "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "status": {"type": "string"}}, "additionalProperties": false}},
+    "externalTruth": {"type": "object", "properties": {"githubObservedAt": {"type": "string", "format": "date-time"}, "needsHumanObservedAt": {"type": "string", "format": "date-time"}, "stateBranchHead": {"type": "string", "pattern": "^[a-f0-9]{40}$"}}, "additionalProperties": false},
+    "humanReceipts": {"type": "array", "items": {"type": "object", "required": ["receiptId", "receiptHash", "status"], "properties": {"receiptId": {"type": "string"}, "receiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "status": {"enum": ["current", "expired", "revoked", "conflict"]}}, "additionalProperties": false}},
+    "policyRefs": {"type": "object", "additionalProperties": {"type": "string"}},
+    "checkpointHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "bodyStored": {"const": false}
+  }
+}

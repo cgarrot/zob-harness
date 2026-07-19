@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Wheel ZOB — Terminal Manual</title>
+  <style>
+    :root {
+      --fig: #1c111b;
+      --fig-depth: #342235;
+      --fig-bright: #51384e;
+      --verdigris: #0a947a;
+      --verdigris-deep: #066b59;
+      --verdigris-dark: #03483d;
+      --verdigris-light: #51cdb5;
+      --verdigris-wash: rgba(10, 148, 122, 0.09);
+      --paper: #fbfaf7;
+      --paper-deep: #e8e7df;
+      --surface: #fffefa;
+      --surface-cool: #f7f8f3;
+      --surface-soft: #e9eee6;
+      --ink: #171216;
+      --ink-muted: #3c353b;
+      --ink-soft: #6d676e;
+      --ink-faint: #766f76;
+      --line: #e2dedf;
+      --line-strong: #c9c2c5;
+      --success: #0a7f68;
+      --error: #b4232f;
+      --warning: #9a5b00;
+      --info: #315f9e;
+      --focus: #0a947a;
+      --radius-sm: 0.5rem;
+      --radius: 0.75rem;
+      --radius-lg: 1rem;
+      --sidebar: 17.5rem;
+      --content: 78rem;
+      --fast: 150ms;
+      --base: 220ms;
+      --ease: cubic-bezier(0, 0, 0.2, 1);
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Archivo, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--verdigris-deep); text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
+    a:hover { color: var(--verdigris-dark); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+
+    .skip-link {
+      position: fixed;
+      left: 1rem;
+      top: 1rem;
+      z-index: 50;
+      padding: 0.7rem 1rem;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--fig);
+      transform: translateY(-180%);
+      transition: transform var(--fast) var(--ease);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 1.25rem;
+      background: var(--fig);
+      color: var(--surface);
+      border-right: 1px solid var(--fig-bright);
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .wheel-mark { display: grid; grid-template-columns: repeat(3, 0.46rem); gap: 0.18rem; align-items: center; }
+    .wheel-mark span { width: 0.46rem; height: 0.46rem; border-radius: 999px; background: var(--verdigris-light); }
+    .wheel-mark span:nth-child(2) { background: var(--verdigris); }
+    .wheel-mark span:nth-child(3) { background: var(--surface); }
+    .brand strong { display: block; font-size: 1rem; letter-spacing: -0.01em; }
+    .brand small { display: block; color: #cfc5cd; font: 0.68rem/1.3 var(--mono); }
+    .side-status {
+      margin: 0 0 1.5rem;
+      padding: 0.8rem;
+      border: 1px solid var(--fig-bright);
+      border-radius: var(--radius);
+      background: var(--fig-depth);
+      color: #eee7ed;
+      font-size: 0.78rem;
+    }
+    .side-status strong { color: var(--verdigris-light); }
+    .sidebar nav { display: grid; gap: 0.2rem; }
+    .sidebar nav a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 2.6rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: var(--radius-sm);
+      color: #e4dce2;
+      text-decoration: none;
+      font-size: 0.86rem;
+      transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+    }
+    .sidebar nav a:hover, .sidebar nav a[aria-current="true"] { background: var(--fig-bright); color: #fff; }
+    .sidebar nav a span { color: #a99da6; font: 0.68rem var(--mono); }
+    .sidebar-footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--fig-bright); color: #bfb3bc; font-size: 0.75rem; }
+
+    main { min-width: 0; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 3.8rem;
+      padding: 0.75rem clamp(1rem, 3vw, 2rem);
+      border-bottom: 1px solid var(--line);
+      background: rgba(251, 250, 247, 0.96);
+    }
+    .topbar-label { color: var(--ink-muted); font-size: 0.82rem; }
+    .topbar-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .content { width: min(100%, var(--content)); margin: 0 auto; padding: 2rem clamp(1rem, 3.4vw, 3.25rem) 5rem; }
+    section { margin-top: 4.5rem; }
+    section:first-child { margin-top: 1rem; }
+    .lede { max-width: 72ch; font-size: 1.05rem; color: var(--ink-muted); }
+    h1, h2, h3 { color: var(--fig); line-height: 1.16; letter-spacing: -0.025em; text-wrap: balance; }
+    h1 { max-width: 18ch; margin: 0.45rem 0 1rem; font-size: clamp(2.1rem, 4.8vw, 4.6rem); }
+    h2 { margin: 0 0 0.75rem; font-size: clamp(1.65rem, 3vw, 2.35rem); }
+    h3 { margin: 0 0 0.45rem; font-size: 1.1rem; }
+    p { text-wrap: pretty; }
+    .meta-label { margin: 0; color: var(--verdigris-deep); font: 0.72rem/1.4 var(--mono); font-weight: 700; }
+    .section-intro { max-width: 72ch; margin: 0 0 1.5rem; color: var(--ink-muted); }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 2.65rem;
+      padding: 0.62rem 0.9rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 0.7rem;
+      background: var(--surface);
+      color: var(--fig);
+      font-weight: 650;
+      transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+    }
+    .button:hover { border-color: var(--verdigris); background: var(--verdigris-wash); }
+    .button.primary { border-color: var(--fig); background: var(--fig); color: var(--surface); }
+    .button.primary:hover { border-color: var(--verdigris-dark); background: var(--verdigris-dark); }
+    .button.small { min-height: 2.1rem; padding: 0.35rem 0.62rem; font-size: 0.78rem; }
+    .button[aria-pressed="true"] { border-color: var(--verdigris); background: var(--verdigris); color: #071f1a; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      width: fit-content;
+      padding: 0.25rem 0.52rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink-muted);
+      font: 0.68rem/1.25 var(--mono);
+      font-weight: 700;
+    }
+    .badge::before { content: ""; width: 0.46rem; height: 0.46rem; border-radius: 999px; background: currentColor; }
+    .badge.current { border-color: rgba(10, 127, 104, 0.35); background: rgba(10, 127, 104, 0.09); color: var(--success); }
+    .badge.specified { border-color: rgba(154, 91, 0, 0.35); background: rgba(154, 91, 0, 0.09); color: var(--warning); }
+    .badge.advanced { border-color: rgba(49, 95, 158, 0.35); background: rgba(49, 95, 158, 0.08); color: var(--info); }
+    .badge.blocked { border-color: rgba(180, 35, 47, 0.35); background: rgba(180, 35, 47, 0.08); color: var(--error); }
+
+    .truth-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 0.85rem;
+      align-items: start;
+      margin: 1.5rem 0 0;
+      padding: 1rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface-cool);
+    }
+    .truth-banner p { margin: 0; color: var(--ink-muted); }
+
+    .fact-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 2rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .fact { min-height: 7rem; padding: 1rem; border-right: 1px solid var(--line); }
+    .fact:last-child { border-right: 0; }
+    .fact strong { display: block; margin-bottom: 0.35rem; color: var(--fig); font-size: 1.55rem; }
+    .fact span { color: var(--ink-soft); font-size: 0.78rem; }
+
+    .terminal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: 1rem; align-items: start; }
+    .scenario-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .terminal-window {
+      overflow: hidden;
+      border: 1px solid var(--fig-bright);
+      border-radius: var(--radius-lg);
+      background: #120b12;
+      color: #ece6eb;
+      box-shadow: 0 24px 80px rgba(28, 17, 27, 0.16);
+    }
+    .terminal-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 2.6rem;
+      padding: 0.55rem 0.8rem;
+      border-bottom: 1px solid var(--fig-bright);
+      background: var(--fig);
+      color: #cfc4cc;
+      font: 0.72rem var(--mono);
+    }
+    .terminal-dots { display: flex; gap: 0.35rem; }
+    .terminal-dots i { display: block; width: 0.58rem; height: 0.58rem; border-radius: 999px; background: var(--fig-bright); }
+    .terminal-dots i:nth-child(2) { background: var(--warning); }
+    .terminal-dots i:nth-child(3) { background: var(--verdigris); }
+    .transcript { min-height: 12rem; padding: 1rem; font: 0.78rem/1.65 var(--mono); color: #d9d0d7; }
+    .transcript p { margin: 0 0 0.7rem; }
+    .transcript .user { color: #fff; }
+    .transcript .assistant { color: var(--verdigris-light); }
+    .transcript .dim { color: #968b94; }
+    .zob-widget { margin: 0 0.7rem 0.7rem; border: 1px solid var(--fig-bright); border-radius: var(--radius); overflow: hidden; background: #1a1019; }
+    .zob-widget-title { display: flex; gap: 0.55rem; align-items: center; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--fig-bright); color: var(--verdigris-light); font: 0.72rem var(--mono); }
+    .zob-widget-title span:last-child { color: #bfb4bd; }
+    .widget-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(13rem, 1fr) minmax(11rem, 0.8fr); }
+    .widget-column { padding: 0.55rem; border-right: 1px solid var(--fig-bright); }
+    .widget-column:last-child { border-right: 0; }
+    .terminal-field {
+      display: grid;
+      grid-template-columns: 5.7rem minmax(0, 1fr);
+      width: 100%;
+      min-height: 1.65rem;
+      padding: 0.15rem 0.2rem;
+      border: 0;
+      border-radius: 0.3rem;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      font: 0.69rem/1.45 var(--mono);
+    }
+    .terminal-field:hover, .terminal-field[aria-pressed="true"] { background: var(--fig-bright); }
+    .terminal-field .key { color: var(--verdigris-light); font-weight: 700; }
+    .terminal-field .value { overflow: hidden; color: #d7cfd5; text-overflow: ellipsis; white-space: nowrap; }
+    .terminal-field.warning .key, .terminal-field.warning .value { color: #f4c87a; }
+    .terminal-field.success .key { color: #72d8c3; }
+    .composer { display: flex; gap: 0.55rem; align-items: center; padding: 0.75rem 0.9rem; border-top: 1px solid var(--fig-bright); background: #160e15; color: #cfc5cd; font: 0.75rem var(--mono); }
+    .composer .prompt { color: var(--verdigris-light); }
+    .composer .cursor { width: 0.5rem; height: 1rem; background: var(--surface); animation: cursor 1s steps(1) infinite; }
+    @keyframes cursor { 50% { opacity: 0; } }
+
+    .inspector {
+      position: sticky;
+      top: 5rem;
+      padding: 1rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+    }
+    .inspector .meta-label { margin-bottom: 0.55rem; }
+    .inspector h3 { font-size: 1.1rem; }
+    .inspector p { color: var(--ink-muted); font-size: 0.86rem; }
+    .inspector dl { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.45rem; margin: 1rem 0 0; font-size: 0.76rem; }
+    .inspector dt { color: var(--ink-soft); }
+    .inspector dd { margin: 0; color: var(--ink); font-family: var(--mono); overflow-wrap: anywhere; }
+
+    .steps { counter-reset: step; display: grid; border-top: 1px solid var(--line-strong); }
+    .step { counter-increment: step; display: grid; grid-template-columns: 3rem minmax(0, 1.1fr) minmax(14rem, 0.9fr); gap: 1rem; padding: 1.15rem 0; border-bottom: 1px solid var(--line); }
+    .step::before { content: counter(step); display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 999px; background: var(--fig); color: var(--surface); font: 0.78rem var(--mono); }
+    .step p { margin: 0.2rem 0 0; color: var(--ink-muted); }
+    .command-box { align-self: start; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.65rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-cool); }
+    code, kbd { font-family: var(--mono); }
+    .command-box code { color: var(--fig); font-size: 0.76rem; overflow-wrap: anywhere; }
+
+    .mode-tabs { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .mode-detail { min-height: 9rem; padding: 1.15rem; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); }
+    .mode-detail p { max-width: 72ch; color: var(--ink-muted); }
+    .mode-detail code { color: var(--verdigris-dark); }
+
+    .filter-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.7rem; margin: 1rem 0; }
+    .search-input { min-height: 2.75rem; width: 100%; padding: 0.65rem 0.8rem; border: 2px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+    .search-input:focus { border-color: var(--verdigris); outline: none; box-shadow: 0 0 0 3px var(--verdigris-wash); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line-strong); color: var(--ink-muted); font-weight: 600; font-size: 0.78rem; }
+    .data-table td { padding: 0.42rem 0.75rem; border-bottom: 1px solid var(--line); color: var(--ink); }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { padding: 0.7rem 0.75rem; background: var(--surface-cool); color: var(--ink-muted); text-align: left; font-size: 0.72rem; }
+    td { padding: 0.78rem 0.75rem; border-top: 1px solid var(--line); vertical-align: top; }
+    td code { color: var(--fig); font-weight: 700; }
+    tr[hidden] { display: none; }
+    .copy-command { border: 0; background: transparent; color: var(--verdigris-deep); font-weight: 700; text-decoration: underline; text-underline-offset: 0.2em; }
+
+    .lifecycle { display: grid; gap: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+    .lifecycle-item { display: grid; grid-template-columns: 10rem minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; border-bottom: 1px solid var(--line); }
+    .lifecycle-item:last-child { border-bottom: 0; }
+    .lifecycle-item .factory { color: var(--fig); font-weight: 750; }
+    .lifecycle-item p { margin: 0; color: var(--ink-muted); }
+
+    .split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .panel { padding: 1.15rem; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); }
+    .panel ul { margin: 0.75rem 0 0; padding-left: 1.25rem; }
+    .panel li { margin: 0.38rem 0; color: var(--ink-muted); }
+    .panel.current-panel { background: var(--verdigris-wash); border-color: rgba(10, 148, 122, 0.38); }
+    .panel.spec-panel { background: rgba(154, 91, 0, 0.055); border-color: rgba(154, 91, 0, 0.3); }
+
+    .family-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+    .family { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.2rem; padding: 0.7rem 0.85rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .family strong { font-size: 0.82rem; }
+    .family span { display: grid; place-items: center; min-width: 1.9rem; height: 1.9rem; border-radius: 999px; background: var(--fig); color: var(--surface); font: 0.72rem var(--mono); }
+
+    .authority-table td:first-child { font-weight: 750; color: var(--fig); }
+    .yes { color: var(--success); font-weight: 750; }
+    .no { color: var(--error); font-weight: 750; }
+    .conditional { color: var(--warning); font-weight: 750; }
+
+    .source-note { margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-soft); color: var(--ink-muted); font-size: 0.82rem; }
+    footer { margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-strong); color: var(--ink-soft); font-size: 0.78rem; }
+    #copyStatus { position: fixed; right: 1rem; bottom: 1rem; z-index: 40; max-width: 22rem; padding: 0.7rem 0.9rem; border: 1px solid var(--verdigris); border-radius: var(--radius-sm); background: var(--fig); color: var(--surface); transform: translateY(160%); transition: transform var(--base) var(--ease); }
+    #copyStatus.visible { transform: translateY(0); }
+
+    dialog { width: min(42rem, calc(100% - 2rem)); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px rgba(28, 17, 27, 0.24); }
+    dialog::backdrop { background: rgba(28, 17, 27, 0.72); }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem; border-bottom: 1px solid var(--line); }
+    .dialog-body { padding: 1rem; }
+    .dialog-body pre { overflow-x: auto; padding: 0.8rem; border-radius: var(--radius-sm); background: var(--fig); color: var(--surface); font: 0.75rem/1.6 var(--mono); }
+
+    @media (max-width: 1080px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: relative; height: auto; padding: 0.8rem 1rem; }
+      .brand { margin-bottom: 0.65rem; }
+      .side-status, .sidebar-footer { display: none; }
+      .sidebar nav { display: flex; overflow-x: auto; padding-bottom: 0.25rem; }
+      .sidebar nav a { flex: 0 0 auto; }
+      .sidebar nav a span { display: none; }
+      .topbar { top: 0; }
+    }
+    @media (max-width: 900px) {
+      .terminal-layout { grid-template-columns: 1fr; }
+      .inspector { position: static; }
+      .widget-grid { grid-template-columns: 1fr; }
+      .widget-column { border-right: 0; border-bottom: 1px solid var(--fig-bright); }
+      .widget-column:last-child { border-bottom: 0; }
+      .fact-strip { grid-template-columns: repeat(2, 1fr); }
+      .fact:nth-child(2) { border-right: 0; }
+      .fact:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .step { grid-template-columns: 2.5rem 1fr; }
+      .step .command-box { grid-column: 2; }
+      .lifecycle-item { grid-template-columns: 1fr auto; }
+      .lifecycle-item p { grid-column: 1 / -1; }
+    }
+    @media (max-width: 680px) {
+      .content { padding-top: 1.25rem; }
+      .topbar-label { display: none; }
+      .fact-strip, .split { grid-template-columns: 1fr; }
+      .fact { border-right: 0; border-bottom: 1px solid var(--line); }
+      .fact:last-child { border-bottom: 0; }
+      .filter-row { grid-template-columns: 1fr; }
+      .lifecycle-item { grid-template-columns: 1fr; }
+      .lifecycle-item .badge { margin-top: 0.25rem; }
+      h1 { font-size: 2.35rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      .composer .cursor { opacity: 1; }
+    }
+    @media print {
+      .sidebar, .topbar, .scenario-bar, .copy-command, dialog, #copyStatus { display: none !important; }
+      .shell { display: block; }
+      .content { max-width: none; padding: 0; }
+      section { break-inside: avoid; margin-top: 2rem; }
+      .terminal-window { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to manual</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Manual navigation">
+      <div class="brand">
+        <span class="wheel-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span><strong>Wheel ZOB</strong><small>TERMINAL MANUAL</small></span>
+      </div>
+      <p class="side-status"><strong>Current truth:</strong> the generic ZOB terminal is usable. Wheel Story-to-Promotion factories shown here remain specified and disabled.</p>
+      <nav>
+        <a href="#orientation" aria-current="true">Orientation <span>01</span></a>
+        <a href="#terminal">Terminal anatomy <span>02</span></a>
+        <a href="#first-run">First 10 minutes <span>03</span></a>
+        <a href="#modes">Modes <span>04</span></a>
+        <a href="#commands">Commands <span>05</span></a>
+        <a href="#workflows">Workflows <span>06</span></a>
+        <a href="#capabilities">Capabilities <span>07</span></a>
+        <a href="#models">Models &amp; Testing <span>08</span></a>
+        <a href="#authority">Authority &amp; safety <span>09</span></a>
+      </nav>
+      <div class="sidebar-footer">Source-aligned to the ZOB capability registry and current terminal widget. No live action is executed by this HTML file.</div>
+    </aside>
+
+    <main id="main">
+      <header class="topbar">
+        <span class="topbar-label">Standalone guide · no network calls · review artifact</span>
+        <div class="topbar-actions">
+          <button class="button small" type="button" id="openQuickstart">Quickstart</button>
+          <button class="button small primary" type="button" onclick="window.print()">Print guide</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="orientation" aria-labelledby="orientation-title">
+          <p class="meta-label">THE PRIVATE ENGINE ROOM FOR AGENT WORK</p>
+          <h1 id="orientation-title">See what ZOB is doing. Know what you can ask it to do.</h1>
+          <p class="lede">ZOB sits inside Pi as a governed control layer for goals, specialist agents, teams, evidence, factories and review. This manual mirrors the current terminal field names and command registry, then clearly labels the Wheel lifecycle that is designed but not yet activated.</p>
+
+          <div class="truth-banner">
+            <span class="badge current">Current</span>
+            <p><strong>The terminal, goal/TODO tools, delegation, local teams, context discovery and governed workflows exist today.</strong> The automatic Wheel Story → Blind Review → Staging → Assurance → Promotion system is an approved specification. It cannot merge, deploy or activate itself merely because its documentation lives here.</p>
+          </div>
+
+          <div class="fact-strip" aria-label="Current ZOB surface counts">
+            <div class="fact"><strong>81</strong><span>registered tools across governed families</span></div>
+            <div class="fact"><strong>27</strong><span>slash commands discoverable in Pi</span></div>
+            <div class="fact"><strong>39</strong><span>specialist agent definitions</span></div>
+            <div class="fact"><strong>25</strong><span>domain skills in this repository</span></div>
+          </div>
+        </section>
+
+        <section id="terminal" aria-labelledby="terminal-title">
+          <p class="meta-label">ACTUAL FIELD NAMES · INTERACTIVE FIXTURE</p>
+          <h2 id="terminal-title">The terminal at a glance</h2>
+          <p class="section-intro">The illustrated values are a safe fixture; the layout and labels mirror the current wide ZOB widget in <code>.pi/extensions/zob-harness/src/runtime/widget.ts</code>. Choose a scenario, then select any field to learn what it means.</p>
+
+          <div class="scenario-bar" role="group" aria-label="Terminal scenario">
+            <button class="button small scenario" type="button" data-scenario="idle" aria-pressed="false">Idle</button>
+            <button class="button small scenario" type="button" data-scenario="running" aria-pressed="true">Goal running</button>
+            <button class="button small scenario" type="button" data-scenario="human" aria-pressed="false">Needs human</button>
+            <button class="button small scenario" type="button" data-scenario="review" aria-pressed="false">Review blocked</button>
+            <button class="button small scenario" type="button" data-scenario="promotion" aria-pressed="false">Promotion freeze · design only</button>
+          </div>
+
+          <div class="terminal-layout">
+            <div class="terminal-window" aria-label="Illustrated Pi terminal with ZOB status widget">
+              <div class="terminal-titlebar">
+                <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span>pi · wheel-zob-system-docs</span>
+                <span>local</span>
+              </div>
+              <div class="transcript" aria-live="polite">
+                <p><span class="user">you</span> <span data-transcript-user>Build the approved story and stop at a draft PR.</span></p>
+                <p><span class="assistant">assistant</span> <span data-transcript-assistant>I’ll bind the goal, inspect the story evidence, and delegate bounded work.</span></p>
+                <p class="dim" data-transcript-event>✓ Goal created · 5/8 TODOs complete · 2 assistants active</p>
+              </div>
+              <div class="zob-widget">
+                <div class="zob-widget-title"><span>◆ ZOB</span><span>live</span></div>
+                <div class="widget-grid">
+                  <div class="widget-column" aria-label="Mission status">
+                    <button class="terminal-field" type="button" data-field="mission" aria-pressed="false"><span class="key">Mission</span><span class="value" data-terminal="mission">Build CH-42 to draft PR</span></button>
+                    <button class="terminal-field" type="button" data-field="progress" aria-pressed="false"><span class="key">Progress</span><span class="value" data-terminal="progress">5/8 · 1 active · 0 blocked</span></button>
+                    <button class="terminal-field" type="button" data-field="next" aria-pressed="false"><span class="key">Next</span><span class="value" data-terminal="next">Validate PR-close evidence</span></button>
+                    <button class="terminal-field success" type="button" data-field="need" aria-pressed="false"><span class="key">Need</span><span class="value" data-terminal="need">Ready</span></button>
+                    <button class="terminal-field" type="button" data-field="daemon" aria-pressed="false"><span class="key">Daemon</span><span class="value" data-terminal="daemon">mode=off · loop=stopped</span></button>
+                    <button class="terminal-field" type="button" data-field="context" aria-pressed="false"><span class="key">Context</span><span class="value" data-terminal="context">ctx 24% · zcompact off</span></button>
+                    <button class="terminal-field" type="button" data-field="open" aria-pressed="false"><span class="key">Open</span><span class="value" data-terminal="open">/zcompact · /zpeer · /zstatus · /todos · /delegates</span></button>
+                  </div>
+                  <div class="widget-column" aria-label="Peer status">
+                    <button class="terminal-field" type="button" data-field="zpeer" aria-pressed="false"><span class="key">ZPeer</span><span class="value" data-terminal="zpeer">1 room</span></button>
+                    <button class="terminal-field" type="button" data-field="room" aria-pressed="false"><span class="key">*</span><span class="value" data-terminal="room">default @orchestrator 3/4 @builder @oracle</span></button>
+                    <button class="terminal-field" type="button" data-field="last" aria-pressed="false"><span class="key">Last</span><span class="value" data-terminal="last">status @builder→@orchestrator accepted</span></button>
+                    <button class="terminal-field" type="button" data-field="wait" aria-pressed="false"><span class="key">Wait</span><span class="value" data-terminal="wait">0 pending · hb 00:03</span></button>
+                    <button class="terminal-field success" type="button" data-field="status" aria-pressed="false"><span class="key">Status</span><span class="value" data-terminal="status">connected</span></button>
+                  </div>
+                  <div class="widget-column" aria-label="Quality status">
+                    <button class="terminal-field" type="button" data-field="focus" aria-pressed="false"><span class="key">Focus</span><span class="value" data-terminal="focus">orchestrator</span></button>
+                    <button class="terminal-field" type="button" data-field="activity" aria-pressed="false"><span class="key">Activity</span><span class="value" data-terminal="activity">assistants</span></button>
+                    <button class="terminal-field success" type="button" data-field="review" aria-pressed="false"><span class="key">Review</span><span class="value" data-terminal="review">clear</span></button>
+                    <button class="terminal-field success" type="button" data-field="quality" aria-pressed="false"><span class="key">Quality</span><span class="value" data-terminal="quality">check OK</span></button>
+                    <button class="terminal-field" type="button" data-field="assistants" aria-pressed="false"><span class="key">Assistants</span><span class="value" data-terminal="assistants">2 active · qa: bash</span></button>
+                  </div>
+                </div>
+              </div>
+              <div class="composer"><span class="prompt">›</span><span>Ask ZOB what to do next…</span><span class="cursor" aria-hidden="true"></span></div>
+            </div>
+
+            <aside class="inspector" id="fieldInspector" aria-live="polite">
+              <p class="meta-label">FIELD INSPECTOR</p>
+              <h3 id="inspectorTitle">Mission</h3>
+              <p id="inspectorBody">The active goal or mission name. This is the work ZOB is supervising—not a claim that the work is complete.</p>
+              <dl>
+                <dt>Truth source</dt><dd id="inspectorSource">runtime goal state</dd>
+                <dt>Act with</dt><dd id="inspectorAction">/goal · /zstatus</dd>
+                <dt>Watch for</dt><dd id="inspectorRisk">stale or missing scope</dd>
+              </dl>
+            </aside>
+          </div>
+        </section>
+
+        <section id="first-run" aria-labelledby="first-run-title">
+          <p class="meta-label">A SAFE FIRST SESSION</p>
+          <h2 id="first-run-title">Your first 10 minutes</h2>
+          <p class="section-intro">Start with a goal, make the work visible, delegate only bounded tasks, and close with evidence. ZOB should reduce ambiguity—not hide it.</p>
+          <div class="steps">
+            <article class="step">
+              <div><h3>Choose the operating mode</h3><p>Use the mode that matches the next action. Mode changes tools and guardrails; it does not grant authority.</p></div>
+              <div class="command-box"><code>/zmode explore</code><button class="copy-command" type="button" data-copy="/zmode explore">Copy</button></div>
+            </article>
+            <article class="step">
+              <div><h3>Bind one concrete goal</h3><p>Name the outcome and constraints. A goal gives the status widget and TODO tree one source of truth.</p></div>
+              <div class="command-box"><code>/goal Create a reviewed draft PR; do not merge</code><button class="copy-command" type="button" data-copy="/goal Create a reviewed draft PR; do not merge">Copy</button></div>
+            </article>
+            <article class="step">
+              <div><h3>Break it into observable work</h3><p>Use TODOs for parent-owned acceptance. Child claims are not completion until reviewed and accepted.</p></div>
+              <div class="command-box"><code>/todo Add integration evidence</code><button class="copy-command" type="button" data-copy="/todo Add integration evidence">Copy</button></div>
+            </article>
+            <article class="step">
+              <div><h3>Inspect before delegating</h3><p>Discover the agent and output contract first. Bounded paths and explicit stop conditions prevent authority creep.</p></div>
+              <div class="command-box"><code>/agents</code><button class="copy-command" type="button" data-copy="/agents">Copy</button></div>
+            </article>
+            <article class="step">
+              <div><h3>Watch truth, not activity theater</h3><p>Heartbeat means connected. Progress means accepted state change. Review and Quality expose unresolved gates.</p></div>
+              <div class="command-box"><code>/zstatus</code><button class="copy-command" type="button" data-copy="/zstatus">Copy</button></div>
+            </article>
+            <article class="step">
+              <div><h3>Use governed Git only when asked</h3><p>ZOB can plan a commit. Commit or push occurs only after explicit authorization through the governed path.</p></div>
+              <div class="command-box"><code>/zcommit</code><button class="copy-command" type="button" data-copy="/zcommit">Copy</button></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="modes" aria-labelledby="modes-title">
+          <p class="meta-label">FOCUS CHANGES GUARDRAILS</p>
+          <h2 id="modes-title">Pick the right mode</h2>
+          <p class="section-intro">A mode narrows the tool surface and review expectation. Select a mode below to see its job and a safe opening prompt.</p>
+          <div class="mode-tabs" role="tablist" aria-label="ZOB operating modes">
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="true" data-mode="explore">Explore</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="plan">Plan</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="implement">Implement</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="oracle">Oracle</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="factory">Factory</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="orchestrator">Orchestrator</button>
+            <button class="button small mode-tab" type="button" role="tab" aria-selected="false" data-mode="vanilla">Vanilla</button>
+          </div>
+          <div class="mode-detail" role="tabpanel" tabindex="0">
+            <span class="badge current" id="modeBadge">Current mode</span>
+            <h3 id="modeTitle">Explore</h3>
+            <p id="modeDescription">Map the repository, clarify the problem, and collect evidence before deciding what should change.</p>
+            <code id="modeExample">/zmode explore</code>
+          </div>
+        </section>
+
+        <section id="commands" aria-labelledby="commands-title">
+          <p class="meta-label">27 DISCOVERABLE COMMANDS</p>
+          <h2 id="commands-title">Command reference</h2>
+          <p class="section-intro">Search by command or purpose. “Advanced” means opt-in or specialist-facing—not unsafe by default. Commands still obey path, mode, receipt and no-ship gates.</p>
+          <div class="filter-row">
+            <label><span class="meta-label">FILTER COMMANDS</span><input class="search-input" id="commandSearch" type="search" placeholder="Try goal, team, commit, context…" autocomplete="off"></label>
+            <button class="button" type="button" id="clearSearch">Clear</button>
+          </div>
+          <div class="table-wrap">
+            <table id="commandTable">
+              <thead><tr><th scope="col">Command</th><th scope="col">Use it for</th><th scope="col">Surface</th><th scope="col">Copy</th></tr></thead>
+              <tbody>
+                <tr><td><code>/zob</code></td><td>Open the ZOB command/help surface.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/zob" type="button">Copy</button></td></tr>
+                <tr><td><code>/zmode</code></td><td>Switch explore, plan, implement, oracle, factory, orchestrator or vanilla focus.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/zmode" type="button">Copy</button></td></tr>
+                <tr><td><code>/intent-classifier</code></td><td>Configure or test intent-based mode suggestions.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/intent-classifier" type="button">Copy</button></td></tr>
+                <tr><td><code>/intent</code></td><td>Short alias for intent routing status, policy and tests.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/intent" type="button">Copy</button></td></tr>
+                <tr><td><code>/stop</code></td><td>Abort current foreground work and local background activity without closing Pi.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/stop" type="button">Copy</button></td></tr>
+                <tr><td><code>/delegates</code></td><td>Inspect delegated runs and their current states.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/delegates" type="button">Copy</button></td></tr>
+                <tr><td><code>/delegate</code></td><td>Start a bounded specialist delegation.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/delegate" type="button">Copy</button></td></tr>
+                <tr><td><code>/zstatus</code></td><td>Inspect goal, TODO, peer, daemon and review status.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/zstatus" type="button">Copy</button></td></tr>
+                <tr><td><code>/zcompact</code></td><td>Configure proactive context compaction and continuity.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/zcompact" type="button">Copy</button></td></tr>
+                <tr><td><code>/zcommit</code></td><td>Plan or execute explicitly authorized governed commits and pushes.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/zcommit" type="button">Copy</button></td></tr>
+                <tr><td><code>/zpeer</code></td><td>Inspect or operate local peer communication where enabled.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/zpeer" type="button">Copy</button></td></tr>
+                <tr><td><code>/zagent</code></td><td>Plan or manage a governed full-session ZAgent.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/zagent" type="button">Copy</button></td></tr>
+                <tr><td><code>/zteam</code></td><td>Plan or manage a governed ZTeam and room membership.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/zteam" type="button">Copy</button></td></tr>
+                <tr><td><code>/rules_status</code></td><td>Inspect active rule profiles and safety posture.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/rules_status" type="button">Copy</button></td></tr>
+                <tr><td><code>/contract</code></td><td>Insert the six-part delegation contract template.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/contract" type="button">Copy</button></td></tr>
+                <tr><td><code>/goal</code></td><td>Create or inspect the current long-running objective.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/goal" type="button">Copy</button></td></tr>
+                <tr><td><code>/todo</code></td><td>Add or act on a goal-linked TODO.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/todo" type="button">Copy</button></td></tr>
+                <tr><td><code>/todos</code></td><td>Open the goal TODO overlay/tree.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/todos" type="button">Copy</button></td></tr>
+                <tr><td><code>/goal_gate</code></td><td>Bind a goal or scope anchor before broad work.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/goal_gate" type="button">Copy</button></td></tr>
+                <tr><td><code>/job_intake</code></td><td>Normalize a job request into bounded work metadata.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/job_intake" type="button">Copy</button></td></tr>
+                <tr><td><code>/compute</code></td><td>Preview or resolve effort, concurrency and budget gates.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/compute" type="button">Copy</button></td></tr>
+                <tr><td><code>/effort</code></td><td>Alias for compute-profile selection.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/effort" type="button">Copy</button></td></tr>
+                <tr><td><code>/project-dna</code></td><td>Query or operate bounded, cited ProjectDNA context workflows.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/project-dna" type="button">Copy</button></td></tr>
+                <tr><td><code>/autonomy</code></td><td>Inspect or validate supervised autonomy gates.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/autonomy" type="button">Copy</button></td></tr>
+                <tr><td><code>/agents</code></td><td>List available specialist agents and roles.</td><td><span class="badge current">Core</span></td><td><button class="copy-command" data-copy="/agents" type="button">Copy</button></td></tr>
+                <tr><td><code>/plan</code></td><td>Inspect or launch a saved, validated plan artifact.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/plan" type="button">Copy</button></td></tr>
+                <tr><td><code>/plans</code></td><td>List saved plan artifacts and launchability.</td><td><span class="badge advanced">Advanced</span></td><td><button class="copy-command" data-copy="/plans" type="button">Copy</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="commandCount" role="status">Showing all 27 commands.</p>
+        </section>
+
+        <section id="workflows" aria-labelledby="workflows-title">
+          <p class="meta-label">CURRENT CORE VS APPROVED DESIGN</p>
+          <h2 id="workflows-title">What a complete Wheel run will look like</h2>
+          <p class="section-intro">These factory boundaries are binding design contracts, not claims of activation. Current ZOB mechanisms can support bounded goals, agents, evidence and review; the Wheel-specific GitHub Apps, branches and automatic transitions remain disabled.</p>
+          <div class="lifecycle">
+            <article class="lifecycle-item"><span class="factory">Story → PR-Close</span><p>Build, docs, QA and exact-head close evidence. Stops at a draft PR and review handoff.</p><span class="badge specified">Specified</span></article>
+            <article class="lifecycle-item"><span class="factory">Blind Review</span><p>Fresh read-only review. Findings return to a separate repair attempt; a clean result cannot merge.</p><span class="badge specified">Disabled</span></article>
+            <article class="lifecycle-item"><span class="factory">Staging Merge</span><p>Qualified ordinary PRs auto-ready and squash-merge one at a time into non-deploying <code>develop-staging</code>.</p><span class="badge specified">Disabled</span></article>
+            <article class="lifecycle-item"><span class="factory">Repository Assurance</span><p>Human-started freeze, ten independent lanes, separate repair PR, fresh full re-audit; maximum three rounds.</p><span class="badge specified">Disabled</span></article>
+            <article class="lifecycle-item"><span class="factory">Promotion</span><p>Distinct human authorization binds the final exact candidate. Promotion uses merge-commit into <code>develop</code>.</p><span class="badge specified">Disabled</span></article>
+            <article class="lifecycle-item"><span class="factory">Automatic CD</span><p>May run only from the audited <code>develop</code> promotion push. ZOB never manually dispatches deployment.</p><span class="badge specified">Not configured</span></article>
+          </div>
+        </section>
+
+        <section id="capabilities" aria-labelledby="capabilities-title">
+          <p class="meta-label">REGISTRY-BACKED SURFACE</p>
+          <h2 id="capabilities-title">What we can do</h2>
+          <div class="split">
+            <article class="panel current-panel">
+              <span class="badge current">Current mechanisms</span>
+              <h3>Use now, within guardrails</h3>
+              <ul>
+                <li>Track goals and hierarchical parent-owned TODOs.</li>
+                <li>Delegate bounded work to specialist agents and review claims.</li>
+                <li>Coordinate local ZAgents/ZTeams through visible, hash-only communication.</li>
+                <li>Search repository context with bounded citations and safe fallback.</li>
+                <li>Plan factories, run deterministic smoke gates and preserve evidence.</li>
+                <li>Preview compute/effort profiles without bypassing safety or budgets.</li>
+                <li>Use governed commit workflows after explicit human authorization.</li>
+              </ul>
+            </article>
+            <article class="panel spec-panel">
+              <span class="badge specified">Specified / gated</span>
+              <h3>Not live merely because it is documented</h3>
+              <ul>
+                <li>Persistent <code>zobd</code> mission daemon and encrypted transcript service.</li>
+                <li>Wheel Builder, Reviewer, Staging Merge and Promotion GitHub Apps.</li>
+                <li>Mandatory <code>develop-staging</code> branch policy and staging auto-merge.</li>
+                <li>Automatic full-repository assurance and repair rounds.</li>
+                <li>Develop promotion authority or deployment confirmation.</li>
+                <li>Provider/model pools are now evidence-backed from the 2026-07-18 capability audit; see the Models &amp; Testing section.</li>
+              </ul>
+            </article>
+          </div>
+
+          <h3 style="margin-top: 2rem;">Registered tool families</h3>
+          <div class="family-list" aria-label="Tool families and registered counts">
+            <div class="family"><strong>Goal and TODO</strong><span>22</span></div>
+            <div class="family"><strong>Local communication</strong><span>9</span></div>
+            <div class="family"><strong>Compute profiles</strong><span>5</span></div>
+            <div class="family"><strong>Delegation</strong><span>5</span></div>
+            <div class="family"><strong>ProjectDNA</strong><span>5</span></div>
+            <div class="family"><strong>Context</strong><span>4</span></div>
+            <div class="family"><strong>Factory</strong><span>4</span></div>
+            <div class="family"><strong>Worker pools</strong><span>4</span></div>
+            <div class="family"><strong>Autonomy validation</strong><span>4</span></div>
+            <div class="family"><strong>Workspace claims</strong><span>3</span></div>
+            <div class="family"><strong>Merge queue</strong><span>3</span></div>
+            <div class="family"><strong>Mission Control</strong><span>3</span></div>
+            <div class="family"><strong>Goal Room</strong><span>3</span></div>
+            <div class="family"><strong>Orchestration</strong><span>2</span></div>
+            <div class="family"><strong>ZTeam / ZAgent</strong><span>2</span></div>
+            <div class="family"><strong>Commit governance</strong><span>1</span></div>
+            <div class="family"><strong>Saved plans</strong><span>1</span></div>
+            <div class="family"><strong>Worklist</strong><span>1</span></div>
+          </div>
+        </section>
+
+        <section id="models" aria-labelledby="models-title">
+          <p class="meta-label">EVIDENCE-BACKED ROUTING</p>
+          <h2 id="models-title">Models &amp; Testing</h2>
+          <p class="section-intro">Provider/model pools are no longer a deferred placeholder. A gated capability audit (2026-07-18) tested 20 routes with 297 real inference calls and $0.13 metered spend against a $5 cap. Only routes that passed their required capabilities on the actual provider path enter pools. Registration alone was never a pass.</p>
+
+          <div class="split">
+            <article class="panel current-panel">
+              <span class="badge current">Verified providers</span>
+              <h3>Provider surface</h3>
+              <ul>
+                <li><strong>Fireworks</strong> via <strong>Fireconnect</strong> CLI v0.8.0 — OpenAI-compatible endpoint, API key in OS keychain, Pi <code>[on]</code>. 17 verified routes.</li>
+                <li><strong>OpenAI Codex</strong> — built-in Codex OAuth, 3 verified gpt-5.6 routes.</li>
+                <li>Fireconnect is a setup/proxy tool, not a separate provider. No credential or base URL stored in this repository.</li>
+              </ul>
+            </article>
+            <article class="panel">
+              <span class="badge">Audit facts</span>
+              <h3>What was tested</h3>
+              <ul>
+                <li>11-test battery per Fireworks route: inference, roles, JSON, tool-calls, tool continuation, streaming, thinking low/high, context, cancellation, quality fixture.</li>
+                <li>Reduced battery for OpenAI (pi CLI wraps JSON/tool/streaming).</li>
+                <li>Thinking format auto-detection: <code>budget_tokens</code> vs <code>reasoning_effort</code> enum.</li>
+                <li>Role-format fallback: qwen rejects <code>developer</code>, uses <code>system</code>+<code>user</code>.</li>
+              </ul>
+            </article>
+          </div>
+
+          <h3>Role pools</h3>
+          <p class="section-intro">Fixed/stable roles run on <code>openai-codex/gpt-5.6-sol</code> at high thinking. Randomized pools are shuffled per mission with a cryptographic model-order seed.</p>
+
+          <div id="pool-tabs" role="tablist" aria-label="Model pools" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin:1rem 0;">
+            <button class="button small" type="button" data-pool="development" aria-selected="true">Development (9)</button>
+            <button class="button small" type="button" data-pool="qa">QA (6)</button>
+            <button class="button small" type="button" data-pool="documentation">Documentation (6)</button>
+            <button class="button small" type="button" data-pool="review">Internal review (6)</button>
+            <button class="button small" type="button" data-pool="blind">Blind review (6)</button>
+            <button class="button small" type="button" data-pool="assurance">Assurance (6)</button>
+          </div>
+
+          <div id="pool-content" class="panel" style="min-height:120px;">
+            <p style="color:var(--ink-muted);">Select a pool to see its verified routes, families, thinking formats and costs.</p>
+          </div>
+
+          <h3>Thinking format adapter</h3>
+          <p class="section-intro">ZOB routing must apply the correct thinking control per model family. An unapproved clamp is a capability mismatch, not a successful rung.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Format</th><th>Models</th><th>Differentiates output?</th></tr></thead>
+              <tbody>
+                <tr><td><code>reasoning_effort</code> enum</td><td>gpt-oss-120b, minimax-m2p7</td><td>✓ yes (e.g. 135→510 tokens)</td></tr>
+                <tr><td><code>budget_tokens</code></td><td>kimi, deepseek, minimax-m3, nemotron</td><td>✓ yes</td></tr>
+                <tr><td><code>budget_tokens</code> advisory</td><td>glm, qwen</td><td>⚠ accepted but no visible clamp at fixture size</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Findings &amp; caveats</h3>
+          <div class="split">
+            <article class="panel">
+              <h3>Resolved</h3>
+              <ul>
+                <li><strong>gpt-oss-120b thinking fixed:</strong> uses <code>reasoning_effort</code> enum, not token budget. Great coder, thinking differentiates, fast (1.7s), cheap ($0.15/$0.60).</li>
+                <li><strong>qwen roles fixed:</strong> system+user only; all other capabilities pass.</li>
+                <li><strong>Sol-high resolved:</strong> <code>openai-codex/gpt-5.6-sol</code> at high thinking for all fixed roles.</li>
+              </ul>
+            </article>
+            <article class="panel spec-panel">
+              <h3>Unverified / out of scope</h3>
+              <ul>
+                <li>OpenAI JSON mode / raw tool-call format / streaming event order (pi CLI wraps these).</li>
+                <li>GLM/qwen thinking budget clamping at larger fixture sizes (advisory at fixture scope).</li>
+                <li>Encrypted transcript/redaction posture (out of scope for fixture testing).</li>
+                <li>nemotron-3-ultra: passes all tests but ~20s latency — ad-hoc only, not for throughput pools.</li>
+              </ul>
+            </article>
+          </div>
+
+          <p class="meta-label" style="margin-top:1.5rem;">EVIDENCE</p>
+          <p style="color:var(--ink-muted);font-size:0.85rem;">Full matrix: <code>reports/fireconnect-capability-tests/MATRIX.md</code> · Raw results: <code>results.json</code>, <code>results_v2.json</code> · Test harnesses: <code>fw_test.py</code>, <code>fw_test2.py</code></p>
+        </section>
+
+        <section id="authority" aria-labelledby="authority-title">
+          <p class="meta-label">AUTHORITY IS EXPLICIT</p>
+          <h2 id="authority-title">What ZOB can—and cannot—decide</h2>
+          <p class="section-intro">Presence, activity, a model response, a label or a comment never becomes authority by itself. The parent, oracle and human each own different decisions.</p>
+          <div class="table-wrap">
+            <table class="authority-table">
+              <thead><tr><th scope="col">Action</th><th scope="col">Agent alone</th><th scope="col">Parent / oracle</th><th scope="col">Human receipt</th></tr></thead>
+              <tbody>
+                <tr><td>Read allowed source</td><td class="yes">Yes, scoped</td><td>Observes evidence</td><td>Not normally</td></tr>
+                <tr><td>Edit allowed source</td><td class="conditional">Only if granted</td><td>Reviews diff/claim</td><td>For high-risk scope</td></tr>
+                <tr><td>Accept a delegated claim</td><td class="no">No</td><td class="yes">Parent/oracle gate</td><td>Only if policy asks</td></tr>
+                <tr><td>Commit or push</td><td class="no">No direct Git</td><td>Governed plan/check</td><td class="yes">Explicit request</td></tr>
+                <tr><td>Start promotion window</td><td class="no">No</td><td>May report readiness</td><td class="yes">Required</td></tr>
+                <tr><td>Merge into develop</td><td class="no">No</td><td>Exact-head validation</td><td class="yes">Separate receipt</td></tr>
+                <tr><td>Trigger deployment manually</td><td class="no">Never</td><td class="no">Never</td><td class="no">Not a v1 path</td></tr>
+                <tr><td>Read secrets or private keys</td><td class="no">Never</td><td class="no">Never</td><td>Use gated external setup</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="source-note">
+            <strong>Source of this manual.</strong> Terminal labels and responsive columns come from <code>.pi/extensions/zob-harness/src/runtime/widget.ts</code>. Tool and command counts come from <code>.pi/capabilities/zob-public-runtime-capabilities.json</code>. Wheel factory maturity and authority come from this directory’s numbered specifications, schemas and decision record. This HTML stores no credentials, sends no network request and executes no ZOB action.
+          </div>
+        </section>
+
+        <footer>
+          <strong>Wheel ZOB terminal manual</strong> · standalone review artifact · Black Fig / Verdigris / Porcelain product system · current mechanisms separated from specified authority.
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="quickstartDialog" aria-labelledby="quickstartTitle">
+    <div class="dialog-head"><h2 id="quickstartTitle" style="font-size: 1.25rem; margin: 0;">Copy a safe first-session prompt</h2><button class="button small" type="button" id="closeQuickstart">Close</button></div>
+    <div class="dialog-body">
+      <p>Paste this into Pi after selecting the project. It asks for visibility and evidence without authorizing commit, merge or deployment.</p>
+      <pre id="quickstartText">Use ZOB to inspect this repository and create a bounded goal.
+Show me the TODO tree before delegating.
+Do not commit, push, merge, deploy, activate providers, or read secrets.
+Finish with evidence, blockers, and the next safe action.</pre>
+      <button class="button primary" type="button" data-copy-target="quickstartText">Copy prompt</button>
+    </div>
+  </dialog>
+  <div id="copyStatus" role="status" aria-live="polite">Copied.</div>
+
+  <script>
+    const scenarios = {
+      idle: {
+        transcriptUser: "What can ZOB do in this repository?", transcriptAssistant: "I’ll inspect the current capability registry and explain the safest next step.", transcriptEvent: "No active goal · no assistants · review not started",
+        mission: "Set the mission", progress: "0/0", next: "Create or select a goal", need: "Ready", daemon: "mode=off · loop=stopped", context: "ctx 8% · zcompact off", open: "/zcompact · /zpeer · /zstatus · /todos · /delegates",
+        zpeer: "1 room", room: "default @orchestrator 1/1 · no peers", last: "status @orchestrator online", wait: "0 pending · hb 00:00", status: "connected", focus: "explore", activity: "idle", review: "clear", quality: "check needed", assistants: "none", alert: []
+      },
+      running: {
+        transcriptUser: "Build the approved story and stop at a draft PR.", transcriptAssistant: "I’ll bind the goal, inspect the story evidence, and delegate bounded work.", transcriptEvent: "✓ Goal created · 5/8 TODOs complete · 2 assistants active",
+        mission: "Build CH-42 to draft PR", progress: "5/8 · 1 active · 0 blocked", next: "Validate PR-close evidence", need: "Ready", daemon: "mode=off · loop=stopped", context: "ctx 24% · zcompact off", open: "/zcompact · /zpeer · /zstatus · /todos · /delegates",
+        zpeer: "1 room", room: "default @orchestrator 3/4 @builder @oracle", last: "status @builder→@orchestrator accepted", wait: "0 pending · hb 00:03", status: "connected", focus: "orchestrator", activity: "assistants", review: "clear", quality: "check OK", assistants: "2 active · qa: bash", alert: []
+      },
+      human: {
+        transcriptUser: "Continue the migration.", transcriptAssistant: "One policy choice changes repository ownership. I paused before moving or deleting anything.", transcriptEvent: "Needs human · decision card open · unrelated work may continue",
+        mission: "Consolidate ZOB ownership", progress: "3/7 · 0 active · 1 blocked", next: "Wait for repository decision", need: "Human decision required", daemon: "mode=off · loop=stopped", context: "ctx 31% · zcompact suggested", open: "/zstatus · /todos · /zpeer",
+        zpeer: "1 room", room: "default @orchestrator 2/3 @doc-steward", last: "question @orchestrator→human queued", wait: "1 pending · hb 00:08", status: "connected", focus: "plan", activity: "working", review: "attention", quality: "blocked", assistants: "none", alert: ["need", "quality"]
+      },
+      review: {
+        transcriptUser: "Is the candidate ready?", transcriptAssistant: "No. The oracle found a source-to-documentation gap on the frozen head.", transcriptEvent: "Review blocked · no_ship=true · repair must be separate",
+        mission: "Review candidate 7f9a…", progress: "9/10 · 0 active · 1 blocked", next: "Create finding-bound repair", need: "NO-SHIP blocker", daemon: "mode=off · loop=stopped", context: "ctx 42% · compacted once", open: "/zstatus · /todos · /delegates",
+        zpeer: "2 rooms", room: "* assurance @oracle 3/4 @reviewer @lead", last: "finding @oracle→@lead blocked", wait: "0 pending · hb 00:02", status: "connected", focus: "oracle", activity: "working", review: "blocked", quality: "delivery blocked", assistants: "1 active · oracle: read", alert: ["need", "review", "quality"]
+      },
+      promotion: {
+        transcriptUser: "Promote this staging candidate.", transcriptAssistant: "Design preview only: promotion remains disabled and requires two distinct human receipts.", transcriptEvent: "SPECIFIED ONLY · no App credentials · no branch mutation",
+        mission: "Promotion window win-104", progress: "round 2/3 · candidate r2", next: "Human exact-head merge receipt", need: "Promotion authorization", daemon: "factory disabled", context: "frozen head 7f9a… · design fixture", open: "No live command available",
+        zpeer: "assurance room", room: "design fixture · reviewers separate", last: "repository assurance PASS", wait: "human receipt absent", status: "not activated", focus: "factory", activity: "idle", review: "PASS fixture", quality: "specified only", assistants: "none", alert: ["need", "status", "quality"]
+      }
+    };
+
+    const fieldInfo = {
+      mission: ["Mission", "The active goal or mission name. This is supervised intent, not a completion claim.", "runtime goal state", "/goal · /zstatus", "stale or missing scope"],
+      progress: ["Progress", "Accepted TODO totals and active or blocked work. A child claim does not increment accepted completion by itself.", "goal TODO graph", "/todos", "claims mistaken for completion"],
+      next: ["Next", "The next parent-owned action derived from current state and blockers.", "goal diagnostics", "/zstatus", "acting on stale advice"],
+      need: ["Need", "The most important missing input, receipt, evidence or repair. Warning color means action is blocked or constrained.", "alerts and no-ship state", "/todos · ask_user", "bypassing a human or oracle gate"],
+      daemon: ["Daemon", "Whether autonomous continuation is on, off, paused or stopped. It does not mean an unrestricted background agent exists.", "goal runtime", "/autonomy · /zstatus", "confusing loop state with authority"],
+      context: ["Context", "Current context use and compaction posture. Compaction preserves references, not every raw tool detail.", "Pi/ZOB context tracker", "/zcompact", "losing uncited evidence"],
+      open: ["Open", "Shortcuts to the overlays most useful for the current status.", "widget source", "shown commands", "assuming every command is available in every mode"],
+      zpeer: ["ZPeer", "Local, room-scoped peer presence. Durable ledgers remain hash-only and offline peers are never treated as success.", "local socket presence", "/zpeer", "stale-as-connected"],
+      room: ["Room", "The active room, this agent’s alias, online count and a bounded peer preview.", "ZPeer room registry", "/zpeer", "hidden worker-to-worker authority"],
+      last: ["Last", "The latest visible peer event. It is coordination evidence, not work acceptance.", "local peer event", "/zpeer", "message delivered ≠ task done"],
+      wait: ["Wait", "Pending required replies plus heartbeat age. Waiting is explicit and bounded.", "reply tracker", "/zpeer", "polling forever or calling waiting success"],
+      status: ["Status", "Whether local peer transport is connected. It says nothing about provider, GitHub or deployment availability.", "local socket", "/zpeer", "overstating connectivity"],
+      focus: ["Focus", "The current ZOB operating mode and its tool/review posture.", "runtime mode", "/zmode", "using implementation tools in review mode"],
+      activity: ["Activity", "A coarse summary: idle, working or assistants. Activity is not progress.", "attempt/process state", "/delegates", "heartbeat theater"],
+      review: ["Review", "Whether a review/no-ship issue is clear, pending or blocked.", "oracle/review diagnostics", "/zstatus", "softening a blocker"],
+      quality: ["Quality", "Whether required checks appear satisfied. Final completion still needs bound evidence and any required oracle decision.", "goal/no-ship diagnostics", "/zstatus", "check OK ≠ deployment success"],
+      assistants: ["Assistants", "Count plus a safe summary of the most relevant delegated activity. Raw hidden chat is not displayed.", "delegation activity snapshots", "/delegates", "equating running with accepted" ]
+    };
+
+    function setText(selector, value) {
+      document.querySelectorAll(selector).forEach((element) => { element.textContent = value; });
+    }
+
+    function applyScenario(name) {
+      const data = scenarios[name];
+      setText("[data-transcript-user]", data.transcriptUser);
+      setText("[data-transcript-assistant]", data.transcriptAssistant);
+      setText("[data-transcript-event]", data.transcriptEvent);
+      Object.entries(data).forEach(([key, value]) => {
+        if (typeof value === "string") setText(`[data-terminal="${key}"]`, value);
+      });
+      document.querySelectorAll(".scenario").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.scenario === name)));
+      document.querySelectorAll(".terminal-field").forEach((field) => {
+        field.classList.remove("warning");
+        const key = field.dataset.field;
+        if (data.alert.includes(key)) field.classList.add("warning");
+      });
+    }
+
+    document.querySelectorAll(".scenario").forEach((button) => button.addEventListener("click", () => applyScenario(button.dataset.scenario)));
+    document.querySelectorAll(".terminal-field").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll(".terminal-field").forEach((field) => field.setAttribute("aria-pressed", "false"));
+      button.setAttribute("aria-pressed", "true");
+      const info = fieldInfo[button.dataset.field];
+      document.getElementById("inspectorTitle").textContent = info[0];
+      document.getElementById("inspectorBody").textContent = info[1];
+      document.getElementById("inspectorSource").textContent = info[2];
+      document.getElementById("inspectorAction").textContent = info[3];
+      document.getElementById("inspectorRisk").textContent = info[4];
+    }));
+
+    const modes = {
+      explore: ["Explore", "Map the repository, clarify the problem, and collect evidence before deciding what should change.", "/zmode explore"],
+      plan: ["Plan", "Turn accepted intent into bounded steps, dependencies, evidence gates and stop conditions without editing source.", "/zmode plan"],
+      implement: ["Implement", "Make scoped source changes, keep integration points visible, and validate the changed behavior.", "/zmode implement"],
+      oracle: ["Oracle", "Review skeptically, reproduce evidence, surface blockers and return PASS, WARN or FAIL without repairing the candidate.", "/zmode oracle"],
+      factory: ["Factory", "Design the reusable system that performs a repeated workflow with manifests, checkpoints, validators and sentinels.", "/zmode factory"],
+      orchestrator: ["Orchestrator", "Coordinate multiple bounded agents, TODO ownership, communication and parent acceptance.", "/zmode orchestrator"],
+      vanilla: ["Vanilla", "Use Pi base behavior for tasks outside ZOB governance. This does not bypass repository or human safety rules.", "/zmode vanilla"]
+    };
+    document.querySelectorAll(".mode-tab").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll(".mode-tab").forEach((tab) => tab.setAttribute("aria-selected", "false"));
+      button.setAttribute("aria-selected", "true");
+      const mode = modes[button.dataset.mode];
+      document.getElementById("modeTitle").textContent = mode[0];
+      document.getElementById("modeDescription").textContent = mode[1];
+      document.getElementById("modeExample").textContent = mode[2];
+      document.getElementById("modeBadge").textContent = button.dataset.mode === "vanilla" ? "Pi base mode" : "Governed ZOB mode";
+    }));
+
+    const search = document.getElementById("commandSearch");
+    const rows = [...document.querySelectorAll("#commandTable tbody tr")];
+    function filterCommands() {
+      const query = search.value.trim().toLowerCase();
+      let visible = 0;
+      rows.forEach((row) => {
+        const show = row.textContent.toLowerCase().includes(query);
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      document.getElementById("commandCount").textContent = query ? `Showing ${visible} of ${rows.length} commands.` : `Showing all ${rows.length} commands.`;
+    }
+    search.addEventListener("input", filterCommands);
+    document.getElementById("clearSearch").addEventListener("click", () => { search.value = ""; filterCommands(); search.focus(); });
+
+    const copyStatus = document.getElementById("copyStatus");
+    let copyTimer;
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copyStatus.textContent = `Copied: ${text.split("\n")[0]}`;
+      } catch (_error) {
+        copyStatus.textContent = "Clipboard access is unavailable. Select the text manually.";
+      }
+      copyStatus.classList.add("visible");
+      clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => copyStatus.classList.remove("visible"), 2200);
+    }
+    document.querySelectorAll("[data-copy]").forEach((button) => button.addEventListener("click", () => copyText(button.dataset.copy)));
+    document.querySelectorAll("[data-copy-target]").forEach((button) => button.addEventListener("click", () => copyText(document.getElementById(button.dataset.copyTarget).textContent)));
+
+    const dialog = document.getElementById("quickstartDialog");
+    document.getElementById("openQuickstart").addEventListener("click", () => dialog.showModal());
+    document.getElementById("closeQuickstart").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+
+    const navLinks = [...document.querySelectorAll(".sidebar nav a")];
+    const observed = navLinks.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      navLinks.forEach((link) => link.setAttribute("aria-current", String(link.getAttribute("href") === `#${visible.target.id}`)));
+    }, { rootMargin: "-15% 0px -70%", threshold: [0.05, 0.25] });
+    observed.forEach((section) => observer.observe(section));
+
+    // --- Models & Testing: pool tabs ---
+    const pools = {
+      development: [
+        ["kimi-k2p7-code", "Kimi", "budget_tokens", "✓", "1.6s", "$0.95/$4"],
+        ["deepseek-v4-pro", "DeepSeek", "budget_tokens", "✓", "3.5s", "$1.74/$3.48"],
+        ["gpt-oss-120b", "GPT-OSS", "reasoning_effort", "✓", "1.7s", "$0.15/$0.60"],
+        ["kimi-k2p6", "Kimi", "budget_tokens", "✓", "2.6s", "$0.95/$4"],
+        ["minimax-m3", "MiniMax", "budget_tokens", "✓", "2.4s", "$0.30/$1.20"],
+        ["deepseek-v4-flash", "DeepSeek", "budget_tokens", "✓", "2.3s", "$0.14/$0.28"],
+        ["glm-5p2", "GLM", "budget_tokens", "⚠ advisory", "6.2s", "$1.40/$4.40"],
+        ["gpt-5.6-terra", "OpenAI", "pi :low/:high", "✓", "—", "subscription"],
+        ["gpt-5.6-luna", "OpenAI", "pi :low/:high", "✓", "—", "subscription"],
+      ],
+      qa: [
+        ["qwen3p7-plus", "Qwen", "budget_tokens", "⚠ advisory", "1.3s", "$0.40/$1.60"],
+        ["minimax-m2p7", "MiniMax", "reasoning_effort", "✓", "1.4s", "$0.30/$1.20"],
+        ["nemotron-3-ultra", "Nemotron", "budget_tokens", "✓", "~20s", "free/preview"],
+        ["glm-5p1", "GLM", "budget_tokens", "⚠ advisory", "4.6s", "$1.40/$4.40"],
+        ["deepseek-v4-flash", "DeepSeek", "budget_tokens", "✓", "2.3s", "$0.14/$0.28"],
+        ["gpt-oss-120b", "GPT-OSS", "reasoning_effort", "✓", "1.7s", "$0.15/$0.60"],
+      ],
+      documentation: [
+        ["kimi-k2p7-code", "Kimi", "budget_tokens", "✓", "1.6s", "$0.95/$4"],
+        ["deepseek-v4-pro", "DeepSeek", "budget_tokens", "✓", "3.5s", "$1.74/$3.48"],
+        ["glm-5p2", "GLM", "budget_tokens", "⚠ advisory", "6.2s", "$1.40/$4.40"],
+        ["minimax-m3", "MiniMax", "budget_tokens", "✓", "2.4s", "$0.30/$1.20"],
+        ["qwen3p7-plus", "Qwen", "budget_tokens", "⚠ advisory", "1.3s", "$0.40/$1.60"],
+        ["gpt-5.6-terra", "OpenAI", "pi :low/:high", "✓", "—", "subscription"],
+      ],
+      review: [
+        ["deepseek-v4-pro", "DeepSeek", "budget_tokens", "✓", "3.5s", "$1.74/$3.48"],
+        ["glm-5p2", "GLM", "budget_tokens", "⚠ advisory", "6.2s", "$1.40/$4.40"],
+        ["kimi-k2p6", "Kimi", "budget_tokens", "✓", "2.6s", "$0.95/$4"],
+        ["minimax-m3", "MiniMax", "budget_tokens", "✓", "2.4s", "$0.30/$1.20"],
+        ["qwen3p7-plus", "Qwen", "budget_tokens", "⚠ advisory", "1.3s", "$0.40/$1.60"],
+        ["nemotron-3-ultra", "Nemotron", "budget_tokens", "✓", "~20s", "free/preview"],
+      ],
+      blind: [
+        ["deepseek-v4-pro", "DeepSeek", "budget_tokens", "✓", "3.5s", "$1.74/$3.48"],
+        ["glm-5p2", "GLM", "budget_tokens", "⚠ advisory", "6.2s", "$1.40/$4.40"],
+        ["qwen3p7-plus", "Qwen", "budget_tokens", "⚠ advisory", "1.3s", "$0.40/$1.60"],
+        ["minimax-m3", "MiniMax", "budget_tokens", "✓", "2.4s", "$0.30/$1.20"],
+        ["nemotron-3-ultra", "Nemotron", "budget_tokens", "✓", "~20s", "free/preview"],
+        ["gpt-5.6-terra", "OpenAI", "pi :low/:high", "✓", "—", "subscription"],
+      ],
+      assurance: [
+        ["deepseek-v4-pro", "DeepSeek", "budget_tokens", "✓", "3.5s", "$1.74/$3.48"],
+        ["glm-5p2", "GLM", "budget_tokens", "⚠ advisory", "6.2s", "$1.40/$4.40"],
+        ["kimi-k2p7-code", "Kimi", "budget_tokens", "✓", "1.6s", "$0.95/$4"],
+        ["qwen3p7-plus", "Qwen", "budget_tokens", "⚠ advisory", "1.3s", "$0.40/$1.60"],
+        ["minimax-m3", "MiniMax", "budget_tokens", "✓", "2.4s", "$0.30/$1.20"],
+        ["nemotron-3-ultra", "Nemotron", "budget_tokens", "✓", "~20s", "free/preview"],
+      ],
+    };
+    const poolContent = document.getElementById("pool-content");
+    function renderPool(key) {
+      const rows = pools[key];
+      if (!rows) return;
+      const html = '<table class="data-table" style="width:100%;font-size:0.85rem;"><thead><tr><th>Route</th><th>Family</th><th>Think fmt</th><th>Diff?</th><th>Speed</th><th>$/M out</th></tr></thead><tbody>' +
+        rows.map((r) => `<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td><code>${r[2]}</code></td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td></tr>`).join("") +
+        '</tbody></table>';
+      poolContent.innerHTML = html;
+    }
+    document.querySelectorAll("#pool-tabs button").forEach((btn) => btn.addEventListener("click", () => {
+      document.querySelectorAll("#pool-tabs button").forEach((b) => b.setAttribute("aria-selected", "false"));
+      btn.setAttribute("aria-selected", "true");
+      renderPool(btn.dataset.pool);
+    }));
+    renderPool("development");
+  </script>
+</body>
+</html>

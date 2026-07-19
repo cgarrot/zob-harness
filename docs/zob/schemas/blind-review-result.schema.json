@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:blind-review-result:v1",
+  "title": "Wheel ZOB Blind PR Review Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "reviewId", "repositoryId", "prNumber", "headSha", "baseRef", "baseShaAtAdmission", "round", "riskClass", "requiredLaneTypes", "lanes", "adjudication", "verdict", "findings", "binding", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.blind-review-result.v1"},
+    "reviewId": {"type": "string"}, "repositoryId": {"type": "string"}, "prNumber": {"type": "integer", "minimum": 1},
+    "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "baseRef": {"type": "string"}, "baseShaAtAdmission": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "round": {"type": "integer", "minimum": 1, "maximum": 3}, "riskClass": {"enum": ["low", "medium", "high", "critical"]},
+    "requiredLaneTypes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "lanes": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["laneId", "laneType", "assignmentId", "control", "freshSourceReportHash", "finalReportHash", "status"], "properties": {"laneId": {"type": "string"}, "laneType": {"type": "string"}, "assignmentId": {"type": "string"}, "control": {"type": "boolean"}, "freshSourceReportHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "finalReportHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "status": {"enum": ["complete", "invalid", "cancelled"]}}}},
+    "adjudication": {"type": "object", "additionalProperties": false, "required": ["assignmentId", "reportHash", "requiredCoverageSatisfied"], "properties": {"assignmentId": {"type": "string"}, "reportHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "requiredCoverageSatisfied": {"type": "boolean"}}},
+    "verdict": {"enum": ["pass", "findings", "needs-human", "invalidated"]},
+    "findings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["findingId", "laneId", "path", "line", "severity", "category", "claimHash", "evidenceHash", "disposition", "confidence"], "properties": {"findingId": {"type": "string"}, "laneId": {"type": "string"}, "path": {"type": "string"}, "line": {"type": "integer", "minimum": 1}, "symbol": {"type": "string"}, "severity": {"enum": ["critical", "high", "medium", "low", "info"]}, "category": {"type": "string"}, "claimHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "evidenceHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "disposition": {"enum": ["validated-defect", "acceptance-gap", "needs-human", "suggestion", "rejected", "duplicate"]}, "confidence": {"enum": ["low", "medium", "high"]}}}},
+    "binding": {"type": "object", "additionalProperties": false, "required": ["prCloseEvidenceHash", "policyHash"], "properties": {"prCloseEvidenceHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "policyHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "githubCheckRef": {"type": "string"}}},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"riskClass": {"const": "low"}}},
+      "then": {
+        "properties": {
+          "requiredLaneTypes": {"contains": {"const": "general-control"}},
+          "lanes": {"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "general-control"}, "control": {"const": true}, "status": {"const": "complete"}}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"riskClass": {"const": "medium"}}},
+      "then": {
+        "properties": {
+          "requiredLaneTypes": {"allOf": [{"contains": {"const": "general-control"}}, {"contains": {"const": "evidence-domain"}}]},
+          "lanes": {"allOf": [{"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "general-control"}, "control": {"const": true}, "status": {"const": "complete"}}}}, {"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "evidence-domain"}, "control": {"const": true}, "status": {"const": "complete"}}}}]}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"riskClass": {"enum": ["high", "critical"]}}},
+      "then": {
+        "properties": {
+          "requiredLaneTypes": {"allOf": [{"contains": {"const": "general-control"}}, {"contains": {"const": "security-domain"}}, {"contains": {"const": "evidence-qa"}}]},
+          "lanes": {"allOf": [{"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "general-control"}, "control": {"const": true}, "status": {"const": "complete"}}}}, {"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "security-domain"}, "control": {"const": true}, "status": {"const": "complete"}}}}, {"contains": {"type": "object", "required": ["laneType", "control", "status"], "properties": {"laneType": {"const": "evidence-qa"}, "control": {"const": true}, "status": {"const": "complete"}}}}]}
+        }
+      }
+    }
+  ]
+}

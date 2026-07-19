@@ -1,0 +1,22 @@
+{
+  "schema": "zob.story-task.v1",
+  "taskId": "H31:G4:T2",
+  "revision": 1,
+  "storyId": "H31",
+  "gateId": "H31:G4",
+  "title": "Implement and wire the example service",
+  "contractRef": "execution/contracts/H31-G4-T2.md",
+  "contractHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "required": true,
+  "origin": {"kind": "bundle", "sourceRef": "docs/operations/kanban/stories/H31/02-BLUEPRINT.md", "sourceHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  "lineage": {},
+  "labels": {"taxonomyVersion": "1.0.0", "authored": {"domain": "backend"}, "inherited": {"risk": "medium"}, "inferred": [{"field": "surface", "value": "api", "confidence": 0.95, "sourceRef": "02-BLUEPRINT.md#integration"}], "effective": {"domain": "backend", "surface": "api", "risk": "medium"}},
+  "dependencies": [{"ref": "H31:G3", "type": "hard"}],
+  "deliverables": [{"kind": "source", "pathOrArtifactRef": "src/services/ExampleService.ts", "required": true, "integrationPoint": "src/startup/RouteLoader.ts:register"}],
+  "acceptanceCriteria": [{"criterionId": "AC-1", "text": "The registered route invokes the service and returns the documented shape.", "verification": "unit and integration tests", "required": true}],
+  "execution": {"rolePool": "development", "modelPool": "development-v1", "skillOwner": "work", "supportSkills": ["gate-build"], "skillVersions": {"work": "2.0.0", "gate-build": "2.0.0"}, "workspaceMode": "sandbox", "maxAttempts": 8},
+  "permissions": {"rolePolicyRef": "developer@1.0.0", "readPaths": ["src/startup/RouteLoader.ts", "src/services/**"], "writePaths": ["src/services/ExampleService.ts", "test/example-service.test.ts"], "commands": ["npm test -- example-service"], "deniedCapabilities": ["git-commit", "git-push", "github-write", "merge", "deploy", "secrets"]},
+  "validation": [{"validationId": "V1", "commandRef": "npm test -- example-service", "evidenceType": "test-output", "timeoutMs": 120000}],
+  "review": {"risk": "medium", "independentRequired": true, "reviewPool": "internal-review"},
+  "completion": {"claimContract": "zob.task-claim.v1", "sourceBinding": "sandbox-diff-hash", "evidenceRequirements": ["changed-paths", "validation-output", "integration-point"]}
+}

@@ -376,6 +376,23 @@ function canonicalGoalTodoResultDetails(state: HarnessRuntimeState, goalId: stri
   };
 }
 
+function canonicalGoalTodoBindingText(state: HarnessRuntimeState, goalId: string, node: GoalTodoNode): string {
+  const graphRevision = state.goalTodos.graphRevisions?.[goalId] ?? 0;
+  const todoRevision = node.revision ?? 0;
+  return [
+    "TODO_API_BINDING.v1",
+    `todo_id=${node.id}`,
+    `todo_path=${node.path}`,
+    `graph_revision=${graphRevision}`,
+    `todo_revision=${todoRevision}`,
+    `claim_hash=${node.claim?.claimHash ?? "none"}`,
+    `attempt_id=${node.claim?.attemptId ?? "none"}`,
+    `validation_policy=${node.claim?.validationPolicy ?? "none"}`,
+    "body_stored=false",
+    "TODO_API_BINDING_END",
+  ].join("\n");
+}
+
 function publicTodoRefLabel(input: PublicGoalTodoReferenceInput): string {
   return input.todo_id ?? input.todo_path ?? "<missing>";
 }
@@ -1354,8 +1371,11 @@ export function registerGoalRuntimeTools(pi: ExtensionAPI, state: HarnessRuntime
       const goal = state.runtimeGoal?.goalId === goalId ? state.runtimeGoal : undefined;
       const freshness = currentCompletionProposalFreshness(state, goal);
       const nodes = target ? [target.node] : state.goalTodos.nodes.filter((node) => node.goalId === goalId);
+      const apiBinding = target
+        ? `\n${canonicalGoalTodoBindingText(state, goalId, target.node)}`
+        : `\nTODO_GRAPH_BINDING.v1\ngraph_revision=${state.goalTodos.graphRevisions?.[goalId] ?? 0}\nbody_stored=false\nTODO_GRAPH_BINDING_END`;
       return {
-        content: [{ type: "text", text: `${formatGoalTodoTree(state.goalTodos, goalId)}\n${formatRuntimeGoalCompletionProposal(goal?.completionProposal, freshness)}` }],
+        content: [{ type: "text", text: `${formatGoalTodoTree(state.goalTodos, goalId)}${apiBinding}\n${formatRuntimeGoalCompletionProposal(goal?.completionProposal, freshness)}` }],
         details: {
           goalId,
           graphRevision: state.goalTodos.graphRevisions?.[goalId] ?? 0,

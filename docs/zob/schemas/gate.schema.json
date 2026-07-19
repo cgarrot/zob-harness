@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:gate:v1",
+  "title": "Wheel ZOB Gate Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "storyId", "gateId", "gateType", "required", "dependencyRefs", "entryCriteria", "taskRefs", "exitCriteria", "evidenceRequirements", "reviewPolicy", "invalidationRules"],
+  "properties": {
+    "schema": {"const": "zob.story-gate.v1"},
+    "storyId": {"type": "string"},
+    "gateId": {"type": "string"},
+    "gateType": {"enum": ["ratification", "context", "plan", "blueprint", "reconcile", "build", "document", "learn", "release", "pr-close", "repair"]},
+    "required": {"type": "boolean"},
+    "conditionalExpressionRef": {"type": "string"},
+    "dependencyRefs": {"type": "array", "items": {"type": "string"}},
+    "entryCriteria": {"type": "array", "items": {"type": "object", "required": ["criterionId", "description", "evidenceType"], "properties": {"criterionId": {"type": "string"}, "description": {"type": "string"}, "evidenceType": {"type": "string"}}, "additionalProperties": false}},
+    "taskRefs": {"type": "array", "items": {"type": "object", "required": ["taskId", "taskRef", "taskHash"], "properties": {"taskId": {"type": "string"}, "taskRef": {"type": "string"}, "taskHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, "additionalProperties": false}},
+    "exitCriteria": {"type": "array", "items": {"type": "object", "required": ["criterionId", "description", "required"], "properties": {"criterionId": {"type": "string"}, "description": {"type": "string"}, "required": {"type": "boolean"}}, "additionalProperties": false}},
+    "evidenceRequirements": {"type": "array", "items": {"type": "string"}},
+    "reviewPolicy": {"type": "object", "additionalProperties": false, "required": ["risk", "independentReview"], "properties": {"risk": {"enum": ["low", "medium", "high", "critical"]}, "independentReview": {"type": "boolean"}, "reviewRole": {"type": "string"}}},
+    "humanGateRefs": {"type": "array", "items": {"type": "string"}},
+    "invalidationRules": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  }
+}

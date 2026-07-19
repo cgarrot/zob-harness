@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zob.local/schemas/fleet-v5-local-machine-launch-plan.schema.json",
+  "title": "Wheel Fleet v5 Local Machine Launch Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "launchId",
+    "missionId",
+    "bundlePath",
+    "bundleId",
+    "bundleHash",
+    "sourceSha",
+    "repositoryId",
+    "selectedMachineIds",
+    "allocationUnitCount",
+    "storyIds",
+    "preparedAt",
+    "expiresAt",
+    "planHash",
+    "assignments",
+    "launchMechanism",
+    "authorityBoundary",
+    "prHandoff",
+    "bodyStored"
+  ],
+  "properties": {
+    "schema": { "const": "wheel.zob.local-machine-launch-plan.v1" },
+    "launchId": { "$ref": "#/$defs/safeId" },
+    "missionId": { "$ref": "#/$defs/safeId" },
+    "bundlePath": { "$ref": "#/$defs/repoRef" },
+    "bundleId": { "type": "string", "minLength": 1 },
+    "bundleHash": { "$ref": "#/$defs/sha256" },
+    "sourceSha": { "$ref": "#/$defs/gitSha" },
+    "repositoryId": { "type": "string", "minLength": 1 },
+    "selectedMachineIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "allocationUnitCount": { "type": "integer", "minimum": 1 },
+    "storyIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "preparedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "planHash": { "$ref": "#/$defs/sha256" },
+    "assignments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/assignment" } },
+    "launchMechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "preparationOnly", "processSpawned", "exactPlanHashConfirmationRequired", "presenceReceiptRequiredForZagent", "durablePromptBodyStored"],
+      "properties": {
+        "kind": { "const": "existing-pi-or-zagent-session" },
+        "preparationOnly": { "const": true },
+        "processSpawned": { "const": false },
+        "exactPlanHashConfirmationRequired": { "const": true },
+        "presenceReceiptRequiredForZagent": { "const": true },
+        "durablePromptBodyStored": { "const": false }
+      }
+    },
+    "authorityBoundary": { "$ref": "#/$defs/authorityBoundary" },
+    "prHandoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "candidateSchema", "authoritySchema", "exactCandidateHashRequired", "exactBaseAndHeadRequired", "mergeAuthorityIncluded", "promotionAuthorityIncluded", "deploymentAuthorityIncluded"],
+      "properties": {
+        "required": { "const": true },
+        "candidateSchema": { "const": "wheel.zob.pr-handoff-candidate.v1" },
+        "authoritySchema": { "const": "wheel.zob.pr-handoff-authority.v1" },
+        "exactCandidateHashRequired": { "const": true },
+        "exactBaseAndHeadRequired": { "const": true },
+        "mergeAuthorityIncluded": { "const": false },
+        "promotionAuthorityIncluded": { "const": false },
+        "deploymentAuthorityIncluded": { "const": false }
+      }
+    },
+    "bodyStored": { "const": false }
+  },
+  "$defs": {
+    "safeId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "repoRef": { "type": "string", "minLength": 1, "pattern": "^(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$" },
+    "stringArray": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "machineId", "assignmentHash", "allocationUnitIds", "storyIds", "storyPaths", "storyManifestHashes", "storyBranchNames", "storyBaseRefs", "dependencyStoryIds", "humanGateStoryIds", "linkedWorktreeRequired", "cleanWorktreeRequiredAtInitialClaim", "sessionOwnershipRequired", "recoveryEpochRequired", "stopBeforeCommitRequired", "bodyStored"],
+      "properties": {
+        "schema": { "const": "wheel.zob.local-machine-launch-assignment.v1" },
+        "machineId": { "type": "string", "minLength": 1 },
+        "assignmentHash": { "$ref": "#/$defs/sha256" },
+        "allocationUnitIds": { "$ref": "#/$defs/stringArray" },
+        "storyIds": { "$ref": "#/$defs/stringArray" },
+        "storyPaths": { "type": "array", "items": { "$ref": "#/$defs/repoRef" } },
+        "storyManifestHashes": { "type": "array", "items": { "$ref": "#/$defs/sha256" } },
+        "storyBranchNames": { "$ref": "#/$defs/stringArray" },
+        "storyBaseRefs": { "$ref": "#/$defs/stringArray" },
+        "dependencyStoryIds": { "$ref": "#/$defs/stringArray" },
+        "humanGateStoryIds": { "$ref": "#/$defs/stringArray" },
+        "linkedWorktreeRequired": { "const": true },
+        "cleanWorktreeRequiredAtInitialClaim": { "const": true },
+        "sessionOwnershipRequired": { "const": true },
+        "recoveryEpochRequired": { "const": true },
+        "stopBeforeCommitRequired": { "const": true },
+        "bodyStored": { "const": false }
+      }
+    },
+    "authorityBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "scope", "activationEnabled", "explicitMachineStartRequired", "modelSessionAllowedAfterExplicitStart", "localSourceEditsAllowedAfterExplicitStart", "localTestsAllowedAfterExplicitStart", "localReviewAllowedAfterExplicitStart", "arbitraryNetworkAccessEnabled", "commitEnabled", "pushEnabled", "githubEffectsEnabled", "draftPrEnabled", "workflowDispatchEnabled", "mergeEnabled", "promotionEnabled", "deploymentEnabled", "bodyStored"],
+      "properties": {
+        "schema": { "const": "wheel.zob.local-launch-authority-boundary.v1" },
+        "scope": { "const": "local-edit-test-review" },
+        "activationEnabled": { "const": false },
+        "explicitMachineStartRequired": { "const": true },
+        "modelSessionAllowedAfterExplicitStart": { "const": true },
+        "localSourceEditsAllowedAfterExplicitStart": { "const": true },
+        "localTestsAllowedAfterExplicitStart": { "const": true },
+        "localReviewAllowedAfterExplicitStart": { "const": true },
+        "arbitraryNetworkAccessEnabled": { "const": false },
+        "commitEnabled": { "const": false },
+        "pushEnabled": { "const": false },
+        "githubEffectsEnabled": { "const": false },
+        "draftPrEnabled": { "const": false },
+        "workflowDispatchEnabled": { "const": false },
+        "mergeEnabled": { "const": false },
+        "promotionEnabled": { "const": false },
+        "deploymentEnabled": { "const": false },
+        "bodyStored": { "const": false }
+      }
+    }
+  }
+}

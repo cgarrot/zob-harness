@@ -1,10 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { assessDelegationAttemptLiveness } from "../../../runtime/delegation-monitor.js";
 import type { HarnessRuntimeState } from "../../../runtime/state.js";
 import type { GoalTodoChildGoalStatus, GoalTodoClaimTargetReadiness, GoalTodoCommandResult, GoalTodoEventSource, GoalTodoNode, GoalTodoStatusClaim, TodoClaimValidationResult, TodoPeerResultItem, TodoPeerResultParseResult, TodoSplitRequest } from "../goal-todo-types.js";
 import { VALID_OWNER, VALID_PRIORITY } from "./constants.js";
 import { formatGoalTodoTree, summarizeGoalTodos } from "./formatting.js";
 import { includesString } from "./normalize.js";
-import { addGoalTodo, completeGoalTodo, focusGoalTodo, patchGoalTodo, resolveGoalTodo, splitGoalTodo } from "./operations.js";
+import { addGoalTodo, completeGoalTodo, focusGoalTodo, patchGoalTodo, recoverGoalTodoDelegation, resolveGoalTodo, resolveGoalTodoReference, splitGoalTodo } from "./operations.js";
 
 export function extractTodoClaimFromText(text: string): { todoId?: string; childGoalStatus?: GoalTodoChildGoalStatus; statusClaim?: GoalTodoStatusClaim; evidenceRefs: string[]; validationCommands: string[]; noShip?: boolean; hasFinalMarker: boolean; subtodoDeltaProposals: string[]; acceptanceBlockers: string[]; targetReadiness?: GoalTodoClaimTargetReadiness; risksBlockers: string[] } {
   const todoIdMatch = text.match(/todo_id\s*[:=]\s*([^\s]+)/i);
@@ -256,11 +257,47 @@ export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntim
       const nodes = splitGoalTodo(pi, state, goalId, todoId, titles, "command");
       return { ok: true, message: `split TODO ${todoId} into ${nodes.length} child TODO(s)` };
     }
+    if (command === "recover") {
+      const todoRef = rest[0];
+      const reason = rest.slice(1).join(" ").trim();
+      if (!todoRef || !reason) return { ok: false, message: "Usage: /goal todo recover <todoId|path> <reason>" };
+      const resolved = resolveGoalTodoReference(state.goalTodos, goalId, todoRef, "delegation recovery TODO");
+      if (!resolved.node) return { ok: false, message: resolved.errors.join("; ") || `Goal TODO not found: ${todoRef}` };
+      const latest = resolved.node.delegationAttempts?.at(-1);
+      if (!latest) return { ok: false, message: `No delegation attempt exists for ${todoRef}` };
+      const liveness = assessDelegationAttemptLiveness(state.delegations, latest, { attemptId: latest.attemptId, runId: latest.runId });
+      if (liveness.status !== "inactive") return { ok: false, message: `Delegation recovery blocked: ${liveness.status}/${liveness.code}` };
+      const proofRef = `.pi/logs/chronicle/delegation-${latest.runId}.json`;
+      const recovered = recoverGoalTodoDelegation(pi, state, goalId, resolved.node.id, {
+        expectedAttemptId: latest.attemptId,
+        expectedRunId: latest.runId,
+        expectedGraphRevision: state.goalTodos.graphRevisions?.[goalId] ?? 0,
+        expectedTodoRevision: resolved.node.revision ?? 0,
+        reason,
+        evidenceRefs: [proofRef],
+        proofRefs: [proofRef],
+        livenessProof: liveness,
+      }, "command");
+      return { ok: true, message: `recovered delegation for TODO ${recovered.node.path}: status=${recovered.node.status}; auto_dispatch=false`, node: recovered.node };
+    }
     if (command === "accept-claim" || command === "accept") {
-      const todoId = rest[0];
-      if (!todoId) return { ok: false, message: `Usage: /goal todo ${command} <todoId> [evidence]` };
+      const todoRef = rest[0];
+      if (!todoRef) return { ok: false, message: `Usage: /goal todo ${command} <todoId|path> [evidence]` };
+      const resolved = resolveGoalTodoReference(state.goalTodos, goalId, todoRef, "claim acceptance TODO");
+      if (!resolved.node) return { ok: false, message: resolved.errors.join("; ") || `Goal TODO not found: ${todoRef}` };
+      const claim = resolved.node.claim;
+      if (!claim) return { ok: false, message: `No returned claim exists for ${todoRef}` };
       const evidence = rest.slice(1).join(" ").trim();
-      const node = resolveGoalTodo(pi, state, goalId, todoId, { action: "accept_claim", evidenceRefs: evidence ? [evidence] : [], repoRoot }, "command");
+      const node = resolveGoalTodo(pi, state, goalId, resolved.node.id, {
+        action: "accept_claim",
+        expectedClaimHash: claim.claimHash,
+        expectedAttemptId: claim.attemptId,
+        expectedValidationPolicy: claim.validationPolicy,
+        expectedGraphRevision: state.goalTodos.graphRevisions?.[goalId] ?? 0,
+        expectedTodoRevision: resolved.node.revision ?? 0,
+        evidenceRefs: evidence ? [evidence] : [],
+        repoRoot,
+      }, "command");
       return { ok: true, message: `accepted claim for TODO ${node.path}: ${node.title}`, node };
     }
     if (command === "reject-claim" || command === "reject") {
@@ -273,5 +310,5 @@ export function handleGoalTodoTextCommand(pi: ExtensionAPI, state: HarnessRuntim
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
-  return { ok: false, message: "Usage: /goal todo [tree|next|add|done|block|skip|user|start|focus|split|accept-claim|reject-claim]; primary API tool is resolve_goal_todo" };
+  return { ok: false, message: "Usage: /goal todo [tree|next|add|done|block|skip|user|start|focus|split|recover|accept-claim|reject-claim]; primary API tool is resolve_goal_todo" };
 }

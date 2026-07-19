@@ -6,8 +6,11 @@ node_modules/
 !.env.example
 *.log
 
-# Internal documentation and captured planning artifacts are kept locally only.
-docs/
+# The consolidated Wheel ZOB specification is public repository documentation.
+# Other captured planning artifacts stay local-only.
+docs/*
+!docs/zob/
+!docs/zob/**
 .pi/plans/
 plans/
 

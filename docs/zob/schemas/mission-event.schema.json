@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:mission-event:v1",
+  "title": "Wheel ZOB Mission Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "eventId", "missionId", "sequence", "occurredAt", "recordedAt", "producerType", "producerId", "eventType", "idempotencyKey", "payload", "prevEventHash", "eventHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.mission-event.v1"},
+    "eventId": {"type": "string", "minLength": 16, "maxLength": 80},
+    "missionId": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "recordedAt": {"type": "string", "format": "date-time"},
+    "producerType": {"enum": ["supervisor", "runtime", "agent", "github", "human"]},
+    "producerId": {"type": "string", "minLength": 1},
+    "eventType": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+    "storyId": {"type": "string"},
+    "gateId": {"type": "string"},
+    "taskId": {"type": "string"},
+    "attemptId": {"type": "string"},
+    "correlationId": {"type": "string"},
+    "causationId": {"type": "string"},
+    "idempotencyKey": {"type": "string", "minLength": 8, "maxLength": 200},
+    "payload": {
+      "type": "object",
+      "not": {"anyOf": [
+        {"required": ["rawBody"]}, {"required": ["prompt"]}, {"required": ["response"]},
+        {"required": ["transcript"]}, {"required": ["credential"]}, {"required": ["rawDiff"]}
+      ]}
+    },
+    "prevEventHash": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[a-f0-9]{64}$"}]},
+    "eventHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  }
+}

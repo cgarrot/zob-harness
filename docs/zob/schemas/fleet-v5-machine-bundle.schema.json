@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:fleet-v5-machine-bundle:v1",
+  "title": "Wheel ZOB Fleet v5 Machine Bundle v1",
+  "$comment": "bundleHash is SHA-256 over canonical structured wheel.zob.fleet-v5-machine-bundle-hash-preimage.v2 data: bundle fields excluding bundleHash plus ordered referenced storyPath/storyFileHash pairs. Delimiter-concatenated legacy digests are invalid and must be rematerialized.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "bundleId", "revision", "bundleHash", "source", "machines"],
+  "properties": {
+    "schema": {"const": "wheel.zob.fleet-v5-machine-bundle.v1"},
+    "bundleId": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "bundleHash": {"type": "string", "pattern": "^[a-f0-9]{64}$", "description": "Canonical structured v2-preimage digest; not a delimiter-concatenated legacy digest."},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryId", "sourceSha", "allocationRef", "allocationSha256", "signalsRef", "signalsSha256"],
+      "properties": {
+        "repositoryId": {"type": "string", "minLength": 1},
+        "sourceSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "allocationRef": {"$ref": "#/$defs/repoPath"},
+        "allocationSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "signalsRef": {"$ref": "#/$defs/repoPath"},
+        "signalsSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "machines": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["machineId", "theme", "allocationUnitIds", "storyIds", "storyPaths"],
+        "properties": {
+          "machineId": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+          "theme": {"type": "string", "minLength": 1},
+          "allocationUnitIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "storyIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
+          },
+          "storyPaths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/repoPath"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\\\/])(?!@)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*(?:^|[\\\\/])\\.(?:[\\\\/]|$)).+$"
+    }
+  }
+}

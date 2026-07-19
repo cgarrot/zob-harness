@@ -1,0 +1,24 @@
+{
+  "schema": "zob.pr-close-evidence.v1",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "storyId": "H31",
+  "prNumber": 4001,
+  "headSha": "1111111111111111111111111111111111111111",
+  "baseRef": "develop-staging",
+  "baseSha": "2222222222222222222222222222222222222222",
+  "manifestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profile": {"base": "full-feature", "overlays": ["backend-api-data"], "versionRefs": ["full-feature@1.0.0", "backend-api-data@1.0.0"]},
+  "gates": [{"gateId": "H31:G4", "status": "accepted", "evidenceHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+  "draftCi": {"expected": ["PR Quality Checks"], "observed": [{"name": "PR Quality Checks", "conclusion": "success", "runRef": "https://github.invalid/run/1"}], "terminalAcceptable": true, "deferredReadyOnly": ["Ready Guard"], "observedAt": "2026-07-18T11:00:00Z"},
+  "audits": [
+    {"auditType": "source-integration", "attemptId": "H31:CLOSE:SRC:A1", "assignmentId": "assign-CLOSE1", "reportHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "verdict": "pass"},
+    {"auditType": "evidence-qa-ci", "attemptId": "H31:CLOSE:EVI:A1", "assignmentId": "assign-CLOSE2", "reportHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "verdict": "pass"},
+    {"auditType": "finalizer", "attemptId": "H31:CLOSE:FIN:A1", "assignmentId": "assign-CLOSE3", "reportHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "verdict": "pass"}
+  ],
+  "humanReceiptHashes": [],
+  "verdict": "pass",
+  "issuer": {"type": "builder-app", "appId": "builder-app-demo", "checkName": "ZOB / PR Close", "checkRunId": "check-demo-1"},
+  "producedAt": "2026-07-18T11:10:00Z",
+  "evidenceHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "bodyStored": false
+}

@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { accessSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { buildZcommitPlan, runGovernedZcommitCommit, runGovernedZcommitPush, type ZcommitCommandResult, type ZcommitPlan, type ZcommitPlanOptions } from "../domains/git/git-ops.js";
@@ -44,7 +47,100 @@ function resolvePathspecs(state: HarnessRuntimeState, scope: string | undefined,
   return { pathspecs: [], errors: [`unknown zcommit scope: ${selectedScope}`] };
 }
 
-function zcommitLedgerEntry(action: string, scope: string, params: { paths?: string[]; message?: string; body?: string[]; user_requested?: boolean }, plan: ZcommitPlan, result?: ZcommitCommandResult): Record<string, unknown> {
+type ZcommitToolParams = {
+  paths?: string[];
+  message?: string;
+  body?: string[];
+  user_requested?: boolean;
+  handoff_candidate_hash?: string;
+  handoff_authority_hash?: string;
+  handoff_expected_base_sha?: string;
+};
+
+type ZcommitReceiptRecord = {
+  schema: "zob.zcommit-receipt.v1";
+  receiptHash: string;
+  action: "commit";
+  status: "ok";
+  repositoryRootHash: string;
+  baseHeadSha: string;
+  committedHeadSha: string;
+  treeHash: string;
+  branchHash: string;
+  eligiblePathHashes: string[];
+  handoffCandidateHash: string;
+  handoffAuthorityHash: string;
+  handoffExpectedBaseSha: string;
+  userRequested: true;
+  validationOk: true;
+  actualGitCommitRun: true;
+  actualGitPushRun: false;
+  generatedAt: string;
+  bodyStored: false;
+};
+
+function prepareZcommitReceiptDirectory(repoRoot: string): { root: string; directory: string } {
+  const resolvedRoot = resolve(repoRoot);
+  const root = realpathSync(execFileSync("git", ["-C", resolvedRoot, "rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim());
+  const directory = join(root, ".pi", "logs", "zcommit-receipts");
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (realpathSync(directory) !== directory) throw new Error("zcommit receipt directory must not traverse symlinks");
+  accessSync(directory, fsConstants.W_OK);
+  execFileSync("git", ["-C", root, "check-ignore", "--quiet", "--", ".pi/logs/zcommit-receipts/receipt-probe.json"], { stdio: ["ignore", "ignore", "pipe"] });
+  return { root, directory };
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (typeof value === "object") return Object.fromEntries(Object.keys(value as Record<string, unknown>).sort().map((key) => [key, canonicalValue((value as Record<string, unknown>)[key])]));
+  throw new Error(`unsupported canonical value type ${typeof value}`);
+}
+
+export function writeZcommitReceipt(repoRoot: string, params: ZcommitToolParams, result: ZcommitCommandResult): { receiptRef: string; receiptFileHash: string; receiptHash: string } {
+  if (!result.ok || result.action !== "commit" || !result.commit || !result.baseHeadSha || result.actualGitCommitRun !== true || result.actualGitPushRun !== false || result.validation?.ok !== true) {
+    throw new Error("zcommit receipt requires a successful validated commit without push");
+  }
+  if (!params.handoff_candidate_hash || !params.handoff_authority_hash || !params.handoff_expected_base_sha || params.user_requested !== true) throw new Error("zcommit receipt requires complete explicit handoff bindings");
+  if (result.baseHeadSha !== params.handoff_expected_base_sha) throw new Error("zcommit result base HEAD does not match handoff_expected_base_sha");
+  const { root, directory } = prepareZcommitReceiptDirectory(repoRoot);
+  const treeHash = execFileSync("git", ["-C", root, "rev-parse", `${result.commit.hash}^{tree}`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const branch = execFileSync("git", ["-C", root, "branch", "--show-current"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const payload: Omit<ZcommitReceiptRecord, "receiptHash"> = {
+    schema: "zob.zcommit-receipt.v1",
+    action: "commit",
+    status: "ok",
+    repositoryRootHash: sha256(root),
+    baseHeadSha: result.baseHeadSha,
+    committedHeadSha: result.commit.hash,
+    treeHash,
+    branchHash: sha256(branch),
+    eligiblePathHashes: result.commit.files.map((path) => sha256(path)).sort(),
+    handoffCandidateHash: params.handoff_candidate_hash,
+    handoffAuthorityHash: params.handoff_authority_hash,
+    handoffExpectedBaseSha: params.handoff_expected_base_sha,
+    userRequested: true,
+    validationOk: true,
+    actualGitCommitRun: true,
+    actualGitPushRun: false,
+    generatedAt: result.commit.createdAt,
+    bodyStored: false,
+  };
+  const receipt: ZcommitReceiptRecord = { ...payload, receiptHash: sha256(JSON.stringify(canonicalValue(payload))) };
+  const path = join(directory, `${result.commit.hash}.json`);
+  const raw = `${JSON.stringify(receipt, null, 2)}\n`;
+  if (existsSync(path)) {
+    if (lstatSync(path).isSymbolicLink()) throw new Error("existing zcommit receipt must not be a symlink");
+    if (readFileSync(path, "utf8") !== raw) throw new Error("existing zcommit receipt conflicts with current commit receipt");
+  } else {
+    const temporary = `${path}.tmp.${receipt.receiptHash.slice(0, 16)}`;
+    writeFileSync(temporary, raw, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    renameSync(temporary, path);
+  }
+  return { receiptRef: relative(root, path).split("\\").join("/"), receiptFileHash: sha256(raw), receiptHash: receipt.receiptHash };
+}
+
+function zcommitLedgerEntry(action: string, scope: string, params: ZcommitToolParams, plan: ZcommitPlan, result?: ZcommitCommandResult, receipt?: { receiptRef: string; receiptFileHash: string; receiptHash: string }): Record<string, unknown> {
   return {
     schema: "zob.zcommit-tool.v1",
     bodyStored: false,
@@ -72,6 +168,12 @@ function zcommitLedgerEntry(action: string, scope: string, params: { paths?: str
     errorHashes: result?.errors.map((error) => sha256(error)),
     actualGitCommitRun: result?.actualGitCommitRun ?? false,
     actualGitPushRun: result?.actualGitPushRun ?? false,
+    handoffCandidateHash: params.handoff_candidate_hash,
+    handoffAuthorityHash: params.handoff_authority_hash,
+    handoffExpectedBaseSha: params.handoff_expected_base_sha,
+    receiptRefHash: receipt ? sha256(receipt.receiptRef) : undefined,
+    receiptFileHash: receipt?.receiptFileHash,
+    receiptHash: receipt?.receiptHash,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -102,6 +204,26 @@ export function registerZcommitTools(pi: ExtensionAPI, state: HarnessRuntimeStat
 
       const wantsCommit = action === "commit" || action === "commit_and_push";
       const wantsPush = action === "push" || action === "commit_and_push" || params.push === true;
+      const handoffBindings = [params.handoff_candidate_hash, params.handoff_authority_hash, params.handoff_expected_base_sha];
+      const handoffProvided = handoffBindings.some((value) => value !== undefined);
+      const handoffComplete = handoffBindings.every((value) => value !== undefined);
+      const handoffErrors: string[] = [];
+      if (handoffProvided && !handoffComplete) handoffErrors.push("handoff commit requires candidate hash, authority hash, and expected base sha together");
+      if (handoffProvided && (action !== "commit" || wantsPush)) handoffErrors.push("handoff commit bindings permit action=commit without push only");
+      if (handoffProvided && params.user_requested !== true) handoffErrors.push("handoff commit requires user_requested=true");
+      if (handoffComplete) {
+        try {
+          const head = execFileSync("git", ["-C", ctx.cwd, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+          if (head !== params.handoff_expected_base_sha) handoffErrors.push("current HEAD does not match handoff_expected_base_sha");
+          prepareZcommitReceiptDirectory(ctx.cwd);
+        } catch (error) {
+          handoffErrors.push(`handoff receipt destination is not safe and ignored: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      if (handoffErrors.length > 0) {
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry("tool_handoff_blocked", scope, params, plan));
+        return { content: [{ type: "text", text: `zob_zcommit_run blocked: ${handoffErrors.join(" | ")}; ${planSummary(plan)}` }], details: { schema: "zob.zcommit-tool-result.v1", status: "blocked", errors: handoffErrors, plan } };
+      }
       if ((wantsCommit || wantsPush) && params.user_requested !== true && state.zcommit.autocommit !== "on") {
         const authorizationErrors = ["commit/push actions require user_requested=true or /zcommit autocommit on"];
         pi.appendEntry("zob-zcommit", zcommitLedgerEntry(action, scope, params, plan));
@@ -115,13 +237,23 @@ export function registerZcommitTools(pi: ExtensionAPI, state: HarnessRuntimeStat
 
       if (action === "commit") {
         const result = runGovernedZcommitCommit(ctx.cwd, state.zcommit, options);
-        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(result.ok ? "tool_commit_created" : "tool_commit_blocked", scope, params, result.plan, result));
+        let receipt: { receiptRef: string; receiptFileHash: string; receiptHash: string } | undefined;
+        if (result.ok && handoffComplete) {
+          try {
+            receipt = writeZcommitReceipt(ctx.cwd, params, result);
+          } catch (error) {
+            const receiptError = error instanceof Error ? error.message : String(error);
+            pi.appendEntry("zob-zcommit", zcommitLedgerEntry("tool_commit_receipt_failed", scope, params, result.plan, result));
+            return { content: [{ type: "text", text: `zob_zcommit_run commit created but handoff receipt failed: ${receiptError}` }], details: { schema: "zob.zcommit-tool-result.v1", status: "commit_ok_receipt_failed", errors: [receiptError], result } };
+          }
+        }
+        pi.appendEntry("zob-zcommit", zcommitLedgerEntry(result.ok ? "tool_commit_created" : "tool_commit_blocked", scope, params, result.plan, result, receipt));
         if (params.push === true && result.ok) {
           const pushResult = runGovernedZcommitPush(ctx.cwd, state.zcommit, { explicitPush: true });
           pi.appendEntry("zob-zcommit", zcommitLedgerEntry(pushResult.ok ? "tool_push_completed" : "tool_push_blocked", scope, params, pushResult.plan, pushResult));
           return { content: [{ type: "text", text: `zob_zcommit_run commit+push: ${result.message}; ${pushResult.message}` }], details: { schema: "zob.zcommit-tool-result.v1", status: pushResult.ok ? "ok" : "blocked_or_failed", commitResult: result, pushResult } };
         }
-        return { content: [{ type: "text", text: `zob_zcommit_run commit: ${result.message}` }], details: { schema: "zob.zcommit-tool-result.v1", status: result.ok ? "ok" : "blocked_or_failed", result } };
+        return { content: [{ type: "text", text: `zob_zcommit_run commit: ${result.message}${receipt ? `; receipt=${receipt.receiptRef}; receipt_file_sha256=${receipt.receiptFileHash}` : ""}` }], details: { schema: "zob.zcommit-tool-result.v1", status: result.ok ? "ok" : "blocked_or_failed", result, receipt } };
       }
 
       if (action === "push") {

@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Step-by-step owner guide for running Wheel Fleet v5 across separate physical machines, managing moving develop-staging heads, and preserving exact local authority.">
+  <title>Wheel Fleet v5 — Multi-machine operator guide</title>
+  <style>
+    :root {
+      --fig: #1d111c;
+      --fig-2: #352234;
+      --jade: #087b67;
+      --jade-2: #32b89b;
+      --paper: #f8f9f6;
+      --surface: #ffffff;
+      --surface-2: #eef3f0;
+      --ink: #1a1719;
+      --muted: #5d575b;
+      --line: #d6d9d5;
+      --danger: #9d2431;
+      --danger-bg: #fff0f2;
+      --warn: #805000;
+      --warn-bg: #fff7df;
+      --info: #2c5d96;
+      --info-bg: #eef6ff;
+      --ok: #08705e;
+      --ok-bg: #e9f7f3;
+      --code: #110b10;
+      --code-ink: #f5edf3;
+      --shadow: 0 18px 45px rgba(28, 17, 27, 0.08);
+      --radius: 0.85rem;
+      --sidebar: 18.5rem;
+      --content: 78rem;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 0.98rem/1.65 var(--sans); }
+    a { color: var(--jade); text-decoration-thickness: 0.08em; text-underline-offset: 0.17em; }
+    a:hover { color: #045445; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--jade-2); outline-offset: 3px; }
+    .skip { position: fixed; z-index: 100; top: 0.8rem; left: 0.8rem; padding: 0.65rem 0.9rem; background: var(--surface); color: var(--fig); border-radius: 0.55rem; transform: translateY(-170%); }
+    .skip:focus { transform: none; }
+    .layout { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    aside { position: sticky; top: 0; height: 100vh; overflow: auto; padding: 1.25rem; background: var(--fig); color: #f7f1f5; }
+    .brand { display: flex; gap: 0.8rem; align-items: center; margin-bottom: 1rem; }
+    .mark { display: grid; grid-template-columns: repeat(2, 0.55rem); gap: 0.2rem; }
+    .mark span { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--jade-2); }
+    .mark span:nth-child(2), .mark span:nth-child(3) { opacity: 0.55; }
+    .brand strong { display: block; }
+    .brand small { display: block; color: #c8bdc5; font: 0.7rem/1.3 var(--mono); }
+    .side-state { margin: 1rem 0 1.25rem; padding: 0.85rem; border: 1px solid #5c4057; border-radius: var(--radius); background: var(--fig-2); color: #eee6ec; font-size: 0.78rem; }
+    .side-state b { color: var(--jade-2); }
+    nav { display: grid; gap: 0.1rem; }
+    nav a { display: block; min-height: 2.35rem; padding: 0.48rem 0.62rem; border-radius: 0.45rem; color: #e8dfe5; text-decoration: none; font-size: 0.82rem; }
+    nav a:hover, nav a[aria-current="true"] { background: #51384e; color: white; }
+    .side-foot { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #51384e; color: #c7bbc4; font-size: 0.74rem; }
+    .side-foot code { background: #51384e; color: #ffffff; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    main { min-width: 0; }
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; padding: 0.7rem clamp(1rem, 3vw, 2rem); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 94%, transparent); backdrop-filter: blur(12px); }
+    .topbar span { color: var(--muted); font-size: 0.8rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.4rem; padding: 0.45rem 0.75rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 0.78rem; }
+    .button:hover { border-color: var(--jade); background: var(--ok-bg); color: var(--ink); }
+    .content { width: min(100%, var(--content)); margin: auto; padding: 2.8rem clamp(1rem, 4vw, 3.5rem) 6rem; }
+    section { margin: 5rem 0 0; }
+    section:first-child { margin-top: 0; }
+    h1, h2, h3, h4 { color: var(--fig); line-height: 1.17; letter-spacing: -0.025em; text-wrap: balance; }
+    h1 { max-width: 17ch; margin: 0.4rem 0 1rem; font-size: clamp(2.35rem, 5vw, 4.9rem); }
+    h2 { margin: 0 0 0.8rem; font-size: clamp(1.65rem, 3vw, 2.4rem); }
+    h3 { margin-top: 2.2rem; font-size: 1.25rem; }
+    h4 { margin-top: 1.5rem; font-size: 1rem; }
+    p, li { max-width: 75ch; text-wrap: pretty; }
+    .lede { max-width: 70ch; color: var(--muted); font-size: 1.08rem; }
+    .status-row { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 1.6rem 0 2rem; }
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.58rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: 0.72rem/1.3 var(--mono); }
+    .badge.ok { border-color: #9acfc3; background: var(--ok-bg); color: var(--ok); }
+    .badge.warn { border-color: #dfc987; background: var(--warn-bg); color: var(--warn); }
+    .badge.danger { border-color: #e3aeb4; background: var(--danger-bg); color: var(--danger); }
+    .callout { margin: 1.3rem 0; padding: 1rem 1.1rem; border: 1px solid #adc7e2; border-radius: var(--radius); background: var(--info-bg); }
+    .callout.warn { border-color: #dfc987; background: var(--warn-bg); }
+    .callout.danger { border-color: #e3aeb4; background: var(--danger-bg); }
+    .callout.ok { border-color: #9acfc3; background: var(--ok-bg); }
+    .callout strong { display: block; margin-bottom: 0.25rem; color: var(--fig); }
+    .callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin: 1.25rem 0; }
+    .panel { padding: 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .panel h3, .panel h4 { margin-top: 0; }
+    .panel p:last-child, .panel ul:last-child { margin-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.7rem; background: var(--surface); font-size: 0.88rem; }
+    th, td { padding: 0.75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--surface-2); color: var(--fig); }
+    code { padding: 0.08em 0.25em; border-radius: 0.25rem; background: var(--surface-2); font: 0.88em var(--mono); overflow-wrap: anywhere; }
+    .code-wrap { position: relative; margin: 0.85rem 0 1.5rem; }
+    pre { overflow: auto; margin: 0; padding: 1rem; border: 1px solid #493345; border-radius: var(--radius); background: var(--code); color: var(--code-ink); line-height: 1.55; }
+    pre code { padding: 0; background: transparent; color: inherit; font-size: 0.8rem; white-space: pre; overflow-wrap: normal; }
+    .copy { position: absolute; top: 0.55rem; right: 0.55rem; padding: 0.35rem 0.55rem; border: 1px solid #70546a; border-radius: 0.4rem; background: #2b1d29; color: #f5edf3; font: 0.7rem var(--mono); }
+    .copy:hover { background: #50354b; }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps > li { counter-increment: step; position: relative; margin: 1.1rem 0; padding: 0 0 1.2rem 3rem; border-bottom: 1px solid var(--line); }
+    .steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--fig); color: white; font: 700 0.82rem var(--mono); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; margin: 0.45rem 0; padding-left: 1.8rem; }
+    .checklist li::before { content: "□"; position: absolute; left: 0; color: var(--jade); font-size: 1.2rem; line-height: 1.2; }
+    .worksheet { margin: 1.4rem 0; padding: 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .worksheet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; }
+    label { display: grid; gap: 0.3rem; color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+    input { width: 100%; padding: 0.7rem 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 0.78rem; }
+    .flow { display: grid; gap: 0.7rem; margin: 1.5rem 0; }
+    .flow-row { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: 0.8rem; align-items: center; }
+    .flow-label { color: var(--muted); font: 700 0.72rem var(--mono); }
+    .track { display: flex; align-items: center; gap: 0.35rem; min-width: 0; overflow-x: auto; padding: 0.65rem; border: 1px solid var(--line); border-radius: 0.65rem; background: var(--surface); }
+    .node { flex: 0 0 auto; padding: 0.35rem 0.5rem; border-radius: 0.4rem; background: var(--surface-2); font: 0.72rem var(--mono); }
+    .node.fixed { background: var(--ok-bg); color: var(--ok); }
+    .node.live { background: var(--warn-bg); color: var(--warn); }
+    .arrow { color: var(--muted); }
+    details { margin: 0.8rem 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    summary { cursor: pointer; padding: 0.9rem 1rem; color: var(--fig); font-weight: 750; }
+    details > div { padding: 0 1rem 1rem; }
+    .decision { display: grid; grid-template-columns: minmax(11rem, 0.35fr) 1fr; gap: 0; margin: 1rem 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .decision dt, .decision dd { margin: 0; padding: 0.8rem; border-bottom: 1px solid var(--line); }
+    .decision dt { background: var(--surface-2); color: var(--fig); font-weight: 750; }
+    .decision dd { background: var(--surface); }
+    .decision dt:last-of-type, .decision dd:last-of-type { border-bottom: 0; }
+    .back { display: inline-block; margin-top: 1.5rem; font-size: 0.78rem; }
+    footer { margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; }
+    #toast { position: fixed; right: 1rem; bottom: 1rem; z-index: 40; max-width: 20rem; padding: 0.7rem 0.9rem; border-radius: 0.55rem; background: var(--fig); color: white; box-shadow: var(--shadow); font-size: 0.8rem; }
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      aside { position: relative; height: auto; }
+      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow-row { grid-template-columns: 1fr; }
+      .decision { grid-template-columns: 1fr; }
+      .decision dt, .decision dd { border-bottom: 1px solid var(--line); }
+    }
+    @media (max-width: 580px) {
+      nav { grid-template-columns: 1fr; }
+      .topbar { position: static; align-items: flex-start; flex-direction: column; }
+      table { display: block; overflow-x: auto; }
+      h1 { font-size: 2.5rem; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --paper: #120d11; --surface: #1c151b; --surface-2: #2a2228; --ink: #f2ecef; --muted: #c5bac1; --line: #493d45; --fig: #f7f0f5; --danger-bg: #32171b; --warn-bg: #302715; --ok-bg: #102b25; --info-bg: #142638; --code: #080507; --shadow: none; }
+      aside { background: #080507; }
+      .button { color: var(--ink); }
+      input { background: #151014; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      aside, .topbar, .skip, .copy, #toast, .worksheet { display: none !important; }
+      .layout { display: block; }
+      .content { width: 100%; padding: 0; }
+      section { break-before: page; margin-top: 1rem; }
+      section:first-child { break-before: auto; }
+      pre { white-space: pre-wrap; break-inside: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the operator guide</a>
+  <div class="layout">
+    <aside aria-label="Guide navigation">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <span><strong>Wheel Fleet v5</strong><small>multi-machine operator guide</small></span>
+      </div>
+      <div class="side-state"><b>Use immutable waves, not one forever-head.</b><br>Current use stops after zero-effect launch-plan status. Provider start, commit, and GitHub are blocked.</div>
+      <nav>
+        <a href="#start">Start here</a>
+        <a href="#heads">The moving-head answer</a>
+        <a href="#not-ready">Before the first launch</a>
+        <a href="#waves">Choose a wave</a>
+        <a href="#worksheet">Fill in run values</a>
+        <a href="#owner">Owner setup</a>
+        <a href="#machine">Every physical machine</a>
+        <a href="#work">Future machine work</a>
+        <a href="#ready">Future local-ready / commit</a>
+        <a href="#integration">Staging integration</a>
+        <a href="#old-prs">PRs 3817 / 3853 / 3859</a>
+        <a href="#recovery">Recovery</a>
+        <a href="#troubleshooting">Troubleshooting</a>
+        <a href="#references">Detailed references</a>
+      </nav>
+      <div class="side-foot">Exact branch name in the current contracts: <code>develop-staging</code>. “dev-staging” is not an interchangeable alias.</div>
+    </aside>
+
+    <main id="main">
+      <div class="topbar">
+        <span>Standalone offline-readable guide · evidence checked 2026-07-19T19:20:45Z</span>
+        <div class="actions">
+          <a class="button" href="21-FLEET_V5_LOCAL_MACHINE_LAUNCH_AND_PR_HANDOFF.md">Canonical launch runbook</a>
+          <a class="button" href="18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md">Machine setup source</a>
+          <button class="button" type="button" onclick="window.print()">Print / save PDF</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <section id="start">
+          <p><strong>Owner edition</strong> · Separate computers, separate repositories, one controlled integration stream.</p>
+          <h1>Prepare the fleet without freezing the whole repository</h1>
+          <p class="lede">This is the literal zero-effect preparation sequence for reconciled stories and separate physical machines, followed by an honest future-state map of the gates required before any provider-backed edit/test turn, commit, or integration into <code>develop-staging</code>.</p>
+          <div class="status-row" aria-label="Current capability status">
+            <span class="badge ok">Validation and preview available</span>
+            <span class="badge ok">Launch-plan preparation available</span>
+            <span class="badge danger">Provider-backed start blocked</span>
+            <span class="badge danger">Machine-to-story worktree bridge missing</span>
+            <span class="badge danger">Atomic pre-commit authority check missing</span>
+            <span class="badge danger">Live push/PR consumer unavailable</span>
+            <span class="badge danger"><code>develop-staging</code> absent live</span>
+          </div>
+
+          <div class="callout ok">
+            <strong>Your HEAD concern is valid—and the design does not require one SHA to stay current forever.</strong>
+            <p>The fleet uses a fixed SHA as the <em>admitted starting point for one wave</em>. <code>develop-staging</code> can continue moving as completed work lands. The intended candidate/authority contracts are short-lived bindings for one exact revision, not a permanent repository freeze. The current commit consumer does not yet validate those contracts atomically before mutation, so commit remains unavailable in this guide.</p>
+          </div>
+
+          <h2 class="sr-only">At a glance</h2>
+          <div class="grid">
+            <article class="panel">
+              <h3>What stays identical</h3>
+              <ul>
+                <li>Wheel/ZOB runtime version</li>
+                <li>Wave bundle and bundle hash</li>
+                <li>Wave <code>sourceSha</code></li>
+                <li>All referenced story manifests</li>
+              </ul>
+            </article>
+            <article class="panel">
+              <h3>What is expected to change</h3>
+              <ul>
+                <li>Each story branch and its local working diff</li>
+                <li>The branch HEAD after a future atomically authorized commit</li>
+                <li>The shared <code>develop-staging</code> tip after merges</li>
+                <li>The next wave’s source SHA and bundle</li>
+              </ul>
+            </article>
+            <article class="panel">
+              <h3>What is blocked or future</h3>
+              <ul>
+                <li>Provider-backed run/start and application edits</li>
+                <li>Transferring a machine-worktree diff into the separately required story worktree</li>
+                <li>Synchronizing source between physical machines</li>
+                <li>Push, draft PR, CI observation, or PR-close consumption</li>
+                <li>Staging merge or promotion</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section id="heads">
+          <h2>The moving-head model</h2>
+          <p>There are four different SHA concepts. Treating them as one is what makes the process feel frightening. This diagram shows the target enabled lifecycle; current execution stops before machine start.</p>
+
+          <div class="flow" role="img" aria-label="Wave baseline stays fixed while story heads and develop-staging advance">
+            <div class="flow-row"><span class="flow-label">Wave source</span><span class="track"><span class="node fixed">S0 admitted</span><span class="arrow">→</span><span class="node fixed">remains the wave anchor</span></span></div>
+            <div class="flow-row"><span class="flow-label">Machine W1</span><span class="track"><span class="node">S0</span><span class="arrow">+</span><span class="node">local edits</span><span class="arrow">→</span><span class="node">C1 commit</span></span></div>
+            <div class="flow-row"><span class="flow-label">Machine W2</span><span class="track"><span class="node">S0</span><span class="arrow">+</span><span class="node">local edits</span><span class="arrow">→</span><span class="node">C2 or refresh</span></span></div>
+            <div class="flow-row"><span class="flow-label">develop-staging</span><span class="track"><span class="node live">S0</span><span class="arrow">→ merge C1 →</span><span class="node live">S1</span><span class="arrow">→ merge C2 →</span><span class="node live">S2</span></span></div>
+            <div class="flow-row"><span class="flow-label">Next wave</span><span class="track"><span class="node fixed">S2 becomes the new source</span><span class="arrow">→</span><span class="node fixed">new bundle</span></span></div>
+          </div>
+
+          <table>
+            <thead><tr><th>Name</th><th>Meaning</th><th>May it move?</th><th>What invalidates it?</th></tr></thead>
+            <tbody>
+              <tr><td><code>sourceSha</code></td><td>The exact repository commit against which one wave was reconciled and admitted.</td><td>No, not within that bundle.</td><td>A new wave deliberately gets a new source SHA and newly materialized bundle.</td></tr>
+              <tr><td>Machine control HEAD</td><td>The clean linked-worktree HEAD a future enabled session will claim.</td><td>It must remain fixed; file edits do not move HEAD.</td><td>Current claim/status/local-ready code does not enforce and reinspect all required bindings, so operational start is blocked. Manual equality evidence is useful but not an effect-boundary substitute.</td></tr>
+              <tr><td>Story branch HEAD</td><td>The story branch commit before and after its governed commit.</td><td>Yes, intentionally.</td><td>Any change after candidate creation makes the candidate/authority stale; regenerate them.</td></tr>
+              <tr><td><code>develop-staging</code> tip</td><td>The shared integration branch to which ordinary PRs eventually merge.</td><td>Yes, after each qualified staging merge.</td><td>A stale PR may need refresh and new validation, but unrelated movement does not rewrite the old wave’s history.</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Story handoff checks ancestry, not permanent equality.</strong>
+            <p>For PR handoff, the story worktree’s current HEAD must descend from the wave’s <code>sourceSha</code>. It does not have to equal the source forever. See <a href="../../packages/wheel-zob-pack/launch/workspace-snapshot.ts">workspace-snapshot.ts</a>. Initial machine claim does <em>not</em> currently enforce source equality or ancestry in code, which is why the explicit pre-start equality check below is a rollout gate rather than optional advice.</p>
+          </div>
+
+          <dl class="decision">
+            <dt><code>develop-staging</code> advanced, but my story is independent</dt><dd>In the future enabled workflow, local work may continue. Before PR/merge, refresh current target-branch evidence, rerun relevant tests, and regenerate any stale exact authority.</dd>
+            <dt>An upstream story merged and mine depends on it</dt><dd>In the future enabled workflow, start the dependent story in a later wave from the newer staging SHA. Do not copy a peer’s dirty worktree.</dd>
+            <dt>I rebased or changed my branch after making a candidate</dt><dd>In the future enabled workflow, the candidate and authority are intentionally stale. Rerun tests and prepare a new candidate/authority bound to the new HEAD and diff.</dd>
+            <dt>The wave source is no longer an ancestor</dt><dd>Stop. Reconcile from current truth and materialize a new bundle. Do not weaken the ancestor check.</dd>
+            <dt>A merge changed the exact commit SHA</dt><dd>That is normal. New commit means new receipt and post-commit lineage. Old receipts remain history, not authority for the new head.</dd>
+          </dl>
+        </section>
+
+        <section id="not-ready">
+          <h2>Before the first real multi-machine launch</h2>
+          <p>Do not begin the copy-paste machine steps until all seven boxes are true.</p>
+          <ul class="checklist">
+            <li>The current Wheel/ZOB implementation has been reviewed and published at one immutable full commit SHA. It is currently uncommitted/unreleased.</li>
+            <li><code>develop-staging</code> has been explicitly created, protected, and proven non-deploying. The live branch check in this session found it absent.</li>
+            <li><code>reports/wheel-zob/</code> is intentionally ignored in the application repository. Otherwise launch state makes the worktree dirty and start correctly blocks.</li>
+            <li>The old PR3853 bundle has been rematerialized with the current canonical structured bundle hash after story reconciliation.</li>
+            <li>Initial claim enforces machine HEAD equality to the plan’s <code>sourceSha</code>, and status/local-ready/handoff re-inspect the actual control workspace root, branch, and HEAD instead of trusting persisted metadata alone.</li>
+            <li>A reviewed machine-to-story worktree bridge exists. Today the machine session edits its claimed worktree while PR handoff intentionally requires a different linked story worktree; no automatic hash-preserving transfer connects them.</li>
+            <li>The governed commit tool atomically loads and validates the current Wheel candidate/authority, expiry, branch, workspace, lease, exact diff, and path set <em>before</em> committing. Today it only checks opaque hashes plus current HEAD and validates the Wheel lineage after the effect.</li>
+          </ul>
+
+          <div class="callout danger">
+            <strong>Branch spelling is a contract.</strong>
+            <p>The current schemas and approved design use <code>develop-staging</code>. If the organization chooses <code>dev-staging</code> instead, update the branch policy, manifests, validators, CI, and documentation together before launch. Never use both names casually.</p>
+          </div>
+
+          <p>Branch creation, protection, workflow changes, and non-deployment proof are human-controlled architecture work. This guide does not create or push the branch. See <a href="17-STAGING_ASSURANCE_AND_PROMOTION_FACTORY.md">Staging Assurance and Promotion Factory</a> and <a href="08-PERMISSIONS_ACKS_AND_GITHUB_APPS.md">Permissions, acknowledgements, and GitHub Apps</a>.</p>
+        </section>
+
+        <section id="waves">
+          <h2>Target operating pattern after the gates: small waves</h2>
+          <p>After provider-backed start is safely enabled, do not bind all 60 stories to one starting SHA and expect every machine to stay current for days. Reconcile the full backlog, but launch only a small dependency-safe wave at a time.</p>
+
+          <ol class="steps">
+            <li><strong>Choose the wave baseline.</strong> Record the exact current <code>develop-staging</code> SHA.</li>
+            <li><strong>Select only ready stories.</strong> Prefer at most one independently committable story per physical machine in a wave. An explicitly approved composite may remain together.</li>
+            <li><strong>Materialize a wave bundle.</strong> Include every story/manifest needed to validate that wave and all dependency references. Every selected machine validates the entire wave bundle.</li>
+            <li><strong>Future: run the machines in parallel.</strong> Each starts from the same wave source SHA but works only its assigned branch and scope.</li>
+            <li><strong>Finish, review, and integrate one PR at a time.</strong> Full staging CI runs against each new staging head.</li>
+            <li><strong>Refresh the next wave.</strong> Use the newest accepted staging SHA, rerun drift/audit checks, and materialize a new bundle.</li>
+          </ol>
+
+          <div class="callout danger">
+            <strong>Rollout blocker: the two-worktree bridge is not implemented.</strong>
+            <p>The implemented test path edits its claimed linked worktree. Exact PR handoff deliberately rejects that same root and requires a separate linked story worktree. There is no current command that safely creates the story worktree, moves the exact reviewed diff, and binds it back to the machine claim. Small waves prevent mixed diffs, but they do not by themselves close this gap. Treat the guide below as the desired operating sequence only. Do not execute <code>start-local-machine</code> for a real wave until every gate above is implemented, validated, and independently reviewed.</p>
+          </div>
+
+          <table>
+            <thead><tr><th>Wave</th><th>Good contents</th><th>Wait until</th></tr></thead>
+            <tbody>
+              <tr><td>Wave 1</td><td>Independent root stories and prerequisite fixes</td><td><code>develop-staging</code> exists, is protected, and all inputs are reconciled</td></tr>
+              <tr><td>Wave 2</td><td>Stories depending on Wave 1 source or artifacts</td><td>Required Wave 1 PRs are integrated and staging CI is green</td></tr>
+              <tr><td>Wave 3+</td><td>Next dependency layer and newly ready work</td><td>Fresh drift check and new bundle bind current staging truth</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="worksheet">
+          <h2>Fill in the run worksheet once</h2>
+          <p>Values entered here only update code snippets in this open page. They are not sent anywhere or saved.</p>
+          <div class="worksheet">
+            <div class="worksheet-grid">
+              <label>Run ID<input data-token="RUN_ID" value="fleet-v5-wave-01" autocomplete="off"></label>
+              <label>Machine ID<input data-token="MACHINE_ID" value="W1" autocomplete="off"></label>
+              <label>Reviewed ZOB full commit SHA<input data-token="ZOB_REF" value="REVIEWED_ZOB_FULL_SHA" autocomplete="off"></label>
+              <label>Wave source SHA<input data-token="SOURCE_SHA" value="CURRENT_STAGING_SHA" autocomplete="off"></label>
+              <label>Bundle path<input data-token="BUNDLE_PATH" value="docs/operations/fleet-v5/zob/wave-01-machine-bundle.json" autocomplete="off"></label>
+              <label>ZOB checkout<input data-token="ZOB_DIR" value="$HOME/code/zob-harness" autocomplete="off"></label>
+              <label>Application control clone<input data-token="CONTROL_DIR" value="$HOME/code/jointhewheel-control" autocomplete="off"></label>
+              <label>Machine worktree<input data-token="MACHINE_DIR" value="$HOME/code/jointhewheel-W1" autocomplete="off"></label>
+            </div>
+          </div>
+          <div class="callout"><strong>Pi slash commands do not expand shell variables.</strong><p>The snippets below substitute worksheet values visually. Before pressing Enter in Pi, verify that every placeholder has become an actual value.</p></div>
+        </section>
+
+        <section id="owner">
+          <h2>One-time owner setup for each wave</h2>
+          <ol class="steps">
+            <li>
+              <strong>Record current truth.</strong>
+              <p>Capture current <code>develop-staging</code> SHA, Wheel/ZOB release SHA, story-source files, audit inputs, human gates, and branch contracts.</p>
+            </li>
+            <li>
+              <strong>Rerun reconciliation.</strong>
+              <p>Update cards, dependencies, acceptance criteria, non-goals, merged prerequisites, aliases, composites, and model routing. Resolve ambiguity instead of guessing.</p>
+              <div class="code-wrap template"><button class="copy" type="button">Copy</button><pre><code>cd {{CONTROL_DIR}}
+nvm exec 20.19.0 npm run validate:wheel-zob-fleet-v5-adapter</code></pre></div>
+            </li>
+            <li>
+              <strong>Materialize the wave bundle.</strong>
+              <p>The bundle’s <code>sourceSha</code> is the wave anchor. The bundle must use the current canonical structured hash. Every referenced story file must travel with it.</p>
+            </li>
+            <li>
+              <strong>Create the assignment sheet.</strong>
+              <table>
+                <thead><tr><th>Physical host</th><th>Machine ID</th><th>Story</th><th>Branch</th><th>Hard dependencies</th><th>Human gates</th></tr></thead>
+                <tbody>
+                  <tr><td>worker-a</td><td>W1</td><td>&lt;story ID&gt;</td><td>&lt;manifest branch&gt;</td><td>none</td><td>none</td></tr>
+                  <tr><td>worker-b</td><td>W2</td><td>&lt;story ID&gt;</td><td>&lt;manifest branch&gt;</td><td>&lt;story&gt;</td><td>&lt;gate ref&gt;</td></tr>
+                </tbody>
+              </table>
+            </li>
+            <li>
+              <strong>Distribute immutable inputs, not mutable prose.</strong>
+              <p>Every computer receives the same reviewed runtime ref, source SHA, wave bundle, and all referenced manifests. Credentials remain local to each computer.</p>
+            </li>
+          </ol>
+        </section>
+
+        <section id="machine">
+          <h2>Preparation steps on every physical machine</h2>
+          <p>The zero-effect verification and plan-preparation steps may be repeated per physical computer after a reviewed runtime release exists. Provider-backed start remains unavailable until all seven rollout gates are evidenced. Replace W1 with that computer’s assigned machine ID.</p>
+          <div class="callout danger"><strong>Present-day status: blocked before provider-backed start.</strong><p>You may use the read-only checks to understand prerequisites, but do not execute the start command for a real wave while initial source enforcement, control-HEAD reinspection, the story-worktree bridge, and atomic commit authority remain missing.</p></div>
+
+          <h3>Machine zero: bootstrap from only the application repository</h3>
+          <p>If the computer currently has only its <code>jointhewheel</code> repository, complete this prerequisite first. Do not continue with placeholders.</p>
+          <ol>
+            <li>Install or verify Git, Python 3, a C/C++ build toolchain, and an approved Node version manager. Follow <a href="18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md#3-common-os-prerequisites--every-sourcevalidation-machine">the OS prerequisite instructions</a>.</li>
+            <li>Install Node <code>20.19.0</code> for application commands and Node <code>22.22.3</code> for Pi/Wheel.</li>
+            <li>Install the reviewed Pi host under Node 22. Provider authentication is not required for the zero-effect checks in this guide; never copy auth files or keychains between computers.</li>
+            <li>After a Wheel-enabled release exists, clone the canonical ZOB repository into the worksheet’s ZOB directory and resolve the reviewed release to its full commit SHA. Until that release exists, another computer cannot reproduce this implementation.</li>
+            <li>Point the worksheet’s control-clone field at the application repository already on that computer. Preserve or resolve every local change before creating a linked worktree.</li>
+            <li>Do not type <code>run</code>, <code>run-machine</code>, or <code>start-local-machine</code>. Those commands queue a real Pi model turn and remain blocked until all seven rollout gates pass.</li>
+          </ol>
+          <div class="code-wrap"><button class="copy" type="button">Copy</button><pre><code>command -v git
+command -v python3
+command -v nvm
+nvm install 20.19.0
+nvm install 22.22.3
+nvm exec 22.22.3 npm install --global @earendil-works/pi-coding-agent@0.80.7
+nvm exec 22.22.3 pi --version</code></pre></div>
+          <div class="callout warn"><strong>If <code>nvm</code> is not installed, stop.</strong><p>Use the organization-approved installation path from the machine setup guide. Do not paste an unreviewed remote installer into a fleet run.</p></div>
+
+          <h3>A. Verify the Wheel/ZOB checkout</h3>
+          <div class="code-wrap template"><button class="copy" type="button">Copy</button><pre><code>cd {{ZOB_DIR}}
+git status --short
+# STOP if this prints unexpected changes.
+
+git checkout --detach {{ZOB_REF}}
+test "$(git rev-parse HEAD)" = "{{ZOB_REF}}"
+
+nvm exec 22.22.3 npm ci
+nvm exec 22.22.3 npm run doctor:wheel-zob
+nvm exec 22.22.3 npm run check -- --pretty false
+nvm exec 22.22.3 npm run smoke:wheel-zob-pack
+nvm exec 22.22.3 npm run smoke:wheel-zob-extension</code></pre></div>
+
+          <h3>B. Prepare the existing application repository</h3>
+          <div class="code-wrap template"><button class="copy" type="button">Copy</button><pre><code>cd {{CONTROL_DIR}}
+git status --short
+# STOP if this prints anything you have not intentionally preserved.
+
+git cat-file -e {{SOURCE_SHA}}^{commit}
+
+git worktree add \
+  -b fleet/{{RUN_ID}}/{{MACHINE_ID}} \
+  {{MACHINE_DIR}} \
+  {{SOURCE_SHA}}
+
+cd {{MACHINE_DIR}}
+test "$(git rev-parse HEAD)" = "{{SOURCE_SHA}}"
+test -n "$(git branch --show-current)"
+git status --short
+# Expected: no output.</code></pre></div>
+
+          <div class="callout warn">
+            <strong>If the approved story manifest requires a different exact branch name, use that name.</strong>
+            <p>Do not invent a branch merely to satisfy this example. PR handoff validates the manifest’s branch contract.</p>
+          </div>
+
+          <h3>C. Prove launch reports will not dirty the worktree</h3>
+          <div class="code-wrap"><button class="copy" type="button">Copy</button><pre><code>git check-ignore -q reports/wheel-zob/.probe
+echo $?
+# Required result: 0. Otherwise STOP.</code></pre></div>
+
+          <h3>D. Install application dependencies and validate the complete bundle</h3>
+          <div class="code-wrap template"><button class="copy" type="button">Copy</button><pre><code>cd {{MACHINE_DIR}}
+nvm exec 20.19.0 npm ci
+nvm exec 20.19.0 npm --prefix frontend ci
+nvm exec 20.19.0 npm run validate:wheel-zob-fleet-v5-adapter
+
+nvm exec 22.22.3 \
+  {{ZOB_DIR}}/node_modules/.bin/tsx \
+  {{ZOB_DIR}}/tools/wheel-zob/cli.ts \
+  plan-machine \
+  {{RUN_ID}} \
+  {{MACHINE_ID}} \
+  {{BUNDLE_PATH}}</code></pre></div>
+          <p>Expected: top-level <code>planned=true</code>, the correct machine ID and expected story, plus <code>publicPlan.dispatchEnabled=false</code>. An invalid unselected peer still blocks the wave.</p>
+
+          <h3>E. Stay in the zero-effect CLI path</h3>
+          <p>Current preparation does not require a Pi provider session. Run the reviewed Wheel CLI from the application worktree so repository-relative bundle and report paths resolve there.</p>
+
+          <h3>F. Prepare and inspect the zero-effect launch plan</h3>
+          <div class="code-wrap template"><button class="copy" type="button">Copy</button><pre><code>cd {{MACHINE_DIR}}
+
+nvm exec 22.22.3 \
+  {{ZOB_DIR}}/node_modules/.bin/tsx \
+  {{ZOB_DIR}}/tools/wheel-zob/cli.ts \
+  pools
+
+nvm exec 22.22.3 \
+  {{ZOB_DIR}}/node_modules/.bin/tsx \
+  {{ZOB_DIR}}/tools/wheel-zob/cli.ts \
+  prepare-local-launch \
+  {{RUN_ID}}-{{MACHINE_ID}} {{RUN_ID}} {{BUNDLE_PATH}} {{MACHINE_ID}}
+
+nvm exec 22.22.3 \
+  {{ZOB_DIR}}/node_modules/.bin/tsx \
+  {{ZOB_DIR}}/tools/wheel-zob/cli.ts \
+  local-launch-status {{RUN_ID}}-{{MACHINE_ID}}</code></pre></div>
+
+          <div class="callout danger">
+            <strong>Current executable boundary: stop after launch-plan status.</strong>
+            <p>Do not type <code>start-local-machine</code>. It claims the session and calls <code>pi.sendUserMessage(...)</code>, which can invoke the provider, incur spend, and edit application files before the missing source/workspace gates are enforced.</p>
+          </div>
+
+          <h3>G. Record the zero-effect preparation card</h3>
+          <table>
+            <thead><tr><th>Record</th><th>Where it comes from</th></tr></thead>
+            <tbody>
+              <tr><td>Physical hostname</td><td>Your inventory</td></tr>
+              <tr><td>Machine ID</td><td>Wave assignment</td></tr>
+              <tr><td>Runtime ref</td><td><code>git -C &lt;zob&gt; rev-parse HEAD</code></td></tr>
+              <tr><td>Wave source SHA</td><td>Bundle <code>sourceSha</code></td></tr>
+              <tr><td>Bundle hash</td><td>Prepared launch output</td></tr>
+              <tr><td>Launch ID / plan hash / expiry</td><td>Prepared launch output</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="work">
+          <h2>Future post-start work contract—not executable today</h2>
+          <div class="callout danger"><strong>No machine implementation turn is currently authorized.</strong><p>The current operator boundary ends after zero-effect plan preparation/status. The behavior below becomes available only after all seven rollout gates are implemented, negative-tested, and independently reviewed.</p></div>
+          <div class="grid">
+            <article class="panel">
+              <h3>Future machine may do</h3>
+              <ul>
+                <li>Read its admitted story and approved dependency evidence</li>
+                <li>Edit only assigned source paths</li>
+                <li>Run Node 20 application tests and static checks</li>
+                <li>Perform local QA, independent review, and repairs</li>
+                <li>Write safe evidence refs and hashes</li>
+              </ul>
+            </article>
+            <article class="panel">
+              <h3>Machine must never do</h3>
+              <ul>
+                <li>Take another machine’s story</li>
+                <li>Invent a human gate receipt</li>
+                <li>Commit, push, fetch, or mutate GitHub without the later exact consumer</li>
+                <li>Merge, promote, deploy, or access credentials</li>
+                <li>Copy peer dirty worktrees as dependency evidence</li>
+              </ul>
+            </article>
+          </div>
+
+          <h3>Future dependency behavior</h3>
+          <ul>
+            <li><strong>Artifact-only dependency:</strong> verify the exact safe artifact ref and hash; continue only if the manifest allows artifact evidence.</li>
+            <li><strong>Source dependency:</strong> wait for the upstream change to be reviewed and integrated, then start the dependent work from a newer wave.</li>
+            <li><strong>Overlap or conflict:</strong> stop the affected story rather than silently editing peer-owned scope.</li>
+          </ul>
+        </section>
+
+        <section id="ready">
+          <h2>Future local-ready and commit boundary</h2>
+          <p>Local-ready is not reachable in the current operational workflow because provider-backed start is blocked. After source/workspace enforcement is implemented, a future machine may mark local-ready only after its work is tested, independently reviewed, and bound to safe evidence.</p>
+
+          <div class="callout danger">
+            <strong>Future local-ready still will not authorize commit.</strong>
+            <p>Two additional implementation gaps remain:</p>
+            <ul>
+              <li>No current command creates the required separate story worktree and transfers the exact reviewed machine diff while preserving lineage.</li>
+              <li><code>zob_zcommit_run</code> treats candidate/authority hashes as opaque strings and can commit before Wheel validates expiry, branch, workspace, lease, diff, or paths.</li>
+            </ul>
+          </div>
+
+          <h3>What must exist before commit can be enabled</h3>
+          <ol>
+            <li>A reviewed, hash-preserving machine-to-story worktree bridge.</li>
+            <li>An atomic commit consumer that loads and validates exact Wheel authority before mutation.</li>
+            <li>Pre-effect checks of expiry, machine claim/lease/epoch, workspace root, branch, HEAD, content/diff hashes, and exact eligible paths.</li>
+            <li>A negative test proving stale or fabricated bindings create no commit.</li>
+            <li>A fresh independent oracle PASS with <code>no_ship=false</code>.</li>
+          </ol>
+
+          <p>The future contract is specified in <a href="21-FLEET_V5_LOCAL_MACHINE_LAUNCH_AND_PR_HANDOFF.md">the canonical launch/handoff runbook</a>; it is not current executable authority.</p>
+        </section>
+
+        <section id="integration">
+          <h2>How completed stories should reach develop-staging</h2>
+          <p>This is the intended integration sequence once the branch and live adapters are implemented and activated. The current local pack stops before these effects.</p>
+          <ol class="steps">
+            <li><strong>Push the exact governed commit.</strong> Future adapter must consume current post-commit authority and return an idempotent external receipt.</li>
+            <li><strong>Create a draft PR targeting <code>develop-staging</code>.</strong> Never target <code>develop</code> for an ordinary story.</li>
+            <li><strong>Run PR CI, PR-close, and blind review on the exact current PR head.</strong> Any new commit invalidates prior exact-head review evidence.</li>
+            <li><strong>Merge one qualified PR into staging.</strong> The specified future Staging Merge App uses squash merge and expected-head protection.</li>
+            <li><strong>Run full integration CI on the new staging SHA.</strong> Do not start the next staging merge while staging is red.</li>
+            <li><strong>Refresh dependent waves.</strong> Reconcile against the new staging SHA and produce a new source-bound bundle.</li>
+          </ol>
+
+          <div class="callout warn">
+            <strong>If staging moves while a PR is open</strong>
+            <p>That is expected. Check conflicts and branch policy. If the story branch must be refreshed or rebased, rerun validation and regenerate exact candidate/authority/receipt lineage. Never reuse evidence bound to the old head.</p>
+          </div>
+
+          <p>Promotion from <code>develop-staging</code> to <code>develop</code> is a separate human-started frozen-candidate process. It is not part of ordinary story execution. Read <a href="17-STAGING_ASSURANCE_AND_PROMOTION_FACTORY.md">the staging, assurance, and promotion design</a>.</p>
+        </section>
+
+        <section id="old-prs">
+          <h2>What to do with PRs #3817, #3853, and #3859</h2>
+          <p>Live GitHub state was checked read-only at <time datetime="2026-07-19T19:20:45Z">2026-07-19 19:20 UTC</time>. Current <code>develop</code> was <code>5c05eb4ea0329a4aadfdd5fda0ce4a32b5cf2a12</code>; <code>develop-staging</code> was absent. You chose <strong>analysis only for now</strong>: no merge, close, retarget, or branch change.</p>
+
+          <table>
+            <thead><tr><th>PR</th><th>Live state</th><th>Current interpretation</th><th>Recommendation</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><a href="https://github.com/Join-The-Wheel/jointhewheel/pull/3817">#3817</a><br><small>repository assurance and fixes</small></td>
+                <td>Open draft; checks green; 1,054 files; 42 commits; 36 commits behind the cited <code>develop</code> head</td>
+                <td>Contains broad source fixes, audit outputs, docs, workflows, migrations, and transcripts. Too large to trust as a timeless snapshot.</td>
+                <td>Do not merge as-is. Rerun the full assurance against current truth, classify surviving changes, and split or supersede only after evidence parity.</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/Join-The-Wheel/jointhewheel/pull/3853">#3853</a><br><small>60 stories and allocation</small></td>
+                <td>Open draft; 277 files; 2 commits; 485 commits behind current <code>develop</code>; Gitleaks failure plus cancelled checks</td>
+                <td>Valuable historical planning input, but the cards, dependencies, audits, allocation, and old bundle are stale.</td>
+                <td>Do not merge as-is. Reconcile from current code and merged-PR truth, rerun audits, regenerate all story artifacts and the canonical bundle.</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/Join-The-Wheel/jointhewheel/pull/3859">#3859</a><br><small>stale PR-run reconciler</small></td>
+                <td>Open draft; checks green; 4 files; 1 commit; 33 commits behind current <code>develop</code></td>
+                <td>The <code>adm-zip</code> upgrade was already merged separately in <a href="https://github.com/Join-The-Wheel/jointhewheel/pull/3861">#3861</a>. A read-only object lookup at the cited <code>develop</code> head found neither the stale-run workflow nor its test.</td>
+                <td>Do not merge as-is. Revalidate whether the stale-run problem still exists after newer CI/capacity changes; extract only the still-needed workflow/test into a fresh narrow change.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout ok">
+            <strong>“Update everything together” should mean one current-truth reconciliation, not one giant merge.</strong>
+            <p>Use current <code>develop</code> as the evidence source, rerun the repository assurance, harvest still-valid findings/fixes from #3817 and #3859, then regenerate #3853’s story plan last. If you later approve the staging architecture, land the refreshed pieces as an ordered successor stack targeting <code>develop-staging</code>.</p>
+          </div>
+
+          <p>The three old PRs have almost no direct path overlap: #3817 and #3853 share no changed paths, #3853 and #3859 share none, and #3817/#3859 overlap only on <code>package.json</code>. Their main conflict is <em>time and truth</em>, not file collisions.</p>
+        </section>
+
+        <section id="recovery">
+          <h2>Future recovery and restart contract</h2>
+          <p>Operational machine recovery is unavailable while provider-backed start is blocked. The implemented journal/checkpoint/lease contract remains test evidence, not permission to start a real wave.</p>
+          <ol>
+            <li>After the source/workspace gate is fixed, recovery must reopen the exact same linked worktree with the exact reviewed runtime.</li>
+            <li>Status must reinspect the live workspace rather than trust persisted metadata alone.</li>
+            <li>A live ownership lease must block takeover.</li>
+            <li>An expired lease may be recovered only with the exact next epoch.</li>
+          </ol>
+
+          <p>Contract defaults are a 24-hour launch plan, 12-hour ownership lease, and 4-hour PR candidate/authority lifetime.</p>
+          <div class="callout danger"><strong>Never repair recovery by editing report JSON.</strong><p>The journal is authoritative. Hash, checkpoint, workspace, branch, HEAD, claim, epoch, and lease mismatches must block or use a separately reviewed repair path.</p></div>
+        </section>
+
+        <section id="troubleshooting">
+          <h2>Troubleshooting</h2>
+          <details open>
+            <summary>“The worktree is dirty during preparation”</summary>
+            <div><p>Run <code>git status --short</code>. If only <code>reports/wheel-zob/</code> appears, the application’s ignore policy is missing. Fix that in the reviewed integration source; preserve any other local work. Operational start remains blocked regardless.</p></div>
+          </details>
+          <details>
+            <summary>“The plan expired”</summary>
+            <div><p>Prepare a new launch with a new launch ID after revalidating the bundle. Do not rewrite the old plan or reuse its hash.</p></div>
+          </details>
+          <details>
+            <summary>“The future story branch needs current staging changes”</summary>
+            <div><p>The current workflow stops before provider-backed start. In the future enabled workflow, refresh through the repository’s approved process, rerun validation, and move materially changed assumptions into a newly reconciled wave.</p></div>
+          </details>
+          <details>
+            <summary>“One machine needs another machine’s code”</summary>
+            <div><p>This is a source dependency, not an artifact hint. Integrate the upstream PR into staging first, then launch the dependent story in a later wave from the new staging SHA.</p></div>
+          </details>
+          <details>
+            <summary>“Can I run all ten stories assigned to one machine in one branch?”</summary>
+            <div><p>Not today: provider-backed run/start is blocked. In the future workflow, mixed multi-story diffs still cannot honestly become independent story handoffs; prefer one independently committable story per machine/wave.</p></div>
+          </details>
+          <details>
+            <summary>“Can I merge the old PRs first and reconcile later?”</summary>
+            <div><p>Not safely. #3817 is enormous and stale, #3853 is far behind with failed checks, and #3859 is partly superseded. Current-truth reconciliation must precede any merge decision.</p></div>
+          </details>
+          <details>
+            <summary>“Why can’t I continue to machine start?”</summary>
+            <div><p>The current pack does not atomically enforce the admitted source at start or reinspect workspace/branch/HEAD at later transitions. After that is repaired, the story-worktree bridge, atomic pre-effect commit validation, and external GitHub consumers remain separate gates.</p></div>
+          </details>
+        </section>
+
+        <section id="references">
+          <h2>Detailed references</h2>
+          <div class="grid">
+            <article class="panel"><h3>Operate local machines</h3><ul>
+              <li><a href="21-FLEET_V5_LOCAL_MACHINE_LAUNCH_AND_PR_HANDOFF.md">Selected-machine launch and exact PR handoff</a></li>
+              <li><a href="18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md">Canonical machine setup</a></li>
+              <li><a href="WHEEL_ZOB_RUNTIME_MACHINE_SETUP.html">Readable machine setup HTML</a></li>
+              <li><a href="20-FLEET_V5_DISABLED_SUPERVISOR_RUNBOOK.md">Disabled supervisor runbook</a></li>
+            </ul></article>
+            <article class="panel"><h3>Understand application intake</h3><ul>
+              <li><a href="19-JOINTHEWHEEL_FLEET_V5_OPERATOR_GUIDE.md">JointheWheel operator and authority guide</a></li>
+              <li><a href="03-STORY_TO_PR_CLOSE_FACTORY.md">Story to PR-close factory</a></li>
+              <li><a href="11-EVIDENCE_AND_GITHUB_CHECKS.md">Evidence and GitHub checks</a></li>
+              <li><a href="schemas/README.md">Schema index</a></li>
+            </ul></article>
+            <article class="panel"><h3>Understand staging and authority</h3><ul>
+              <li><a href="17-STAGING_ASSURANCE_AND_PROMOTION_FACTORY.md">Staging, assurance, and promotion design</a></li>
+              <li><a href="08-PERMISSIONS_ACKS_AND_GITHUB_APPS.md">Permissions and GitHub Apps</a></li>
+              <li><a href="14-VALIDATION_AND_PILOTS.md">Validation and pilot order</a></li>
+              <li><a href="15-UPGRADE_AND_ROLLBACK.md">Upgrade and rollback</a></li>
+            </ul></article>
+            <article class="panel"><h3>Inspect implementation evidence</h3><ul>
+              <li><a href="../../packages/wheel-zob-pack/launch/local-machine.ts">Launch planning implementation</a></li>
+              <li><a href="../../packages/wheel-zob-pack/launch/session-store.ts">Session journal and recovery</a></li>
+              <li><a href="../../packages/wheel-zob-pack/launch/workspace-snapshot.ts">Git workspace and ancestry checks</a></li>
+              <li><a href="../../packages/wheel-zob-pack/launch/pr-handoff.ts">Candidate, authority, and receipt checks</a></li>
+              <li><a href="../../tools/wheel-zob/cli.ts">Terminal CLI</a></li>
+            </ul></article>
+          </div>
+
+          <h3>External reference links</h3>
+          <ul>
+            <li><a href="https://git-scm.com/docs/git-worktree">Git worktree manual</a></li>
+            <li><a href="https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/extensions.md">Pi extensions and trust</a></li>
+            <li><a href="https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/providers.md">Pi provider login</a></li>
+            <li><a href="https://nodejs.org/en/download">Node.js downloads</a></li>
+          </ul>
+
+          <footer>
+            <p><strong>Truth boundary:</strong> current operator use ends after zero-effect validation, preview, launch-plan preparation, and status. Provider-backed run/start, application edits, local-ready, recovery, PR handoff, and Wheel story commit are blocked until their listed code gates pass. Multi-host distribution, live GitHub effects, <code>develop-staging</code> installation, staging merge, promotion, and deployment are not activated by this document.</p>
+            <p>No instruction here authorizes secrets access, provider spend, branch-policy mutation, commit, push, merge, promotion, or deployment.</p>
+          </footer>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <script>
+    (() => {
+      const tokenInputs = [...document.querySelectorAll('[data-token]')];
+      const templates = [...document.querySelectorAll('.template code')];
+      for (const code of templates) code.dataset.template = code.textContent;
+
+      function renderTemplates() {
+        const values = Object.fromEntries(tokenInputs.map((input) => [input.dataset.token, input.value.trim()]));
+        for (const code of templates) {
+          let value = code.dataset.template;
+          for (const [key, replacement] of Object.entries(values)) {
+            value = value.replaceAll(`{{${key}}}`, replacement || `{{${key}}}`);
+          }
+          code.textContent = value;
+        }
+      }
+
+      for (const input of tokenInputs) input.addEventListener('input', renderTemplates);
+      renderTemplates();
+
+      const toast = document.getElementById('toast');
+      let toastTimer;
+      function notify(message) {
+        toast.textContent = message;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
+      }
+
+      for (const pre of document.querySelectorAll('pre')) pre.tabIndex = 0;
+
+      for (const button of document.querySelectorAll('.copy')) {
+        button.addEventListener('click', async () => {
+          const text = button.parentElement.querySelector('code').textContent;
+          try {
+            await navigator.clipboard.writeText(text);
+            notify('Command copied');
+          } catch {
+            notify('Copy unavailable—select the command manually');
+          }
+        });
+      }
+
+      const links = [...document.querySelectorAll('aside nav a')];
+      const sections = links.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+          const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visible) return;
+          for (const link of links) link.removeAttribute('aria-current');
+          const active = links.find((link) => link.getAttribute('href') === `#${visible.target.id}`);
+          if (active) active.setAttribute('aria-current', 'true');
+        }, { rootMargin: '-15% 0px -70% 0px', threshold: [0, 0.25, 0.75] });
+        for (const section of sections) observer.observe(section);
+      }
+    })();
+  </script>
+</body>
+</html>

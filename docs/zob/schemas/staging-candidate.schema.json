@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:staging-candidate:v1",
+  "title": "Wheel ZOB Versioned Frozen Staging Candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "candidateId", "windowId", "candidateRevision", "repositoryId", "stagingBranch", "initialStagingSha", "stagingSha", "developBranch", "developSha", "mergeBaseSha", "includedPullRequests", "repairLineage", "integration", "freeze", "maxAssuranceRounds", "maxAutomaticRepairTransitions", "policyVersions", "artifactHashes", "status", "createdAt", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.staging-candidate.v1"},
+    "candidateId": {"type": "string", "minLength": 8},
+    "windowId": {"type": "string", "minLength": 8},
+    "candidateRevision": {"type": "integer", "minimum": 1, "maximum": 3},
+    "priorCandidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "repositoryId": {"type": "string"},
+    "stagingBranch": {"const": "develop-staging"},
+    "initialStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "developBranch": {"const": "develop"},
+    "developSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "mergeBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "includedPullRequests": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prNumber", "origin", "prHeadSha", "stagingMergeSha", "mergeMethod", "prCloseCheckId", "blindReviewCheckId"],
+        "properties": {
+          "prNumber": {"type": "integer", "minimum": 1},
+          "storyId": {"type": "string"},
+          "origin": {"enum": ["staged-cohort", "assurance-repair"]},
+          "assuranceRound": {"type": "integer", "minimum": 1, "maximum": 2},
+          "findingRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+          "prHeadSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "stagingMergeSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "mergeMethod": {"const": "squash"},
+          "prCloseCheckId": {"type": "string"},
+          "blindReviewCheckId": {"type": "string"}
+        },
+        "allOf": [
+          {"if": {"properties": {"origin": {"const": "assurance-repair"}}, "required": ["origin"]}, "then": {"required": ["assuranceRound", "findingRefs"]}}
+        ]
+      }
+    },
+    "repairLineage": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repairRound", "priorCandidateHash", "resultingCandidateHash", "beforeStagingSha", "afterStagingSha", "repairPrNumbers", "findingRefs", "integrationCheckId"],
+        "properties": {
+          "repairRound": {"type": "integer", "minimum": 1, "maximum": 2},
+          "priorCandidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "resultingCandidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "beforeStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "afterStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "repairPrNumbers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+          "findingRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+          "integrationCheckId": {"type": "string"}
+        }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkId", "result", "checkSetHash", "deploymentDisabledProof"],
+      "properties": {
+        "checkId": {"type": "string"},
+        "result": {"enum": ["pass", "fail", "pending", "unknown"]},
+        "checkSetHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "deploymentDisabledProof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workflowManifestHash", "stagingCanTriggerDeployment", "proofArtifactHash"],
+          "properties": {
+            "workflowManifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "stagingCanTriggerDeployment": {"const": false},
+            "proofArtifactHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          }
+        }
+      }
+    },
+    "freeze": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windowId", "humanStarted", "windowInitialStagingSha", "promotionWindowReceiptHash", "startedAt", "expiresAt", "unrelatedMergeQueueFrozen", "findingBoundRepairMergeAllowed"],
+      "properties": {
+        "windowId": {"type": "string"},
+        "humanStarted": {"const": true},
+        "windowInitialStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "promotionWindowReceiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "unrelatedMergeQueueFrozen": {"const": true},
+        "findingBoundRepairMergeAllowed": {"const": true}
+      }
+    },
+    "maxAssuranceRounds": {"const": 3},
+    "maxAutomaticRepairTransitions": {"const": 2},
+    "policyVersions": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}},
+    "artifactHashes": {"type": "object", "additionalProperties": false, "required": ["sourceManifest", "canonicalDocManifest", "candidate"], "properties": {"sourceManifest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "canonicalDocManifest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "candidate": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "status": {"enum": ["integration-pending", "ready-for-assurance", "assurance-active", "invalid", "abandoned", "promoted"]},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "invalidatedAt": {"type": "string", "format": "date-time"},
+    "invalidationReasonHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {"if": {"properties": {"candidateRevision": {"minimum": 2}}, "required": ["candidateRevision"]}, "then": {"required": ["priorCandidateHash"]}},
+    {"if": {"properties": {"status": {"enum": ["ready-for-assurance", "assurance-active", "promoted"]}}, "required": ["status"]}, "then": {"properties": {"integration": {"properties": {"result": {"const": "pass"}}}}}}
+  ]
+}

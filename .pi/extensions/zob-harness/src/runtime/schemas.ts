@@ -200,7 +200,7 @@ const AdaptiveDelegationParams = Type.Object({
     applyReadinessHash: Type.Optional(Type.String({ description: "sha256 of a sandbox apply-readiness artifact." })),
     approvalHash: Type.Optional(Type.String({ description: "sha256 of human approval metadata for sandbox/write path." })),
   }, { description: "P9 sandbox/write gate metadata. Does not enable live adaptive writes or auto-apply." })),
-  scaleApproval: Type.Optional(Type.Object({ 
+  scaleApproval: Type.Optional(Type.Object({
     approvedBy: Type.Optional(Type.String({ description: "Human/operator approver identifier. Stored only as approvedByHash in artifacts." })),
     approvedAt: Type.Optional(Type.String({ description: "Human/operator approval timestamp or date for 20/30-agent adaptive scale." })),
     approvalId: Type.Optional(Type.String({ description: "Approval ticket/id. Stored only as approvalIdHash in artifacts." })),
@@ -236,7 +236,7 @@ const FactoryRunParams = Type.Object({
     scope: Type.Optional(Type.String({ description: "Approval/proof scope. Stored only as scopeHash." })),
   }, { description: "Factory adaptive live dispatch proof gate metadata. Only smoke read-only proof may use live dispatch; writes remain disabled." })),
   adaptive_delegation: Type.Optional(AdaptiveDelegationParams),
-  oracle_gate: Type.Optional(Type.Object({ 
+  oracle_gate: Type.Optional(Type.Object({
     verdict: Type.Optional(StringEnum(["PASS", "FAIL", "WARN"] as const, { description: "Oracle verdict for promoting smoke to pilot. Must be PASS for pilot execution." })),
     no_ship: Type.Optional(Type.Boolean({ description: "Oracle no-ship flag. Must be false/absent for pilot execution." })),
     evidence: Type.Optional(Type.String({ description: "Evidence summary proving the smoke run was reviewed." })),
@@ -384,6 +384,9 @@ const ZcommitRunParams = Type.Object({
   body: Type.Optional(Type.Array(Type.String(), { description: "Optional commit body lines. Stored only in git commit when commit runs; ledger stores hashes only." })),
   push: Type.Optional(Type.Boolean({ description: "When true with action=commit, also request push behavior. action=commit_and_push is preferred." })),
   user_requested: Type.Optional(Type.Boolean({ description: "Set true only when the user explicitly asked the agent to commit/push. Required for commit/push unless autocommit is on." })),
+  handoff_candidate_hash: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$", description: "Optional exact pre-commit handoff candidate sha256; requires the complete handoff binding set and action=commit." })),
+  handoff_authority_hash: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$", description: "Optional exact pre-commit authority sha256; requires the complete handoff binding set and action=commit." })),
+  handoff_expected_base_sha: Type.Optional(Type.String({ pattern: "^(?:[a-f0-9]{40}|[a-f0-9]{64})$", description: "Optional exact pre-commit HEAD expected before governed commit." })),
 });
 
 const ZteamHotAddParams = Type.Object({

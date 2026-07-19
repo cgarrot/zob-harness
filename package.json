@@ -99,6 +99,9 @@
     "scripts/zpeer-local-e2e-smoke.mjs",
     "scripts/zteam-lifecycle-smoke.mjs",
     "scripts/start-pi.sh",
+    "scripts/wheel-zob-pack",
+    "tools/wheel-zob",
+    "packages/wheel-zob-pack",
     "examples",
     ".pi/model-catalog.example.json",
     ".pi/model-economy.example.json"
@@ -123,6 +126,14 @@
     "smoke:goal-todo-handoff": "node scripts/goal-todo/handoff-static-smoke.mjs",
     "smoke:git-ops": "node scripts/git-ops/commit-policy-smoke.mjs",
     "smoke:harness": "npm run smoke:path-policy && npm run smoke:child-goal-ref",
+    "doctor:wheel-zob": "node --import tsx scripts/wheel-zob-pack/doctor.mjs",
+    "doctor:wheel-zob:ci": "node --import tsx scripts/wheel-zob-pack/doctor.mjs --ci",
+    "validate:wheel-zob-model-registry": "node --import tsx scripts/wheel-zob-pack/validate-model-registry.mjs",
+    "validate:wheel-zob-fleet-v5": "node --import tsx scripts/wheel-zob-pack/validate-fleet-v5.mjs",
+    "preview:wheel-zob-mission": "node --import tsx scripts/wheel-zob-pack/preview-mission-plan.mjs",
+    "wheel-zob": "node --import tsx tools/wheel-zob/cli.ts",
+    "smoke:wheel-zob-extension": "node --import tsx scripts/wheel-zob-pack/smoke-extension.mjs",
+    "smoke:wheel-zob-pack": "node --import tsx --test \"test/wheel-zob-pack/**/*.test.ts\"",
     "smoke:worker-pool": "node scripts/worker-pool/static-smoke.mjs",
     "smoke:worklist": "node scripts/worklist/static-smoke.mjs",
     "smoke:autonomy-readiness-secret": "node scripts/autonomy/mission-readiness-secret-smoke.mjs",
@@ -186,7 +197,8 @@
   "pi": {
     "extensions": [
       ".pi/extensions/zob-switch/index.ts",
-      ".pi/extensions/zob-harness/index.ts"
+      ".pi/extensions/zob-harness/index.ts",
+      ".pi/extensions/wheel-zob-pack/index.ts"
     ],
     "prompts": [
       ".pi/prompts"

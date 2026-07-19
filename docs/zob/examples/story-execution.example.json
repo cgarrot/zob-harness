@@ -1,0 +1,24 @@
+{
+  "schema": "zob.story-execution.v1",
+  "storyId": "H31",
+  "title": "Example bounded feature",
+  "revision": 2,
+  "parentRevisionHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "revisionReason": "Reconciliation split the integration task from implementation.",
+  "bundle": {"rootRef": "docs/operations/kanban/stories/H31", "bundleHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "ratificationRef": "docs/operations/kanban/stories/H31/FEATURE_RATIFICATION.md"},
+  "repository": {"repositoryId": "join-the-wheel/jointhewheel", "baseRef": "develop-staging", "admissionBaseSha": "1111111111111111111111111111111111111111"},
+  "profile": {"base": "full-feature", "overlays": ["backend-api-data", "test-harness-evidence"], "versionRefs": ["full-feature@1.0.0", "backend-api-data@1.0.0", "test-harness-evidence@1.0.0"]},
+  "scopeRefs": {"acceptance": "docs/operations/kanban/stories/H31/FEATURE_RATIFICATION.md#acceptance", "nonGoals": "docs/operations/kanban/stories/H31/FEATURE_RATIFICATION.md#non-goals"},
+  "signals": {
+    "schemaVersion": "fleet-v5.1", "profileWeights": {"backend_api": 0.7, "test_infra": 0.3}, "routeHint": "std",
+    "domains": ["backend"], "surfaces": ["api"], "blast": ["single-service"], "securityFlags": [], "diffBreadth": "multi-file", "reversibility": "easy",
+    "verification": ["unit", "integration"], "testDemands": ["backend"], "contextLoad": "medium", "designFreedom": "medium", "opsTouch": [],
+    "humanCheckpoint": null, "parallelizable": true, "reviewerGate": "normal", "escalationTriggers": ["scope-drift"]
+  },
+  "dependencies": [],
+  "gates": [{"gateId": "H31:G4", "manifestRef": "execution/gates/H31-G4.json", "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "required": true}],
+  "branchContract": {"branchName": "feature/H31", "prTarget": "develop-staging", "draftRequired": true},
+  "humanGateRefs": [],
+  "prClose": {"profile": "app-standard", "evidenceSchema": "zob.pr-close-evidence.v1", "requiredAudits": ["source-integration", "evidence-qa-ci", "finalizer"]},
+  "deferredActions": ["formal-review", "ready", "merge", "deploy", "post-deploy-confirmation"]
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:promotion-merge-evidence:v1",
+  "title": "Wheel ZOB Merge-Commit Promotion Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidenceId", "authorizationId", "authorizationHash", "repositoryId", "windowId", "candidateId", "candidateRevision", "candidateHash", "promotionPrNumber", "stagingSha", "developBaseSha", "promotionMergeSha", "parents", "mergeMethod", "treeProof", "promotionAppId", "mergedAt", "automaticCdRuns", "manualDispatchPerformed", "reconciliation", "status", "evidenceHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.promotion-merge-evidence.v1"},
+    "evidenceId": {"type": "string", "minLength": 8},
+    "authorizationId": {"type": "string"},
+    "authorizationHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "repositoryId": {"type": "string"},
+    "windowId": {"type": "string", "minLength": 8},
+    "candidateId": {"type": "string", "minLength": 8},
+    "candidateRevision": {"type": "integer", "minimum": 1, "maximum": 3},
+    "candidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "promotionPrNumber": {"type": "integer", "minimum": 1},
+    "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "developBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "promotionMergeSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "parents": {"type": "object", "additionalProperties": false, "required": ["developParentSha", "auditedStagingParentSha", "auditedStagingIsParent"], "properties": {"developParentSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "auditedStagingParentSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "auditedStagingIsParent": {"const": true}}},
+    "mergeMethod": {"const": "merge-commit"},
+    "treeProof": {"type": "object", "additionalProperties": false, "required": ["promotionTreeHash", "auditedStagingTreeHash", "treesEqual"], "properties": {"promotionTreeHash": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "auditedStagingTreeHash": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "treesEqual": {"const": true}}},
+    "promotionAppId": {"type": "string"},
+    "promotionAuthorizationCheckId": {"type": "string"},
+    "promotionGateCheckId": {"type": "string"},
+    "mergedAt": {"type": "string", "format": "date-time"},
+    "automaticCdRuns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflowRef", "runId", "triggerEvent", "triggerSha", "status"],
+        "properties": {
+          "workflowRef": {"type": "string"},
+          "runId": {"type": "string"},
+          "triggerEvent": {"const": "push"},
+          "triggerSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "environmentRef": {"type": "string"},
+          "status": {"enum": ["queued", "in-progress", "completed"]},
+          "conclusion": {"enum": ["success", "failure", "cancelled", "skipped", "unknown"]},
+          "runUrl": {"type": "string"}
+        },
+        "allOf": [
+          {"if": {"properties": {"status": {"const": "completed"}}, "required": ["status"]}, "then": {"required": ["conclusion"]}}
+        ]
+      }
+    },
+    "manualDispatchPerformed": {"const": false},
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputMergeSha", "result", "stagingAlignment", "alignedHeadIntegration", "queueUnfrozen"],
+      "properties": {
+        "inputMergeSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "result": {"enum": ["pending", "pass", "fail", "unknown"]},
+        "stagingAlignment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expectedOldSha", "newSha", "expectedHeadProtected", "result"],
+          "properties": {
+            "expectedOldSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "newSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "expectedHeadProtected": {"const": true},
+            "result": {"enum": ["pending", "fast-forwarded", "blocked", "failed"]}
+          }
+        },
+        "alignedHeadIntegration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["headSha", "checkId", "trigger", "result"],
+          "properties": {
+            "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "checkId": {"type": "string"},
+            "trigger": {"const": "push"},
+            "result": {"enum": ["pending", "pass", "fail", "unknown"]}
+          }
+        },
+        "queueUnfrozen": {"type": "boolean"}
+      }
+    },
+    "status": {"enum": ["promotion-merged", "reconciling", "complete", "invalid"]},
+    "evidenceHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "reconciliation": {
+            "properties": {
+              "result": {"const": "pass"},
+              "stagingAlignment": {"properties": {"result": {"const": "fast-forwarded"}}},
+              "alignedHeadIntegration": {"properties": {"result": {"const": "pass"}}},
+              "queueUnfrozen": {"const": true}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

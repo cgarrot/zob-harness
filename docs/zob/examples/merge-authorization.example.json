@@ -1,0 +1,26 @@
+{
+  "schema": "zob.merge-authorization.v1",
+  "authorizationId": "merge-auth-demo-001",
+  "migrationReadOnly": true,
+  "migrationDisposition": "historical-only",
+  "actor": {"actorId": "operator-demo", "authenticatedBy": "local-session"},
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "targetBranch": "develop",
+  "mergeMethod": "squash",
+  "maxCount": 1,
+  "entries": [{
+    "prNumber": 4001,
+    "headSha": "1111111111111111111111111111111111111111",
+    "evaluatedBaseSha": "2222222222222222222222222222222222222222",
+    "prCloseCheckId": "check-close-demo",
+    "blindReviewCheckId": "check-review-demo",
+    "shipGateCheckId": "check-ship-demo",
+    "deploymentImpact": {"classification": "automatic-dev", "matchedWorkflowRefs": [".github/workflows/cd-dev.yml#backend"], "receiptHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "manualDispatchAuthorized": false},
+    "entryHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }],
+  "policyVersions": {"ship": "1.0.0", "readyGuard": "1.0.0"},
+  "createdAt": "2026-07-18T12:00:00Z",
+  "expiresAt": "2026-07-18T13:00:00Z",
+  "authorizationHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "bodyStored": false
+}

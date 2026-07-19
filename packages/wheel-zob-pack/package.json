@@ -1,0 +1,19 @@
+{
+  "name": "@join-the-wheel/wheel-zob-pack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bounded Wheel AgentOps policy pack for zob-harness.",
+  "keywords": ["pi-package", "wheel", "agentops"],
+  "pi": {
+    "extensions": ["./extension.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./model-registry": "./model-policy/model-registry.ts"
+  }
+}

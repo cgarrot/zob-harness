@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:merge-authorization:v1",
+  "title": "Wheel ZOB Legacy Direct-Base Exact-Head Merge Batch Authorization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "authorizationId", "migrationReadOnly", "migrationDisposition", "actor", "repositoryId", "targetBranch", "mergeMethod", "maxCount", "entries", "policyVersions", "createdAt", "expiresAt", "authorizationHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.merge-authorization.v1"},
+    "authorizationId": {"type": "string"},
+    "migrationReadOnly": {"const": true},
+    "migrationDisposition": {"const": "historical-only"},
+    "actor": {"type": "object", "additionalProperties": false, "required": ["actorId", "authenticatedBy"], "properties": {"actorId": {"type": "string"}, "authenticatedBy": {"enum": ["local-session", "github-user", "signed-receipt"]}}},
+    "repositoryId": {"type": "string"}, "targetBranch": {"type": "string"}, "mergeMethod": {"const": "squash"},
+    "maxCount": {"type": "integer", "minimum": 1, "maximum": 100},
+    "entries": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["prNumber", "headSha", "evaluatedBaseSha", "prCloseCheckId", "blindReviewCheckId", "shipGateCheckId", "deploymentImpact", "entryHash"], "properties": {"prNumber": {"type": "integer", "minimum": 1}, "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "evaluatedBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "prCloseCheckId": {"type": "string"}, "blindReviewCheckId": {"type": "string"}, "shipGateCheckId": {"type": "string"}, "deploymentImpact": {"type": "object", "additionalProperties": false, "required": ["classification", "receiptHash", "manualDispatchAuthorized"], "properties": {"classification": {"enum": ["none", "automatic-dev", "automatic-production", "unknown"]}, "matchedWorkflowRefs": {"type": "array", "items": {"type": "string"}}, "receiptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "manualDispatchAuthorized": {"const": false}}}, "entryHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "policyVersions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "createdAt": {"type": "string", "format": "date-time"}, "expiresAt": {"type": "string", "format": "date-time"}, "revokedAt": {"type": "string", "format": "date-time"},
+    "authorizationHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "bodyStored": {"const": false}
+  }
+}

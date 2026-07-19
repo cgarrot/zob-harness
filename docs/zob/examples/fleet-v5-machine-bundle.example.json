@@ -1,0 +1,33 @@
+{
+  "schema": "wheel.zob.fleet-v5-machine-bundle.v1",
+  "bundleId": "fleet-v5-example",
+  "revision": 1,
+  "bundleHash": "abababababababababababababababababababababababababababababababab",
+  "source": {
+    "repositoryId": "example/wheel-application",
+    "sourceSha": "1111111111111111111111111111111111111111",
+    "allocationRef": "planning/fleet-v5/allocation.json",
+    "allocationSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "signalsRef": "planning/fleet-v5/signals.json",
+    "signalsSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "machines": [
+    {
+      "machineId": "W1",
+      "theme": "Guardrails and test integrity",
+      "allocationUnitIds": ["EX-001"],
+      "storyIds": ["EX-001"],
+      "storyPaths": ["planning/fleet-v5/stories/EX-001.json"]
+    },
+    {
+      "machineId": "W5",
+      "theme": "Widget platform",
+      "allocationUnitIds": ["EX-002/EX-003"],
+      "storyIds": ["EX-002", "EX-003"],
+      "storyPaths": [
+        "planning/fleet-v5/stories/EX-002.json",
+        "planning/fleet-v5/stories/EX-003.json"
+      ]
+    }
+  ]
+}

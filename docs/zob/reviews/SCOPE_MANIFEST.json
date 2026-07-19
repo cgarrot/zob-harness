@@ -1,0 +1,267 @@
+{
+  "schema": "zob.doc-audit-scope.v1",
+  "reviewMode": "full",
+  "included": [
+    "AGENTS.md",
+    "README.md",
+    "docs/zob/**/*.md",
+    "docs/zob/**/*.json"
+  ],
+  "excluded": [
+    "docs/zob/reviews/** (audit output)",
+    "transcripts/** (local excluded session recovery)",
+    "investors/**",
+    "needs-human/**",
+    "superseded/**"
+  ],
+  "fileCount": 49,
+  "lineCount": 3970,
+  "byteCount": 206598,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "lines": 44,
+      "bytes": 2862
+    },
+    {
+      "path": "README.md",
+      "lines": 14,
+      "bytes": 727
+    },
+    {
+      "path": "docs/zob/01-SYSTEM_OVERVIEW.md",
+      "lines": 115,
+      "bytes": 5012
+    },
+    {
+      "path": "docs/zob/02-ARCHITECTURE_AND_OWNERSHIP.md",
+      "lines": 160,
+      "bytes": 5697
+    },
+    {
+      "path": "docs/zob/03-STORY_TO_PR_CLOSE_FACTORY.md",
+      "lines": 195,
+      "bytes": 8216
+    },
+    {
+      "path": "docs/zob/04-BLIND_REVIEW_FACTORY.md",
+      "lines": 199,
+      "bytes": 7468
+    },
+    {
+      "path": "docs/zob/05-PR_SHIP_FACTORY.md",
+      "lines": 192,
+      "bytes": 7111
+    },
+    {
+      "path": "docs/zob/06-MISSION_CONTROL_TUI.md",
+      "lines": 185,
+      "bytes": 7178
+    },
+    {
+      "path": "docs/zob/07-PERSISTENCE_AND_RECOVERY.md",
+      "lines": 182,
+      "bytes": 6646
+    },
+    {
+      "path": "docs/zob/08-PERMISSIONS_ACKS_AND_GITHUB_APPS.md",
+      "lines": 159,
+      "bytes": 6209
+    },
+    {
+      "path": "docs/zob/09-MODEL_AND_PROMPT_EXPERIMENTS.md",
+      "lines": 211,
+      "bytes": 7771
+    },
+    {
+      "path": "docs/zob/10-EXECUTION_PROFILES_AND_SKILLS.md",
+      "lines": 184,
+      "bytes": 6807
+    },
+    {
+      "path": "docs/zob/11-EVIDENCE_AND_GITHUB_CHECKS.md",
+      "lines": 138,
+      "bytes": 6118
+    },
+    {
+      "path": "docs/zob/12-INSTALLATION.md",
+      "lines": 163,
+      "bytes": 5241
+    },
+    {
+      "path": "docs/zob/13-OPERATIONS_RUNBOOK.md",
+      "lines": 162,
+      "bytes": 5883
+    },
+    {
+      "path": "docs/zob/14-VALIDATION_AND_PILOTS.md",
+      "lines": 171,
+      "bytes": 5652
+    },
+    {
+      "path": "docs/zob/15-UPGRADE_AND_ROLLBACK.md",
+      "lines": 108,
+      "bytes": 4453
+    },
+    {
+      "path": "docs/zob/16-DECISIONS.md",
+      "lines": 151,
+      "bytes": 15936
+    },
+    {
+      "path": "docs/zob/ENHANCEMENTS.md",
+      "lines": 339,
+      "bytes": 18295
+    },
+    {
+      "path": "docs/zob/README.md",
+      "lines": 61,
+      "bytes": 2909
+    },
+    {
+      "path": "docs/zob/SOURCE_EVIDENCE.md",
+      "lines": 133,
+      "bytes": 6198
+    },
+    {
+      "path": "docs/zob/examples/README.md",
+      "lines": 21,
+      "bytes": 1181
+    },
+    {
+      "path": "docs/zob/examples/ack-receipt.example.json",
+      "lines": 16,
+      "bytes": 1001
+    },
+    {
+      "path": "docs/zob/examples/blind-review-result.example.json",
+      "lines": 21,
+      "bytes": 1496
+    },
+    {
+      "path": "docs/zob/examples/checkpoint.example.json",
+      "lines": 19,
+      "bytes": 1368
+    },
+    {
+      "path": "docs/zob/examples/evidence.example.json",
+      "lines": 15,
+      "bytes": 1485
+    },
+    {
+      "path": "docs/zob/examples/execution-profile.example.json",
+      "lines": 19,
+      "bytes": 1223
+    },
+    {
+      "path": "docs/zob/examples/gate.example.json",
+      "lines": 15,
+      "bytes": 952
+    },
+    {
+      "path": "docs/zob/examples/merge-authorization.example.json",
+      "lines": 24,
+      "bytes": 1171
+    },
+    {
+      "path": "docs/zob/examples/mission-event.example.json",
+      "lines": 22,
+      "bytes": 908
+    },
+    {
+      "path": "docs/zob/examples/mission.example.json",
+      "lines": 16,
+      "bytes": 1268
+    },
+    {
+      "path": "docs/zob/examples/model-attempt.example.json",
+      "lines": 25,
+      "bytes": 1198
+    },
+    {
+      "path": "docs/zob/examples/pr-close-evidence.example.json",
+      "lines": 24,
+      "bytes": 1854
+    },
+    {
+      "path": "docs/zob/examples/story-execution.example.json",
+      "lines": 24,
+      "bytes": 2179
+    },
+    {
+      "path": "docs/zob/examples/task.example.json",
+      "lines": 22,
+      "bytes": 2244
+    },
+    {
+      "path": "docs/zob/schemas/README.md",
+      "lines": 30,
+      "bytes": 1579
+    },
+    {
+      "path": "docs/zob/schemas/ack-receipt.schema.json",
+      "lines": 26,
+      "bytes": 2202
+    },
+    {
+      "path": "docs/zob/schemas/blind-review-result.schema.json",
+      "lines": 50,
+      "bytes": 5227
+    },
+    {
+      "path": "docs/zob/schemas/checkpoint.schema.json",
+      "lines": 22,
+      "bytes": 3171
+    },
+    {
+      "path": "docs/zob/schemas/evidence.schema.json",
+      "lines": 24,
+      "bytes": 3142
+    },
+    {
+      "path": "docs/zob/schemas/execution-profile.schema.json",
+      "lines": 38,
+      "bytes": 3508
+    },
+    {
+      "path": "docs/zob/schemas/gate.schema.json",
+      "lines": 24,
+      "bytes": 2166
+    },
+    {
+      "path": "docs/zob/schemas/merge-authorization.schema.json",
+      "lines": 19,
+      "bytes": 2395
+    },
+    {
+      "path": "docs/zob/schemas/mission-event.schema.json",
+      "lines": 36,
+      "bytes": 1762
+    },
+    {
+      "path": "docs/zob/schemas/mission.schema.json",
+      "lines": 44,
+      "bytes": 3122
+    },
+    {
+      "path": "docs/zob/schemas/model-attempt.schema.json",
+      "lines": 28,
+      "bytes": 3431
+    },
+    {
+      "path": "docs/zob/schemas/pr-close-evidence.schema.json",
+      "lines": 23,
+      "bytes": 3168
+    },
+    {
+      "path": "docs/zob/schemas/story-execution.schema.json",
+      "lines": 27,
+      "bytes": 4814
+    },
+    {
+      "path": "docs/zob/schemas/task.schema.json",
+      "lines": 30,
+      "bytes": 4994
+    }
+  ]
+}

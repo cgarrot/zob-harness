@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:execution-profile:v1",
+  "title": "Wheel ZOB Execution Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profileId", "kind", "version", "selectors", "gatePatches", "taskTemplateRefs", "evidenceRequirements", "reviewAdditions", "permissionAdditions", "humanReceiptTypes", "deferredActions", "compositionPolicy"],
+  "properties": {
+    "schema": {"const": "zob.execution-profile.v1"},
+    "profileId": {"type": "string"},
+    "kind": {"enum": ["base", "overlay"]},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$"},
+    "description": {"type": "string"},
+    "selectors": {
+      "type": "object", "additionalProperties": false,
+      "required": ["storyTypes", "domains", "surfaces", "signalPredicateRefs"],
+      "properties": {
+        "storyTypes": {"type": "array", "items": {"type": "string"}},
+        "domains": {"type": "array", "items": {"type": "string"}},
+        "surfaces": {"type": "array", "items": {"type": "string"}},
+        "riskAtLeast": {"enum": ["low", "medium", "high", "critical"]},
+        "signalPredicateRefs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "gatePatches": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["gateType", "operation"], "properties": {"gateType": {"type": "string"}, "operation": {"enum": ["require", "strengthen", "add-entry", "add-exit", "add-evidence", "add-review"]}, "requirementRefs": {"type": "array", "items": {"type": "string"}}}}},
+    "taskTemplateRefs": {"type": "array", "items": {"type": "string"}},
+    "evidenceRequirements": {"type": "array", "items": {"type": "string"}},
+    "reviewAdditions": {"type": "array", "items": {"type": "string"}},
+    "permissionAdditions": {"type": "object", "additionalProperties": false, "required": ["capabilityRefs", "deniedCapabilities"], "properties": {"capabilityRefs": {"type": "array", "items": {"type": "string"}}, "deniedCapabilities": {"type": "array", "items": {"type": "string"}}}},
+    "humanReceiptTypes": {"type": "array", "items": {"enum": ["process-change", "trust-decision", "destructive-change", "spend", "human-override", "cross-machine-takeover", "factory-activation", "merge-batch", "promotion-window", "promotion-merge", "deployment-impact"]}},
+    "deferredActions": {"type": "array", "items": {"enum": ["formal-review", "ready", "staging-merge", "repository-assurance", "promotion", "merge", "deploy", "publish", "provider-activation", "workflow-dispatch", "post-deploy-confirmation"]}},
+    "compositionPolicy": {"type": "object", "additionalProperties": false, "required": ["mergeMode", "canStrengthenAutomatically", "requiresHumanToWeakenOrRemove"], "properties": {"mergeMode": {"const": "union-stricter-wins"}, "canStrengthenAutomatically": {"const": true}, "requiresHumanToWeakenOrRemove": {"const": true}}}
+  },
+  "allOf": [
+    {"if": {"properties": {"kind": {"const": "base"}}}, "then": {"properties": {"profileId": {"enum": ["full-feature", "quick-fix", "docs-process", "refactor-cleanup"]}}}},
+    {"if": {"properties": {"kind": {"const": "overlay"}}}, "then": {"properties": {"profileId": {"enum": ["security-trust", "privacy-encryption", "database-migration", "infrastructure-ci", "frontend-user-visible", "backend-api-data", "cli-mcp-tooling", "vendor-dependency", "external-integration", "model-prompt-control", "performance-cost", "supply-chain-installer", "observability-operations", "test-harness-evidence", "destructive-change"]}}}}
+  ]
+}

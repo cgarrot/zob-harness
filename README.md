@@ -19,6 +19,12 @@ Human intent
 
 ZOB is not “unleash an agent and hope.” ZOB is “launch a team, keep the work observable, preserve evidence, and reuse the pattern once it works.”
 
+## Wheel ZOB system manual
+
+This repository is also the canonical home for the bounded Wheel AgentOps pack and its complete design specification. For exact setup on the primary workstation, additional operator/developer machines and CI, start with the [machine-by-machine runtime setup guide](docs/zob/18-WHEEL_ZOB_RUNTIME_MACHINE_SETUP.md). The standalone [interactive terminal manual](docs/zob/WHEEL_ZOB_TERMINAL_MANUAL.html) and [documentation index](docs/zob/README.md) cover architecture, factories, schemas, operations, decisions and validation.
+
+The bounded Fleet validation, deterministic planning and disabled factory simulation pack is implemented and locally validated. Live model dispatch, GitHub Apps, application adapters, branches, merge permissions, CI/CD mutation and deployments remain unavailable and unauthorized; repository presence does not activate them.
+
 ## Why this is different
 
 Most agent tools optimize the single assistant session. ZOB optimizes the **agent factory loop**:
@@ -471,8 +477,8 @@ See [scripts/README.md](scripts/README.md) for the script family map.
 
 ### Core vs advanced surface
 
-The harness exposes ~77 tools, 25 commands, 39 specialist agents, 24 skills, and
-75 npm scripts, but a new user only needs this core set to be productive:
+The current capability registry and repository expose 81 tools, 27 commands, 39 specialist agents, 25 skills, and
+78 npm scripts, but a new user only needs this core set to be productive:
 
 - `/zmode` — pick the operating mode (`explore` / `plan` / `implement` / `oracle` / `factory`).
 - `/goal` and `/todo` — set the active goal and drive the goal-linked TODO tree.
@@ -508,6 +514,7 @@ advanced/experimental and opt-in. The full classification lives in the local
 - [`.pi/factories/`](.pi/factories/) — safe factory scaffolds.
 - [`.pi/output-contracts/`](.pi/output-contracts/) — structured output contract manifests.
 - [`.pi/capabilities/`](.pi/capabilities/) — public runtime capability registry.
+- [`docs/zob/`](docs/zob/README.md) — consolidated Wheel ZOB specification, schemas, operations guidance and interactive terminal manual.
 - [`scripts/`](scripts/README.md) — local validation, smoke, audit, and proof helpers.
 
 Local/generated areas such as `.pi/reports/`, legacy `reports/`, `.pi/plans/`, legacy `plans/`, `.pi/sessions/`, `.pi/logs/`, `.pi/tmp/`, coms ledgers, workspace claims, worker pools, and merge queues are not part of the normal source surface. See [SOURCE_INDEX.md](SOURCE_INDEX.md) for the current classification.

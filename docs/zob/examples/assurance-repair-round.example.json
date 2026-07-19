@@ -1,0 +1,40 @@
+{
+  "schema": "zob.assurance-repair-round.v1",
+  "repairRoundId": "repair-round-20260718-001",
+  "candidateId": "candidate-20260718-001",
+  "assuranceId": "assurance-20260718-round-1",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "round": 1,
+  "nextAssuranceRound": 2,
+  "beforeCandidateRevision": 1,
+  "beforeCandidateHash": "2323232323232323232323232323232323232323232323232323232323232323",
+  "afterCandidateRevision": 2,
+  "afterCandidateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "beforeStagingSha": "9999999999999999999999999999999999999999",
+  "afterStagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "findingRefs": ["finding-doc-001", "finding-route-002"],
+  "auditorAssignmentIds": ["lane-audit-01", "lane-audit-09"],
+  "repairerAssignmentIds": ["repair-keith-01", "repair-mookie-02"],
+  "repairPullRequests": [
+    {
+      "prNumber": 4110,
+      "headSha": "ffffffffffffffffffffffffffffffffffffffff",
+      "targetBranch": "develop-staging",
+      "status": "merged",
+      "stagingMergeSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "prCloseCheckId": "check-repair-close-4110",
+      "blindReviewCheckId": "check-repair-review-4110",
+      "ciCheckSetHash": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ],
+  "fullStagingIntegration": {
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "checkId": "check-staging-integration-after-repair-001",
+    "result": "pass"
+  },
+  "invalidatedAssuranceIds": ["assurance-20260718-round-1"],
+  "nextAssuranceRequired": true,
+  "status": "reaudit-required",
+  "roundHash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "bodyStored": false
+}

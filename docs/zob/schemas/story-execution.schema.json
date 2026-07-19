@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:story-execution:v1",
+  "title": "Wheel ZOB Story Execution Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "storyId", "title", "revision", "bundle", "repository", "profile", "scopeRefs", "signals", "dependencies", "gates", "branchContract", "humanGateRefs", "prClose", "deferredActions"],
+  "properties": {
+    "schema": {"const": "zob.story-execution.v1"},
+    "storyId": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "parentRevisionHash": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[a-f0-9]{64}$"}]},
+    "revisionReason": {"type": "string", "minLength": 1},
+    "bundle": {"type": "object", "additionalProperties": false, "required": ["rootRef", "bundleHash", "ratificationRef"], "properties": {"rootRef": {"type": "string"}, "bundleHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "ratificationRef": {"type": "string"}}},
+    "repository": {"type": "object", "additionalProperties": false, "required": ["repositoryId", "baseRef"], "properties": {"repositoryId": {"type": "string"}, "baseRef": {"type": "string"}, "admissionBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}}},
+    "profile": {"type": "object", "additionalProperties": false, "required": ["base", "overlays", "versionRefs"], "properties": {"base": {"enum": ["full-feature", "quick-fix", "docs-process", "refactor-cleanup"]}, "overlays": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "versionRefs": {"type": "array", "minItems": 1, "items": {"type": "string"}}}},
+    "scopeRefs": {"type": "object", "additionalProperties": false, "required": ["acceptance", "nonGoals"], "properties": {"acceptance": {"type": "string"}, "nonGoals": {"type": "string"}}},
+    "signals": {"type": "object", "required": ["schemaVersion", "profileWeights", "routeHint", "domains", "surfaces", "blast", "securityFlags", "diffBreadth", "reversibility", "verification", "testDemands", "contextLoad", "designFreedom", "opsTouch", "humanCheckpoint", "parallelizable", "reviewerGate", "escalationTriggers"], "properties": {"schemaVersion": {"type": "string"}, "profileWeights": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}}, "routeHint": {"enum": ["light", "std", "heavy"]}, "domains": {"type": "array", "items": {"type": "string"}}, "surfaces": {"type": "array", "items": {"type": "string"}}, "blast": {"type": "array", "items": {"type": "string"}}, "securityFlags": {"type": "array", "items": {"type": "string"}}, "diffBreadth": {"enum": ["contained", "multi-file", "cross-cutting"]}, "reversibility": {"enum": ["easy", "hard"]}, "verification": {"type": "array", "items": {"type": "string"}}, "testDemands": {"type": "array", "items": {"type": "string"}}, "contextLoad": {"enum": ["low", "medium", "high"]}, "designFreedom": {"type": "string"}, "opsTouch": {"type": "array", "items": {"type": "string"}}, "humanCheckpoint": {"oneOf": [{"type": "null"}, {"type": "string"}]}, "parallelizable": {"type": "boolean"}, "reviewerGate": {"type": "string"}, "escalationTriggers": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
+    "dependencies": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["storyId", "type"], "properties": {"storyId": {"type": "string"}, "type": {"enum": ["hard", "stack", "artifact", "soft"]}, "prBaseRef": {"type": "string"}}}},
+    "gates": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["gateId", "manifestRef", "manifestHash", "required"], "properties": {"gateId": {"type": "string"}, "manifestRef": {"type": "string"}, "manifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "required": {"type": "boolean"}}}},
+    "branchContract": {"type": "object", "additionalProperties": false, "required": ["branchName", "prTarget", "draftRequired"], "properties": {"branchName": {"type": "string"}, "prTarget": {"type": "string"}, "draftRequired": {"const": true}, "stackParentStoryId": {"type": "string"}}},
+    "humanGateRefs": {"type": "array", "items": {"type": "string"}},
+    "prClose": {"type": "object", "additionalProperties": false, "required": ["profile", "evidenceSchema", "requiredAudits"], "properties": {"profile": {"type": "string"}, "evidenceSchema": {"type": "string"}, "requiredAudits": {"type": "array", "minItems": 3, "items": {"enum": ["source-integration", "evidence-qa-ci", "finalizer"]}}}},
+    "deferredActions": {"type": "array", "items": {"enum": ["formal-review", "ready", "merge", "deploy", "publish", "provider-activation", "post-deploy-confirmation"]}}
+  }
+}

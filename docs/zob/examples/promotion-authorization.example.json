@@ -1,0 +1,58 @@
+{
+  "schema": "zob.promotion-authorization.v1",
+  "authorizationId": "promotion-auth-20260718-001",
+  "actor": {"actorId": "operator-86mets", "authenticatedBy": "local-session"},
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "windowId": "promotion-window-20260718-001",
+  "candidateId": "candidate-20260718-001",
+  "candidateRevision": 2,
+  "candidateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "promotionPrNumber": 4120,
+  "stagingBranch": "develop-staging",
+  "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "developBranch": "develop",
+  "developSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "assurance": {
+    "assuranceId": "assurance-20260718-round-2",
+    "round": 2,
+    "resultHash": "1515151515151515151515151515151515151515151515151515151515151515",
+    "checkId": "check-repository-assurance-001",
+    "verdict": "pass",
+    "noShip": false
+  },
+  "checks": {
+    "stagingIntegrationCheckId": "check-staging-integration-001",
+    "repositoryAssuranceCheckId": "check-repository-assurance-001",
+    "humanGatesCheckId": "check-human-gates-promotion-001",
+    "promotionPrCheckSetHash": "1616161616161616161616161616161616161616161616161616161616161616",
+    "promotionAuthorizationCheckId": "check-promotion-authorization-001",
+    "promotionGateCheckId": "check-promotion-gate-001"
+  },
+  "windowReceiptHash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "promotionMergeReceiptHash": "1717171717171717171717171717171717171717171717171717171717171717",
+  "mergeMethod": "merge-commit",
+  "mergeCommitPolicy": {
+    "auditedStagingMustBeParent": true,
+    "resultTreeMustMatchStaging": true,
+    "adminBypassAllowed": false
+  },
+  "includedPrNumbers": [4101, 4102, 4110],
+  "deploymentImpact": {
+    "analysisHash": "1818181818181818181818181818181818181818181818181818181818181818",
+    "classification": "automatic-cd-expected",
+    "expectedWorkflowRefs": [".github/workflows/cd-dev.yml"],
+    "matchedPathFilters": ["src/**", "docs/CURRENT/**"],
+    "environmentRefs": ["development"],
+    "acknowledgementReceiptHash": "1919191919191919191919191919191919191919191919191919191919191919",
+    "manualDispatchAuthorized": false
+  },
+  "policyVersions": {
+    "promotionGuard": "1.0.0",
+    "deploymentImpact": "1.0.0"
+  },
+  "createdAt": "2026-07-18T18:10:00Z",
+  "expiresAt": "2026-07-18T18:40:00Z",
+  "status": "active",
+  "authorizationHash": "2020202020202020202020202020202020202020202020202020202020202020",
+  "bodyStored": false
+}

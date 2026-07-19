@@ -1,0 +1,45 @@
+{
+  "schema": "zob.staging-candidate.v1",
+  "candidateId": "candidate-20260718-001",
+  "windowId": "promotion-window-20260718-001",
+  "candidateRevision": 2,
+  "priorCandidateHash": "2323232323232323232323232323232323232323232323232323232323232323",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "stagingBranch": "develop-staging",
+  "initialStagingSha": "9999999999999999999999999999999999999999",
+  "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "developBranch": "develop",
+  "developSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mergeBaseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "includedPullRequests": [
+    {"prNumber": 4101, "storyId": "Darryl-101", "origin": "staged-cohort", "prHeadSha": "cccccccccccccccccccccccccccccccccccccccc", "stagingMergeSha": "dddddddddddddddddddddddddddddddddddddddd", "mergeMethod": "squash", "prCloseCheckId": "check-pr-close-4101", "blindReviewCheckId": "check-blind-review-4101"},
+    {"prNumber": 4102, "storyId": "Mookie-102", "origin": "staged-cohort", "prHeadSha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "stagingMergeSha": "9999999999999999999999999999999999999999", "mergeMethod": "squash", "prCloseCheckId": "check-pr-close-4102", "blindReviewCheckId": "check-blind-review-4102"},
+    {"prNumber": 4110, "storyId": "Keith-Repair-110", "origin": "assurance-repair", "assuranceRound": 1, "findingRefs": ["finding-doc-001", "finding-route-002"], "prHeadSha": "ffffffffffffffffffffffffffffffffffffffff", "stagingMergeSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "mergeMethod": "squash", "prCloseCheckId": "check-repair-close-4110", "blindReviewCheckId": "check-repair-review-4110"}
+  ],
+  "repairLineage": [
+    {"repairRound": 1, "priorCandidateHash": "2323232323232323232323232323232323232323232323232323232323232323", "resultingCandidateHash": "7777777777777777777777777777777777777777777777777777777777777777", "beforeStagingSha": "9999999999999999999999999999999999999999", "afterStagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "repairPrNumbers": [4110], "findingRefs": ["finding-doc-001", "finding-route-002"], "integrationCheckId": "check-staging-integration-after-repair-001"}
+  ],
+  "integration": {
+    "checkId": "check-staging-integration-after-repair-001",
+    "result": "pass",
+    "checkSetHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "deploymentDisabledProof": {"workflowManifestHash": "2222222222222222222222222222222222222222222222222222222222222222", "stagingCanTriggerDeployment": false, "proofArtifactHash": "3333333333333333333333333333333333333333333333333333333333333333"}
+  },
+  "freeze": {
+    "windowId": "promotion-window-20260718-001",
+    "humanStarted": true,
+    "windowInitialStagingSha": "9999999999999999999999999999999999999999",
+    "promotionWindowReceiptHash": "4444444444444444444444444444444444444444444444444444444444444444",
+    "startedAt": "2026-07-18T12:00:00Z",
+    "expiresAt": "2026-07-18T20:00:00Z",
+    "unrelatedMergeQueueFrozen": true,
+    "findingBoundRepairMergeAllowed": true
+  },
+  "maxAssuranceRounds": 3,
+  "maxAutomaticRepairTransitions": 2,
+  "policyVersions": {"assurance": "1.0.0", "promotion": "1.0.0"},
+  "artifactHashes": {"sourceManifest": "5555555555555555555555555555555555555555555555555555555555555555", "canonicalDocManifest": "6666666666666666666666666666666666666666666666666666666666666666", "candidate": "7777777777777777777777777777777777777777777777777777777777777777"},
+  "status": "ready-for-assurance",
+  "createdAt": "2026-07-18T12:00:00Z",
+  "bodyStored": false
+}

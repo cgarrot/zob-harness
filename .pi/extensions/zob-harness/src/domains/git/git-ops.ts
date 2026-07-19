@@ -135,6 +135,7 @@ export interface ZcommitCommandResult {
   errors: string[];
   validation?: ZcommitValidationRecord;
   commit?: ZcommitLastCommitRecord;
+  baseHeadSha?: string;
   actualGitCommitRun: boolean;
   actualGitPushRun: boolean;
 }
@@ -720,6 +721,7 @@ export function runGovernedZcommitCommit(repoRoot: string, runtime: ZcommitRunti
     return { ok: false, action: "commit", message: `zcommit commit blocked: ${plan.noShipNotes.join(" | ") || "commit gates failed"}`, plan, errors: plan.noShipNotes, actualGitCommitRun: false, actualGitPushRun: false };
   }
 
+  const baseHeadSha = currentHead(repoRoot);
   const eligiblePaths = uniqueSorted(plan.eligible.map((file) => file.path));
   const preStaged = cachedNames(repoRoot);
   const preAddPatch = cachedPatch(repoRoot, eligiblePaths);
@@ -772,7 +774,7 @@ export function runGovernedZcommitCommit(repoRoot: string, runtime: ZcommitRunti
     runtime.lastCommit = commit;
     runtime.updatedAt = createdAt;
     plan = buildZcommitPlan(repoRoot, runtime, options);
-    return { ok: true, action: "commit", message: `zcommit commit created ${shortHash}: ${subject}`, plan, errors: [], validation, commit, actualGitCommitRun: true, actualGitPushRun: false };
+    return { ok: true, action: "commit", message: `zcommit commit created ${shortHash}: ${subject}`, plan, errors: [], validation, commit, baseHeadSha, actualGitCommitRun: true, actualGitPushRun: false };
   } catch (error) {
     try {
       cleanupStagedByZcommit();

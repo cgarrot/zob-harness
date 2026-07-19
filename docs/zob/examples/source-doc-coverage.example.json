@@ -1,0 +1,61 @@
+{
+  "schema": "zob.source-doc-coverage.v1",
+  "inventoryId": "inventory-20260718-001",
+  "candidateId": "candidate-20260718-001",
+  "repositoryId": "join-the-wheel/jointhewheel",
+  "stagingSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "generatorVersion": "coverage-inventory-1.0.0",
+  "adapterVersions": {
+    "typescript": "1.0.0",
+    "sql": "1.0.0",
+    "github-actions": "1.0.0"
+  },
+  "sourceManifestHash": "5555555555555555555555555555555555555555555555555555555555555555",
+  "canonicalDocManifestHash": "6666666666666666666666666666666666666666666666666666666666666666",
+  "elements": [
+    {
+      "elementId": "route-health-get",
+      "kind": "route",
+      "nameHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sourceRefs": [{"path": "src/startup/RouteLoader.ts", "lineStart": 40, "lineEnd": 48, "contentHash": "2222222222222222222222222222222222222222222222222222222222222222"}],
+      "publicOperational": true,
+      "disposition": "canonical-documented",
+      "docRefs": [{"path": "docs/CURRENT/reference/api.md", "anchor": "health", "claimHash": "3333333333333333333333333333333333333333333333333333333333333333"}],
+      "evidenceRefs": ["evidence/source/route-health-get.json"]
+    },
+    {
+      "elementId": "helper-keith-normalize",
+      "kind": "function",
+      "nameHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "sourceRefs": [{"path": "src/services/KeithNormalizer.ts", "lineStart": 12, "lineEnd": 24, "contentHash": "5555555555555555555555555555555555555555555555555555555555555555"}],
+      "publicOperational": false,
+      "disposition": "intentionally-internal",
+      "evidenceRefs": ["evidence/source/helper-keith-normalize.json"]
+    },
+    {
+      "elementId": "fixture-ray-health",
+      "kind": "fixture",
+      "nameHash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "sourceRefs": [{"path": "test/fixtures/ray-health.json", "lineStart": 1, "lineEnd": 8, "contentHash": "7777777777777777777777777777777777777777777777777777777777777777"}],
+      "publicOperational": false,
+      "disposition": "test-only",
+      "evidenceRefs": ["evidence/source/fixture-ray-health.json"]
+    }
+  ],
+  "counts": {
+    "total": 3,
+    "disposed": 3,
+    "canonicalDocumented": 1,
+    "intentionallyInternal": 1,
+    "testOnly": 1,
+    "generated": 0,
+    "vendor": 0,
+    "deprecatedOrSuperseded": 0,
+    "missingDocumentation": 0,
+    "unknownOrUnresolved": 0,
+    "duplicateElementIds": 0
+  },
+  "status": "complete-clean",
+  "inventoryHash": "8888888888888888888888888888888888888888888888888888888888888888",
+  "bodyStored": false
+}

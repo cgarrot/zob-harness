@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:model-attempt:v1",
+  "title": "Wheel ZOB Protected Model Attempt Telemetry v1",
+  "description": "Protected telemetry only; never expose this record to agent task contexts or story evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "missionId", "taskId", "attemptId", "assignmentId", "rolePool", "modelRoute", "underlyingFamily", "requestedThinking", "actualThinking", "promptTreatment", "policyVersions", "startedAt", "outcome", "failureClass", "usage", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.model-attempt.v1"},
+    "missionId": {"type": "string"}, "storyId": {"type": "string"}, "gateId": {"type": "string"}, "taskId": {"type": "string"},
+    "attemptId": {"type": "string"}, "assignmentId": {"type": "string"}, "rolePool": {"type": "string"},
+    "modelRoute": {"type": "object", "additionalProperties": false, "required": ["providerId", "routeId", "modelId", "modelVersion", "adapterVersion"], "properties": {"providerId": {"type": "string"}, "routeId": {"type": "string"}, "modelId": {"type": "string"}, "modelVersion": {"type": "string"}, "adapterVersion": {"type": "string"}}},
+    "underlyingFamily": {"type": "string"},
+    "requestedThinking": {"enum": ["default", "low", "medium", "high", "xhigh", "max"]},
+    "actualThinking": {"enum": ["default", "low", "medium", "high", "xhigh", "max"]},
+    "thinkingVerified": {"type": "boolean"},
+    "promptTreatment": {"type": "object", "additionalProperties": false, "required": ["variantId", "mode", "templateVersion", "promptHash", "control"], "properties": {"variantId": {"type": "string"}, "mode": {"enum": ["uniform-control", "shared-candidate", "model-candidate", "approved-optimized"]}, "templateVersion": {"type": "string"}, "promptHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "control": {"type": "boolean"}, "rescueOfVariantId": {"type": "string"}}},
+    "policyVersions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "startedAt": {"type": "string", "format": "date-time"}, "finishedAt": {"type": "string", "format": "date-time"},
+    "outcome": {"enum": ["accepted", "rejected", "failed", "blocked", "cancelled", "lost", "superseded"]},
+    "failureClass": {"enum": ["none", "provider_transient", "provider_unavailable", "rate_limit", "capability_mismatch", "context_overflow", "output_budget", "tool_environment", "permission_denied", "human_blocked", "cancelled", "prompt_candidate_failure", "model_quality_failure", "validation_failure", "review_rejection", "integration_regression", "ci_regression", "policy_violation"]},
+    "usage": {"type": "object", "additionalProperties": false, "required": ["inputTokens", "outputTokens", "costUsd", "durationMs"], "properties": {"inputTokens": {"type": "integer", "minimum": 0}, "outputTokens": {"type": "integer", "minimum": 0}, "costUsd": {"type": "number", "minimum": 0}, "durationMs": {"type": "integer", "minimum": 0}}},
+    "claimHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "evidenceRef": {"type": "string"},
+    "laterAttribution": {"type": "object", "additionalProperties": false, "properties": {"defectIds": {"type": "array", "items": {"type": "string"}}, "missIds": {"type": "array", "items": {"type": "string"}}, "attributedAt": {"type": "string", "format": "date-time"}}},
+    "bodyStored": {"const": false}
+  }
+}

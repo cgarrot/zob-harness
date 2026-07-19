@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:assurance-repair-round:v1",
+  "title": "Wheel ZOB Assurance Repair Round v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repairRoundId", "candidateId", "assuranceId", "repositoryId", "round", "nextAssuranceRound", "beforeCandidateRevision", "beforeCandidateHash", "afterCandidateRevision", "afterCandidateHash", "beforeStagingSha", "findingRefs", "auditorAssignmentIds", "repairerAssignmentIds", "repairPullRequests", "invalidatedAssuranceIds", "nextAssuranceRequired", "status", "roundHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.assurance-repair-round.v1"},
+    "repairRoundId": {"type": "string", "minLength": 8},
+    "candidateId": {"type": "string"},
+    "assuranceId": {"type": "string"},
+    "repositoryId": {"type": "string"},
+    "round": {"type": "integer", "minimum": 1, "maximum": 2},
+    "nextAssuranceRound": {"type": "integer", "minimum": 2, "maximum": 3},
+    "beforeCandidateRevision": {"type": "integer", "minimum": 1, "maximum": 2},
+    "beforeCandidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "afterCandidateRevision": {"type": "integer", "minimum": 2, "maximum": 3},
+    "afterCandidateHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "beforeStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "afterStagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "findingRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "auditorAssignmentIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "repairerAssignmentIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "repairPullRequests": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prNumber", "headSha", "targetBranch", "status", "prCloseCheckId", "blindReviewCheckId", "ciCheckSetHash"],
+        "properties": {
+          "prNumber": {"type": "integer", "minimum": 1},
+          "headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "targetBranch": {"const": "develop-staging"},
+          "status": {"enum": ["draft", "review", "qualified", "merged", "failed"]},
+          "stagingMergeSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "prCloseCheckId": {"type": "string"},
+          "blindReviewCheckId": {"type": "string"},
+          "ciCheckSetHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    },
+    "fullStagingIntegration": {"type": "object", "additionalProperties": false, "required": ["headSha", "checkId", "result"], "properties": {"headSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "checkId": {"type": "string"}, "result": {"enum": ["pass", "fail", "pending", "unknown"]}}},
+    "invalidatedAssuranceIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "nextAssuranceRequired": {"const": true},
+    "needsHumanCaseId": {"type": "string"},
+    "status": {"enum": ["repair-active", "integration-pending", "reaudit-required", "needs-human", "invalid"]},
+    "roundHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "needs-human"}}, "required": ["status"]}, "then": {"required": ["needsHumanCaseId"]}},
+    {"if": {"properties": {"status": {"const": "reaudit-required"}}, "required": ["status"]}, "then": {"required": ["afterStagingSha", "fullStagingIntegration"]}}
+  ]
+}

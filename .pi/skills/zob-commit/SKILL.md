@@ -49,6 +49,16 @@ Use only these explicit commands/tools. Do not invent aliases, shortcuts, shell 
 7. `/zcommit commit [paths/globs...]` and `zob_zcommit_run action=commit|commit_and_push` stage only the selected safe paths with `git add -- <paths>`, never `git add .` or `git add -A`, then create the Conventional Commit. Advisory validation failures are recorded in the commit body instead of blocking easy-mode commit.
 8. Run `/zcommit push` or `zob_zcommit_run action=push|commit_and_push` when push is explicitly requested, the branch/remote are allowed, the commit was created by the zcommit engine, HEAD still equals that commit, and there are no no-ship blockers. Push is not blocked by advisory validation by default.
 
+## Exact handoff-bound commit receipt
+
+A higher-level pack may require a commit to be bound to an immutable pre-commit candidate and authority. In that case `zob_zcommit_run` accepts the complete optional binding set:
+
+- `handoff_candidate_hash` — full candidate SHA-256;
+- `handoff_authority_hash` — full authority SHA-256;
+- `handoff_expected_base_sha` — exact current pre-commit HEAD.
+
+All three fields must be present together. The tool requires `action=commit`, `user_requested=true`, the exact current base HEAD, and no `push`/`commit_and_push`. Before commit, the tool proves the receipt directory is writable, repository-contained, non-symlinked, and ignored by Git. A successful commit writes a body-free receipt at `.pi/logs/zcommit-receipts/<committed-head>.json` and returns both its ref and serialized-file SHA-256. The receipt binds repository root, base/resulting HEADs, tree, branch, eligible path hashes, candidate/authority hashes, validation posture, actual commit execution, and `actualGitPushRun=false`. Do not handcraft or use a symlink for this receipt. A later domain-specific validator must resolve and independently verify it; the receipt alone grants no push, GitHub, merge, promotion, or deployment authority.
+
 ## Commit message standard
 
 Use Conventional Commits:

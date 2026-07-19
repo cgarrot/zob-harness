@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:mission:v1",
+  "title": "Wheel ZOB Mission v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "missionId", "factoryType", "status", "createdAt", "runtimeVersion", "wheelPackVersion", "repositories", "storyRefs", "policyRefs", "concurrency", "completion", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.mission.v1"},
+    "missionId": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "factoryType": {"enum": ["story-pr-close", "blind-pr-review", "staging-merge", "repository-assurance", "promotion", "post-promotion-reconciliation", "pr-ship", "post-merge-reconciliation"]},
+    "migrationReadOnly": {"const": true},
+    "status": {"enum": ["admitting", "active", "paused", "needs-human", "recovery-blocked", "complete", "failed", "cancelled"]},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "runtimeVersion": {"type": "string", "minLength": 1},
+    "wheelPackVersion": {"type": "string", "minLength": 1},
+    "repositories": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["repositoryId", "remoteRef", "baseRef"],
+        "properties": {
+          "repositoryId": {"type": "string"},
+          "remoteRef": {"type": "string"},
+          "baseRef": {"type": "string"},
+          "expectedBaseSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}
+        }
+      }
+    },
+    "storyRefs": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["storyId", "manifestRef", "manifestHash"], "properties": {"storyId": {"type": "string"}, "manifestRef": {"type": "string"}, "manifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, "additionalProperties": false}},
+    "policyRefs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["executionProfiles", "taxonomy", "permissions", "modelPolicy", "promptCatalog", "checkpointPolicy"],
+      "properties": {
+        "executionProfiles": {"type": "string"}, "taxonomy": {"type": "string"},
+        "permissions": {"type": "string"}, "modelPolicy": {"type": "string"},
+        "promptCatalog": {"type": "string"}, "checkpointPolicy": {"type": "string"}
+      }
+    },
+    "concurrency": {"type": "object", "additionalProperties": false, "required": ["global", "perStory", "perRole"], "properties": {"global": {"type": "integer", "minimum": 1}, "perStory": {"type": "integer", "minimum": 1}, "perRole": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}}},
+    "budget": {"type": "object", "additionalProperties": false, "properties": {"maxCostUsd": {"type": "number", "minimum": 0}, "maxDurationMs": {"type": "integer", "minimum": 1}, "maxAttempts": {"type": "integer", "minimum": 1}}},
+    "completion": {"type": "object", "additionalProperties": false, "required": ["requiredState", "forbiddenActions"], "properties": {"requiredState": {"type": "string"}, "forbiddenActions": {"type": "array", "items": {"enum": ["formal-review", "ready", "staging-merge", "repository-assurance", "promotion", "merge", "deploy", "publish", "provider-activation", "workflow-dispatch", "post-deploy-confirmation"]}}}},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"factoryType": {"enum": ["pr-ship", "post-merge-reconciliation"]}}, "required": ["factoryType"]},
+      "then": {"required": ["migrationReadOnly"], "properties": {"status": {"enum": ["complete", "cancelled"]}}}
+    }
+  ]
+}

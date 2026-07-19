@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel:zob:source-doc-coverage:v1",
+  "title": "Wheel ZOB Bidirectional Source Documentation Coverage v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "inventoryId", "candidateId", "repositoryId", "stagingSha", "generatorVersion", "sourceManifestHash", "canonicalDocManifestHash", "elements", "counts", "status", "inventoryHash", "bodyStored"],
+  "properties": {
+    "schema": {"const": "zob.source-doc-coverage.v1"},
+    "inventoryId": {"type": "string", "minLength": 8},
+    "candidateId": {"type": "string"},
+    "repositoryId": {"type": "string"},
+    "stagingSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "generatorVersion": {"type": "string"},
+    "adapterVersions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "sourceManifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "canonicalDocManifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["elementId", "kind", "nameHash", "sourceRefs", "publicOperational", "disposition", "evidenceRefs"],
+        "properties": {
+          "elementId": {"type": "string"},
+          "kind": {"enum": ["file", "module", "export", "class", "function", "method", "type", "enum", "constant", "wiring-edge", "route", "middleware", "handler", "api-contract", "page", "component", "hook", "control", "cli-command", "mcp-surface", "service", "job", "queue", "connector", "webhook", "database-object", "migration", "workflow", "workflow-job", "path-filter", "iac-resource", "runtime-config", "auth-boundary", "encryption-boundary", "provider-registry", "model-policy", "prompt-policy", "test", "fixture", "generated", "vendor", "observability-surface", "runbook"]},
+          "nameHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "sourceRefs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["path", "lineStart", "contentHash"], "properties": {"path": {"type": "string"}, "lineStart": {"type": "integer", "minimum": 1}, "lineEnd": {"type": "integer", "minimum": 1}, "contentHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+          "publicOperational": {"type": "boolean"},
+          "disposition": {"enum": ["canonical-documented", "intentionally-internal", "test-only", "generated", "vendor", "deprecated-or-superseded", "missing-documentation", "unknown-or-unresolved"]},
+          "docRefs": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "anchor", "claimHash"], "properties": {"path": {"type": "string"}, "anchor": {"type": "string"}, "claimHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+          "evidenceRefs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+        },
+        "allOf": [
+          {"if": {"properties": {"publicOperational": {"const": true}}, "required": ["publicOperational"]}, "then": {"properties": {"disposition": {"const": "canonical-documented"}, "docRefs": {"minItems": 1}}, "required": ["docRefs"]}}
+        ]
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "disposed", "canonicalDocumented", "intentionallyInternal", "testOnly", "generated", "vendor", "deprecatedOrSuperseded", "missingDocumentation", "unknownOrUnresolved", "duplicateElementIds"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 1},
+        "disposed": {"type": "integer", "minimum": 0},
+        "canonicalDocumented": {"type": "integer", "minimum": 0},
+        "intentionallyInternal": {"type": "integer", "minimum": 0},
+        "testOnly": {"type": "integer", "minimum": 0},
+        "generated": {"type": "integer", "minimum": 0},
+        "vendor": {"type": "integer", "minimum": 0},
+        "deprecatedOrSuperseded": {"type": "integer", "minimum": 0},
+        "missingDocumentation": {"type": "integer", "minimum": 0},
+        "unknownOrUnresolved": {"type": "integer", "minimum": 0},
+        "duplicateElementIds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "status": {"enum": ["complete-clean", "complete-blocked", "incomplete", "invalid"]},
+    "inventoryHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "bodyStored": {"const": false}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "complete-clean"}}, "required": ["status"]}, "then": {"properties": {"counts": {"properties": {"missingDocumentation": {"const": 0}, "unknownOrUnresolved": {"const": 0}, "duplicateElementIds": {"const": 0}}}}}}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "zob.evidence.v1",
+  "evidenceId": "evidence-H31-G4-T2-A1",
+  "evidenceType": "task",
+  "scope": {"missionId": "mission-demo-001", "storyId": "H31", "gateId": "H31:G4", "taskId": "H31:G4:T2", "prNumber": 4001},
+  "bindings": {"repositoryId": "join-the-wheel/jointhewheel", "branchRef": "feature/H31", "headSha": "1111111111111111111111111111111111111111", "baseSha": "2222222222222222222222222222222222222222", "mergeBaseSha": "3333333333333333333333333333333333333333", "manifestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "policyHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "receiptHashes": []},
+  "issuer": {"type": "supervisor", "id": "zobd-local", "schemaVersion": "1.0.0"},
+  "producedAt": "2026-07-18T10:30:00Z",
+  "observedAt": "2026-07-18T10:31:00Z",
+  "status": "current",
+  "artifacts": [{"artifactType": "sandbox-diff", "ref": "local:sandbox/H31-G4-T2", "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}],
+  "validationResults": [{"validationId": "V1", "commandRef": "npm test -- example-service", "exitCode": 0, "result": "pass", "outputHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "externalRef": "local:validation/H31-G4-T2-V1"}],
+  "attemptChain": [{"attemptId": "H31:G4:T2:A1", "assignmentId": "assign-V8M4", "outcome": "accepted", "claimHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}],
+  "bodyStored": false
+}
