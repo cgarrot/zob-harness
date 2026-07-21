@@ -480,6 +480,8 @@ The harness exposes ~77 tools, 25 commands, 39 specialist agents, 24 skills, and
 - `zob_delegation_catalog` — discover the right agent/contract before delegating.
 - `delegate_task` and `delegate_agent` — delegate one task or specialist agent(s).
 - `zob_context_search` — bounded repo-local context discovery.
+- `zob_read_full` — whole-file read in one call when the live context window has headroom; falls back to paginated `read` with offset/limit otherwise.
+- `zob_receive_full` — whole long response in one call (run report via `run_id` or any file via `path`) when context headroom allows; paginated `read`/`grep` otherwise.
 - `/agents` — list specialist agents.
 - `/zcommit` (and the `zob_zcommit_run` tool) — the only governed commit/push path.
 - `/compute` or `/effort` — preview/resolve a compute profile without bypassing gates.

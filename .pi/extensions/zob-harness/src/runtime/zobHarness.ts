@@ -7,6 +7,7 @@ import { registerAutonomousTools } from "./tools-autonomous.js";
 import { registerComsTools } from "./tools-coms.js";
 import { registerComputeTools } from "./tools-compute.js";
 import { registerContextTools } from "./tools-context.js";
+import { registerFileTools } from "./tools-files.js";
 import { registerDelegationTools } from "./tools-delegation.js";
 import { registerMissionControlTools } from "./tools-mission-control.js";
 import { registerFactoryTools } from "./tools-factory.js";
@@ -52,6 +53,8 @@ export default function zobHarness(pi: ExtensionAPI): void {
   registerMissionControlTools(pi);
 
   registerContextTools(pi);
+
+  registerFileTools(pi);
 
   registerComputeTools(pi);
 

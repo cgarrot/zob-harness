@@ -689,6 +689,52 @@ export type {
 } from "./src/domains/governance/file-tool-preflight.js";
 
 export {
+  FULL_READ_DEFAULT_IO,
+  FULL_READ_DEFAULT_POLICY,
+  FULL_READ_SCHEMA,
+  classifyPathForbiddenGenerated,
+  classifyPathSecret,
+  evaluateFullRead,
+  fullReadBodyFreeViolations,
+  runFullRead,
+} from "./src/domains/files/full-read.js";
+export type {
+  FullReadContextUsage,
+  FullReadDecision,
+  FullReadDetails,
+  FullReadEncoding,
+  FullReadEvaluation,
+  FullReadFacts,
+  FullReadIo,
+  FullReadPolicy,
+  FullReadReasonCode,
+  FullReadRunInput,
+  FullReadRunResult,
+  FullReadStat,
+} from "./src/domains/files/full-read.js";
+
+export {
+  DEFAULT_RUN_ARTIFACT,
+  RESPONSE_RECEIVE_SCHEMA,
+  RUN_ARTIFACT_DIRS,
+  isPathSafeArtifactName,
+  isPathSafeRunId,
+  receiveFullResponse,
+  resolveRunArtifact,
+  responseReceiveBodyFreeViolations,
+  runDirRelative,
+} from "./src/domains/files/response-receive.js";
+export type {
+  ResponseReceiveDetails,
+  ResponseReceiveInput,
+  ResponseReceiveReasonCode,
+  ResponseReceiveResult,
+  ResponseReceiveRunType,
+  ResponseReceiveSource,
+  RunArtifactResolution,
+} from "./src/domains/files/response-receive.js";
+
+export {
   validateSandboxWritePlanInputs,
   runSandboxWritePlan,
   validateSandboxIsolatedExecutionInputs,

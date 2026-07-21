@@ -643,6 +643,20 @@ const ContextWritebackProposalParams = Type.Object({
   recommendedArtifact: Type.String({ description: "Safe repo-relative support artifact recommendation." }),
 });
 
+const FullReadParams = Type.Object({
+  path: Type.String({ description: "Path to the file to read in full. Repo-relative or absolute; resolved against cwd." }),
+  encoding: Type.Optional(Type.String({ description: "File encoding. v1 supports utf8 only (default). Any other value (e.g. base64) is refused with binary_not_supported." })),
+  max_bytes: Type.Optional(Type.Integer({ description: "Optional per-call hard byte ceiling override (must be > 0). Tightens the default 2MB ceiling for this call only.", minimum: 1 })),
+});
+
+const ReceiveFullParams = Type.Object({
+  path: Type.Optional(Type.String({ description: "Repo-relative path to a response/artifact file. Exactly one of path or run_id must be provided." })),
+  run_id: Type.Optional(Type.String({ description: "Run id under reports/factory-runs|orchestrations|chains. Resolves to the run's persisted report artifact (default final-report.md). Exactly one of path or run_id must be provided." })),
+  run_type: Type.Optional(StringEnum(["factory", "orchestration", "chain"] as const, { description: "Run type for run_id resolution. If omitted, auto-detected by directory existence in order factory, orchestration, chain." })),
+  artifact: Type.Optional(Type.String({ description: "Specific artifact filename within the run dir (e.g. final-report.md, agentic-results.json). Must be a single basename (no slashes). Default final-report.md." })),
+  max_bytes: Type.Optional(Type.Integer({ description: "Optional per-call hard byte ceiling override; tightens the default 2MB ceiling only (cannot enlarge it).", minimum: 1 })),
+});
+
 const AutonomousDryRunParams = Type.Object({
   user_need: Type.String({ description: "Original user need/spec to dry-run through spec gate. Raw text is hashed in persisted reports." }),
   refined_spec: Type.Optional(Type.String({ description: "Optional refined spec after clarification. Raw text is hashed in persisted reports." })),
@@ -788,6 +802,8 @@ export {
   ContextSearchParams,
   ContextScopeValidateParams,
   ContextWritebackProposalParams,
+  FullReadParams,
+  ReceiveFullParams,
   ProjectDnaReadinessParams,
   ProjectDnaPlanWorkflowParams,
   ProjectDnaQueryParams,

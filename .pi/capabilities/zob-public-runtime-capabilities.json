@@ -1130,6 +1130,46 @@
       "noShipNotes": "Readiness check only."
     },
     {
+      "name": "zob_read_full",
+      "family": "files",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-file-read/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md",
+        "README.md"
+      ],
+      "noShipNotes": "Whole-file read only; returns content iff path passes secret/generated-path safety, the file is a readable utf8 regular file under the hard byte ceiling, and (when the context window is known) estimated tokens fit the context headroom (allowedTokens = min(availableTokens*(1-safetyMargin/100), contextWindow*0.5)); otherwise blocks with pagination guidance and no content. Never reads .env/~/.ssh/~/.aws/*.pem/*.key (including via symlinks, blocked as symlink_resolves_to_zero_access after realpath canonicalization), node_modules, dist, build, .pi/sessions, .pi/agent-sessions; v1 utf8 only (non-utf8 -> binary_not_supported); telemetry is body-free (details carry hashes/counts only, bodyStored:false); does not bypass the file-tool preflight or other safety gates."
+    },
+    {
+      "name": "zob_receive_full",
+      "family": "files",
+      "modes": [
+        "explore",
+        "plan",
+        "implement",
+        "oracle",
+        "factory",
+        "orchestrator"
+      ],
+      "skillRefs": [
+        ".pi/skills/zob-file-read/SKILL.md"
+      ],
+      "docRefs": [
+        ".pi/extensions/zob-harness/src/AGENTS.md",
+        "README.md"
+      ],
+      "noShipNotes": "Long-response receive only; returns content iff exactly one source is provided (path or run_id) and the resolved target passes the shared file-tool preflight path/secret safety (lexical zero-access + realpath symlink check inherited from zob_read_full's runFullRead), is a readable utf8 regular file under the hard byte ceiling, and (when the context window is known) estimated tokens fit the context headroom (allowedTokens = min(availableTokens*(1-safetyMargin/100), contextWindow*0.5)); otherwise blocks with recovery guidance and no content. run_id resolves ONLY to a run's persisted report artifact under reports/factory-runs|orchestrations|chains/<runId>/ (default final-report.md, or a named single-basename artifact) — raw child output bodies are NOT persisted (body-free harness) and cannot be retrieved; run_id and artifact are validated path-safe (alphanumeric/.//- only, no slashes or ..) before any resolution, refusing run_id_unsafe/artifact_unsafe/run_not_found/artifact_not_found. max_bytes tightens the 2MB ceiling only (cannot enlarge). Telemetry is body-free (details carry hashes/counts/source metadata only, bodyStored:false); does not bypass the file-tool preflight or other safety gates."
+    },
+    {
       "name": "zob_context_validate_scope",
       "family": "context",
       "modes": [
