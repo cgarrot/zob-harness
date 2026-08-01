@@ -57,7 +57,7 @@ Use this skill whenever you are about to call `delegate_agent` or `delegate_task
 | `child_goal` | `childGoal` |
 | `load_skills` | `loadSkills` (still reserved/non-empty values are gated) |
 
-- `delegate_task` infers `required_tools` from the selected agent when omitted.
+- `delegate_task` infers its structured `required_tools` JSON field from the selected agent when omitted. This does not make the textual `REQUIRED TOOLS:` section optional in free-form `delegate_agent` task contracts; that literal section remains mandatory.
 - Omit `delegate_task.model`/`delegate_agent.model` by default. Explicit model overrides are exceptional and require current availability/auth proof for the concrete provider/model; desired/configured/catalogued models are preferences only, not availability. Fallback is to omit `model` and use the parent/session default.
 - Set `required_tools` only to narrow the agent's tools, not to add tools.
 - Do not request `bash` for `planner`; planner is read-only with `read`, `grep`, `find`, and `ls`.

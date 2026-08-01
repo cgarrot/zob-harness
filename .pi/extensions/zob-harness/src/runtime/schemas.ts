@@ -39,7 +39,7 @@ const ChildGoalParams = Type.Object({
 
 const TaskItem = Type.Object({
   agent: Type.String({ description: "Specialist agent name" }),
-  task: Type.String({ description: "Six-part task contract or focused prompt" }),
+  task: Type.String({ description: "Required exact six-part contract with literal TASK, EXPECTED OUTCOME, REQUIRED TOOLS, MUST DO, MUST NOT DO, and CONTEXT sections. A focused prompt without these sections is rejected." }),
   cwd: Type.Optional(Type.String({ description: "Override cwd for this child Pi process" })),
   thinking: Type.Optional(ThinkingLevelSchema),
   child_goal: Type.Optional(ChildGoalParams),

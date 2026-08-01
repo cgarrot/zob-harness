@@ -9,6 +9,7 @@ import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-ag
 import { discoverAgents } from "./agents.js";
 import { SUPERVISED_READONLY_CHILD_TOOLS } from "../../core/constants.js";
 import { validateExplicitModelOverride } from "../models/model-availability.js";
+import { resolveChildProviderExtension } from "../models/child-provider-extension.js";
 import { applyChildGates } from "./output-contracts.js";
 import { buildChildEnv } from "../governance/safety.js";
 import { updateUsage, usageEmpty } from "../telemetry/telemetry.js";
@@ -38,6 +39,169 @@ function providerFromModelPattern(model: string | undefined): string | undefined
   const [provider] = model.split("/");
   return provider && provider !== model ? provider : undefined;
 }
+
+export function buildIsolatedChildArgs(input: {
+  providerExtension?: string;
+  codexFastModeExtension?: string;
+  childSafetyExtension?: string;
+}): string[] {
+  const args = ["--mode", "json", "-p", "--no-extensions"];
+  const extensions = [...new Set([
+    input.providerExtension,
+    input.codexFastModeExtension,
+    input.childSafetyExtension,
+  ].filter((value): value is string => Boolean(value)))];
+  for (const extension of extensions) args.push("-e", extension);
+  return args;
+}
+
+export type ChildModelProbeResult = { ok: boolean; reason?: string };
+export type ChildModelProbeRequest = {
+  repoRoot: string;
+  model: string;
+  providerExtension?: string;
+  signal?: AbortSignal;
+};
+type ChildModelListRun = { code: number; stdout: string; stderr: string; timedOut: boolean };
+type ChildModelListRunner = (input: Omit<ChildModelProbeRequest, "signal">) => Promise<ChildModelListRun>;
+type ChildModelProbeReadable = {
+  setEncoding(encoding: BufferEncoding): unknown;
+  on(event: "data", listener: (chunk: string) => void): unknown;
+};
+export type ChildModelProbeProcess = {
+  stdout: ChildModelProbeReadable;
+  stderr: ChildModelProbeReadable;
+  kill(signal: NodeJS.Signals): boolean;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "close", listener: (code: number | null) => void): unknown;
+};
+export type ChildModelProbeSpawner = (input: {
+  command: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}) => ChildModelProbeProcess;
+
+const CHILD_MODEL_PROBE_TTL_MS = 60_000;
+const CHILD_MODEL_PROBE_TIMEOUT_MS = 30_000;
+const CHILD_MODEL_PROBE_KILL_GRACE_MS = 5_000;
+const CHILD_MODEL_PROBE_OUTPUT_LIMIT = 128 * 1024;
+
+export function modelListHasExactModel(output: string, expectedModel: string): boolean {
+  const separator = expectedModel.indexOf("/");
+  const expectedProvider = separator === -1 ? undefined : expectedModel.slice(0, separator);
+  const expectedId = separator === -1 ? expectedModel : expectedModel.slice(separator + 1);
+  return output.split(/\r?\n/).some((line) => {
+    const [provider, model] = line.trim().split(/\s+/);
+    if (!provider || !model || provider === "provider") return false;
+    return expectedProvider ? provider === expectedProvider && model === expectedId : model === expectedId;
+  });
+}
+
+export async function runChildModelListProbe(input: Omit<ChildModelProbeRequest, "signal">, options: {
+  spawnChild?: ChildModelProbeSpawner;
+  timeoutMs?: number;
+  killGraceMs?: number;
+} = {}): Promise<ChildModelListRun> {
+  const args = ["--no-extensions"];
+  if (input.providerExtension) args.push("-e", input.providerExtension);
+  args.push("--list-models", input.model);
+  const invocation = getPiInvocation(args);
+  const spawnChild = options.spawnChild ?? ((spawnInput) => spawn(spawnInput.command, spawnInput.args, {
+    cwd: spawnInput.cwd,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: spawnInput.env,
+  }));
+  return new Promise<ChildModelListRun>((resolveProbe) => {
+    const child = spawnChild({
+      command: invocation.command,
+      args: invocation.args,
+      cwd: input.repoRoot,
+      env: buildChildEnv(input.repoRoot),
+    });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    let killTimer: NodeJS.Timeout | undefined;
+    const appendBounded = (current: string, chunk: string): string => `${current}${chunk}`.slice(-CHILD_MODEL_PROBE_OUTPUT_LIMIT);
+    const finish = (result: ChildModelListRun): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
+      resolveProbe(result);
+    };
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => child.kill("SIGKILL"), options.killGraceMs ?? CHILD_MODEL_PROBE_KILL_GRACE_MS);
+      killTimer.unref();
+    }, options.timeoutMs ?? CHILD_MODEL_PROBE_TIMEOUT_MS);
+    timeout.unref();
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout = appendBounded(stdout, chunk); });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => { stderr = appendBounded(stderr, chunk); });
+    child.on("error", (error) => finish({ code: 1, stdout, stderr: appendBounded(stderr, error.message), timedOut }));
+    child.on("close", (code) => finish({ code: code ?? 1, stdout, stderr, timedOut }));
+  });
+}
+
+function waitForSharedProbe(shared: Promise<ChildModelProbeResult>, signal: AbortSignal | undefined): Promise<ChildModelProbeResult> {
+  if (!signal) return shared;
+  if (signal.aborted) return Promise.resolve({ ok: false, reason: "child model availability probe aborted" });
+  return new Promise<ChildModelProbeResult>((resolveWaiter) => {
+    let settled = false;
+    const finish = (result: ChildModelProbeResult): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      resolveWaiter(result);
+    };
+    const abort = (): void => finish({ ok: false, reason: "child model availability probe aborted" });
+    signal.addEventListener("abort", abort, { once: true });
+    void shared.then(finish);
+  });
+}
+
+export function createChildModelAvailabilityProbe(options: {
+  runner?: ChildModelListRunner;
+  cacheTtlMs?: number;
+  now?: () => number;
+} = {}): (input: ChildModelProbeRequest) => Promise<ChildModelProbeResult> {
+  const runner = options.runner ?? runChildModelListProbe;
+  const cacheTtlMs = options.cacheTtlMs ?? CHILD_MODEL_PROBE_TTL_MS;
+  const now = options.now ?? Date.now;
+  const successCache = new Map<string, number>();
+  const inFlight = new Map<string, Promise<ChildModelProbeResult>>();
+  return async (input) => {
+    if (input.signal?.aborted) return { ok: false, reason: "child model availability probe aborted" };
+    const cacheKey = JSON.stringify([input.repoRoot, input.model, input.providerExtension ?? ""]);
+    const expiresAt = successCache.get(cacheKey) ?? 0;
+    if (expiresAt > now()) return { ok: true };
+    successCache.delete(cacheKey);
+
+    let shared = inFlight.get(cacheKey);
+    if (!shared) {
+      shared = runner({ repoRoot: input.repoRoot, model: input.model, providerExtension: input.providerExtension }).then((run) => {
+        if (run.timedOut) return { ok: false, reason: "child model availability probe timed out" };
+        const diagnostic = `${run.stdout}\n${run.stderr}`.trim();
+        if (run.code !== 0) return { ok: false, reason: diagnostic || `child model availability probe exited ${run.code}` };
+        if (!modelListHasExactModel(run.stdout, input.model)) {
+          return { ok: false, reason: `exact model '${input.model}' was not present in child model listing` };
+        }
+        successCache.set(cacheKey, now() + cacheTtlMs);
+        return { ok: true };
+      }).finally(() => inFlight.delete(cacheKey));
+      inFlight.set(cacheKey, shared);
+    }
+    return waitForSharedProbe(shared, input.signal);
+  };
+}
+
+const probeChildModelAvailability = createChildModelAvailabilityProbe();
 
 function resolveCodexFastModeExtension(ctx: ExtensionContext, model: string | undefined): string | undefined {
   const provider = providerFromModelPattern(model) ?? ctx.model?.provider;
@@ -149,6 +313,52 @@ async function runChildAgent(
     };
   }
 
+  const provider = providerFromModelPattern(resolvedModel);
+  const trustAwareContext = ctx as ExtensionContext & { isProjectTrusted?: () => boolean };
+  const providerExtension = resolveChildProviderExtension({
+    repoRoot: ctx.cwd,
+    agentDir: getAgentDir(),
+    provider,
+    projectTrusted: trustAwareContext.isProjectTrusted?.() === true,
+  });
+  if (providerExtension.errors.length > 0) {
+    return {
+      ...result,
+      exitCode: 1,
+      output: `Delegation preflight failed (no child launched):\n- ${providerExtension.errors.join("\n- ")}`,
+      gatePassed: false,
+      gateErrors: providerExtension.errors,
+      contractErrors: providerExtension.errors,
+      failureKind: "config",
+      errorMessage: `Configuration blocked; no child launched: ${providerExtension.errors.join("; ")}`,
+    };
+  }
+
+  if (resolvedModel) {
+    const modelProbe = await probeChildModelAvailability({
+      repoRoot: ctx.cwd,
+      model: resolvedModel,
+      providerExtension: providerExtension.source,
+      signal,
+    });
+    if (!modelProbe.ok) {
+      const remediation = providerExtension.source
+        ? `approved provider extension '${providerExtension.source}' was loaded, but the exact model is unavailable; verify the current model id and provider authentication`
+        : `no approved local provider extension was found for '${provider ?? "unknown"}'; switch the parent/session to a built-in model and omit model, or configure an approved local child provider extension`;
+      const errors = [`child model '${resolvedModel}' is unavailable under the isolated --no-extensions launcher: ${modelProbe.reason ?? "model not listed"}; ${remediation}`];
+      return {
+        ...result,
+        exitCode: 1,
+        output: `Delegation preflight failed (no child launched):\n- ${errors.join("\n- ")}`,
+        gatePassed: false,
+        gateErrors: errors,
+        contractErrors: errors,
+        failureKind: "config",
+        errorMessage: `Configuration blocked; no child launched: ${errors.join("; ")}`,
+      };
+    }
+  }
+
   const tmp = await mkdtemp(join(tmpdir(), "zob-agent-"));
   const agentSessionDir = join(ctx.cwd, ".pi", "agent-sessions");
   mkdirSync(agentSessionDir, { recursive: true });
@@ -159,9 +369,11 @@ async function runChildAgent(
   try {
     const childSafetyExtension = join(ctx.cwd, ".pi", "extensions", "zob-child-safety", "index.ts");
     const childCodexFastModeExtension = resolveCodexFastModeExtension(ctx, resolvedModel);
-    const args = ["--mode", "json", "-p", "--no-extensions"];
-    if (childCodexFastModeExtension) args.push("-e", childCodexFastModeExtension);
-    if (existsSync(childSafetyExtension)) args.push("-e", childSafetyExtension);
+    const args = buildIsolatedChildArgs({
+      providerExtension: providerExtension.source,
+      codexFastModeExtension: childCodexFastModeExtension,
+      childSafetyExtension: existsSync(childSafetyExtension) ? childSafetyExtension : undefined,
+    });
     args.push("--session", sessionPath);
     const model = resolvedModel;
     if (model) args.push("--model", model);

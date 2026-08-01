@@ -18,6 +18,8 @@ argument-hint: "<task>"
    - Prior evidence:
    - Downstream use:
 
+The textual `REQUIRED TOOLS:` section above is mandatory for every free-form `delegate_agent` task. The structured `delegate_task.required_tools` JSON field is different: it is optional and should normally be omitted so the harness can infer the selected agent's declared tools; set it only to narrow that allowlist.
+
 Structured `delegate_task` JSON uses canonical keys: `expected_outcome`, `required_tools`, `must_do`, `must_not_do`, `original_user_ask`, `allowed_paths`, `forbidden_paths`, `output_contract`, `run_in_background`, `child_goal`, `load_skills`. Safe aliases such as `expectedOutcome`, `mustDo`, `mustNotDo`/`must_not`/`mustNot`, `originalUserAsk`, `allowedPaths`, `forbiddenPaths`, `requiredTools`, `outputContract`, `runInBackground`, `childGoal`, and `loadSkills` are accepted only when they do not conflict with canonical values.
 
 Omit delegation `model` overrides by default; use the parent/session default. An explicit `delegate_task.model` or `delegate_agent.model` is exceptional and requires current runtime availability/auth proof for the concrete provider/model. Desired, configured, or catalogued models are preferences only, not availability; if proof is missing, omit `model`.

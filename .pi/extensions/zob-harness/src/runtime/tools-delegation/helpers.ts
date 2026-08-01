@@ -986,6 +986,7 @@ export function buildDelegationCatalog(repoRoot: string, scope: AgentScope, incl
       doNotInventOutputContracts: true,
       ifUncertain: "Call zob_delegation_catalog before the first delegation or when agent/contract routing is ambiguous.",
       auditRouting: "For an audit/verdict/no_ship review, use oracle with oracle.v1; do not use planner plus a made-up audit.v1.",
+      requiredToolsDistinction: "delegate_agent task text must contain a non-empty REQUIRED TOOLS section; delegate_task.required_tools is a separate optional JSON narrowing field and may be omitted for inference.",
       delegateTaskCanonicalFields: ["expected_outcome", "required_tools", "must_do", "must_not_do", "original_user_ask", "allowed_paths", "forbidden_paths", "output_contract", "run_in_background", "child_goal", "load_skills"],
       delegateTaskSafeAliases: { expected_outcome: ["expectedOutcome"], required_tools: ["requiredTools"], must_do: ["mustDo"], must_not_do: ["mustNotDo", "must_not", "mustNot"], original_user_ask: ["originalUserAsk"], allowed_paths: ["allowedPaths"], forbidden_paths: ["forbiddenPaths"], output_contract: ["outputContract"], run_in_background: ["runInBackground"], child_goal: ["childGoal"], load_skills: ["loadSkills"] },
     },
@@ -1005,6 +1006,7 @@ export function formatDelegationCatalogSummary(catalog: Record<string, unknown>)
   const lines = [
     `zob_delegation_catalog: ${agents.length} agents, ${contracts.length} output contracts`,
     "Rule: normally omit delegate_task.output_contract; the harness infers it from agent.",
+    "Contract rule: delegate_agent task text must contain REQUIRED TOOLS; delegate_task.required_tools is a separate optional JSON narrowing field and may be omitted for inference.",
     "delegate_task canonical JSON keys: expected_outcome, required_tools, must_do, must_not_do, original_user_ask, allowed_paths, forbidden_paths, output_contract, run_in_background, child_goal, load_skills.",
     "Safe aliases are accepted only when non-conflicting: expectedOutcome, requiredTools, mustDo, mustNotDo/must_not/mustNot, originalUserAsk, allowedPaths, forbiddenPaths, outputContract, runInBackground, childGoal, loadSkills.",
     "If you need an audit/verdict/no_ship review, route to oracle/oracle.v1, not planner/audit.v1.",
